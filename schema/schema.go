@@ -17,6 +17,7 @@ func GenerateSchema[T any]() anthropic.ToolInputSchemaParam {
 
 	schema := reflector.Reflect(v)
 
+	// Define the shape of input that the tools accept
 	return anthropic.ToolInputSchemaParam{
 		Properties: schema.Properties,
 	}

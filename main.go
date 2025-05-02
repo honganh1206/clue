@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 
 	"github.com/honganh1206/code-editing-agent/agent"
 	"github.com/honganh1206/code-editing-agent/tools"
@@ -32,9 +33,13 @@ func main() {
 		return scanner.Text(), true
 	}
 
+	// Register tools
 	tools := []tools.ToolDefinition{tools.ReadFileDefinition}
 
-	agent := agent.New(&client, getUserMsg, tools)
+	// TODO: Make this more configurable to different prompts
+	promptPath, err := filepath.Abs("./prompts/simple.txt")
+
+	agent := agent.New(&client, getUserMsg, tools, promptPath)
 	err = agent.Run(context.TODO()) // Empty context when unclear what context to use
 	if err != nil {
 		fmt.Printf("Error: %s\n", err.Error())
