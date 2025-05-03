@@ -8,11 +8,11 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/honganh1206/code-editing-agent/agent"
+	"github.com/honganh1206/code-editing-agent/inference"
 	"github.com/honganh1206/code-editing-agent/tools"
 
-	"github.com/anthropics/anthropic-sdk-go"
-	"github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/joho/godotenv"
 )
 
@@ -23,7 +23,24 @@ func main() {
 	}
 	key := os.Getenv("ANTHROPIC_API_KEY")
 
-	client := anthropic.NewClient(option.WithAPIKey(key))
+	// TODO: Make this more configurable to different prompts
+	promptPath, err := filepath.Abs("./prompts/system.txt")
+
+	if err != nil {
+		fmt.Printf("Error: %s\n", err.Error())
+	}
+
+	// TODO: Command line args to configure model
+	engineConfig := inference.EngineConfig{
+		Type:       "anthropic",
+		PromptPath: promptPath,
+		Model:      anthropic.ModelClaude3_7SonnetLatest,
+		MaxTokens:  1024,
+		Key:        key,
+	}
+
+	engine, err := inference.CreateEngine(engineConfig)
+
 	scanner := bufio.NewScanner(os.Stdin)
 
 	getUserMsg := func() (string, bool) {
@@ -34,12 +51,8 @@ func main() {
 	}
 
 	// Register tools
-	tools := []tools.ToolDefinition{tools.ReadFileDefinition}
-
-	// TODO: Make this more configurable to different prompts
-	promptPath, err := filepath.Abs("./prompts/simple.txt")
-
-	agent := agent.New(&client, getUserMsg, tools, promptPath)
+	tools := []tools.AnthropicToolDefinition{tools.ReadFileDefinition, tools.ListFilesDefinition}
+	agent := agent.New(engine, getUserMsg, tools, promptPath)
 	err = agent.Run(context.TODO()) // Empty context when unclear what context to use
 	if err != nil {
 		fmt.Printf("Error: %s\n", err.Error())

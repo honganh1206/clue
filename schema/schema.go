@@ -5,9 +5,17 @@ import (
 	"github.com/invopop/jsonschema" // Generate JSON schema from Go types
 )
 
+func GenerateAnthropicSchema[T any]() anthropic.ToolInputSchemaParam {
+	schema := generateRawSchema[T]()
+	// Define the shape of input that the tools accept
+	return anthropic.ToolInputSchemaParam{
+		Properties: schema.Properties,
+	}
+}
+
 // Translate Go structs into JSON schema during runtime
 // Thus producing a standard format usable outside Go
-func GenerateSchema[T any]() anthropic.ToolInputSchemaParam {
+func generateRawSchema[T any]() *jsonschema.Schema {
 	reflector := jsonschema.Reflector{
 		AllowAdditionalProperties: false,
 		DoNotReference:            true,
@@ -15,10 +23,8 @@ func GenerateSchema[T any]() anthropic.ToolInputSchemaParam {
 
 	var v T
 
-	schema := reflector.Reflect(v)
+	rawSchema := reflector.Reflect(v)
 
-	// Define the shape of input that the tools accept
-	return anthropic.ToolInputSchemaParam{
-		Properties: schema.Properties,
-	}
+	return rawSchema
+
 }

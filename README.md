@@ -11,30 +11,34 @@ A simple AI code editing agent
 
 - [>] Add prompting
 - [ ] Options for local models via Ollama?
-- [ ] Switching between different inference engines (OpenAI/Anthropic/etc.)
+- [>] Switching between different inference engines (OpenAI/Anthropic/etc.)
 - [ ] Make the output coming out smoother (streaming?)
-- [ ] Add option to judge code?
 - [ ] Send image content block (For what? We dont know-keep going!)
 - [ ] Add thinking option (Start from Sonnet 3.7+)
 - [ ] MCP server?
 
+Profiles
+
+- [ ] Write
+- [ ] Ask
+- [ ] Manual
+
 Tools
 
-- [ ] Data parser
-- [ ] Statistical Analysis
-- [ ] Web search
-- [ ] Knowledge base query
-- [ ] Document generator
-- [ ] Code generator from natural language
-- [ ] Form builder
-- [ ] Scheduling assistant
-- [ ] Code base search
-- [ ] Propose & run terminal commands
-- [ ] Grep search
-- [ ] Fuzzy file search
-- [ ] Delete files
-- [ ] Call smarter models
-- [ ] Retrieve the history of recent changes
+- [ ] `copy_path`
+- [ ] `create_directory`
+- [ ] `web_search`
+- [ ] `knowledge_query`
+- [ ] `gen_doc`
+- [ ] `gen_code`
+- [ ] `judge_code`
+- [ ] `create_file`
+- [ ] `schedule`
+- [ ] `grep_search`
+- [ ] `propose_cmd`
+- [ ] `fuzzy_search`
+- [ ] `call_smarter_models`
+- [ ] `thinking`
 
 ## Refs
 

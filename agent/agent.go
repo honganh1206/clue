@@ -4,22 +4,22 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 
 	"github.com/anthropics/anthropic-sdk-go"
+	"github.com/honganh1206/code-editing-agent/inference"
 	"github.com/honganh1206/code-editing-agent/tools"
 )
 
 type Agent struct {
-	client         *anthropic.Client
+	engine         inference.Engine
 	getUserMessage func() (string, bool)
-	tools          []tools.ToolDefinition
+	tools          []tools.AnthropicToolDefinition
 	promptPath     string
 }
 
-func New(client *anthropic.Client, getUserMsg func() (string, bool), tools []tools.ToolDefinition, promptPath string) *Agent {
+func New(engine inference.Engine, getUserMsg func() (string, bool), tools []tools.AnthropicToolDefinition, promptPath string) *Agent {
 	return &Agent{
-		client:         client,
+		engine:         engine,
 		getUserMessage: getUserMsg,
 		tools:          tools,
 		promptPath:     promptPath,
@@ -48,7 +48,7 @@ func (a *Agent) Run(ctx context.Context) error {
 		}
 
 		// Draw conclusions from prior knowledge
-		agentMsg, err := a.runInference(ctx, conversation)
+		agentMsg, err := a.engine.RunInference(ctx, conversation, a.tools)
 		if err != nil {
 			return err
 		}
@@ -85,42 +85,8 @@ func (a *Agent) Run(ctx context.Context) error {
 	return nil
 }
 
-func (a *Agent) runInference(ctx context.Context, conversation []anthropic.MessageParam) (*anthropic.Message, error) {
-	// Grouping tools together in an unified interface for code, bash and text editor?
-	// No need to know the internal details
-	anthropicTools := []anthropic.ToolUnionParam{}
-	// FIXME: A loop inside a loop in Run
-	for _, tool := range a.tools {
-		anthropicTools = append(anthropicTools, anthropic.ToolUnionParam{
-			OfTool: &anthropic.ToolParam{
-				Name:        tool.Name,
-				Description: anthropic.String(tool.Description),
-				InputSchema: tool.InputSchema,
-			},
-		})
-	}
-
-	prompt, err := a.loadPromptFile()
-	if err != nil {
-		return nil, err
-	}
-
-	// Configurations for messages like models, modes, token count, etc.
-	msg, err := a.client.Messages.New(ctx, anthropic.MessageNewParams{
-		Model:     anthropic.ModelClaude3_7SonnetLatest, // TODO: Make this more configurable
-		MaxTokens: int64(1024),
-		Messages:  conversation,   // Alternate between two roles: user/assistant with corresponding content
-		Tools:     anthropicTools, // This will then be wrapped inside a system prompt
-		System: []anthropic.TextBlockParam{
-			{Text: prompt},
-		},
-	})
-
-	return msg, err
-}
-
 func (a *Agent) executeTool(id, name string, input json.RawMessage) anthropic.ContentBlockParamUnion {
-	var toolDef tools.ToolDefinition
+	var toolDef tools.AnthropicToolDefinition
 	var found bool
 
 	for _, tool := range a.tools {
@@ -143,17 +109,4 @@ func (a *Agent) executeTool(id, name string, input json.RawMessage) anthropic.Co
 	}
 
 	return anthropic.NewToolResultBlock(id, response, false)
-}
-
-func (a *Agent) loadPromptFile() (string, error) {
-	if a.promptPath == "" {
-		return "", nil
-	}
-
-	data, err := os.ReadFile(a.promptPath)
-	if err != nil {
-		return "", fmt.Errorf("failed to read prompt file: %w", err)
-	}
-
-	return string(data), nil
 }
