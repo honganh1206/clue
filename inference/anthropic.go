@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/anthropics/anthropic-sdk-go"
-	"github.com/honganh1206/code-editing-agent/tools"
+	"github.com/honganh1206/adrift/tools"
 )
 
 type AnthropicEngine struct {

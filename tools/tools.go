@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/anthropics/anthropic-sdk-go"
-	"github.com/honganh1206/code-editing-agent/schema"
+	"github.com/honganh1206/adrift/schema"
 )
 
 type AnthropicToolDefinition struct {

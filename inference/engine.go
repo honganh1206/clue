@@ -3,10 +3,11 @@ package inference
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
-	"github.com/honganh1206/code-editing-agent/tools"
+	"github.com/honganh1206/adrift/tools"
 )
 
 // Generic chat message
@@ -36,13 +37,15 @@ type EngineConfig struct {
 	PromptPath string
 	Model      string
 	MaxTokens  int64
-	Key        string
 }
 
 func CreateEngine(config EngineConfig) (Engine, error) {
+	var key string
+
 	switch config.Type {
 	case "anthropic":
-		client := anthropic.NewClient(option.WithAPIKey(config.Key))
+		key = os.Getenv("ANTHROPIC_API_KEY")
+		client := anthropic.NewClient(option.WithAPIKey(key))
 		return NewAnthropicEngine(&client, config.PromptPath, config.Model, config.MaxTokens), nil
 
 	// case "openai":

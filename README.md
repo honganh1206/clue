@@ -50,3 +50,5 @@ Tools
 - [code-judger](https://github.com/mrnugget/code-judger)
 - [jan](https://github.com/menloresearch/jan/blob/dev/core/src/types/model/modelEntity.ts#L16)
 - [mcp-go](https://github.com/mark3labs/mcp-go/tree/main)
+- [go-grep](https://github.com/rastasheep/go-grep)
+- [deepseek-go (client for DeepSeek and Ollama)](https://github.com/cohesion-org/deepseek-go)

@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	"github.com/anthropics/anthropic-sdk-go"
-	"github.com/honganh1206/code-editing-agent/inference"
-	"github.com/honganh1206/code-editing-agent/tools"
+	"github.com/honganh1206/adrift/inference"
+	"github.com/honganh1206/adrift/tools"
 )
 
 type Agent struct {

@@ -1,4 +1,4 @@
-module github.com/honganh1206/code-editing-agent
+module github.com/honganh1206/adrift
 
 go 1.23.3
 

@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 
 	"github.com/anthropics/anthropic-sdk-go"
-	"github.com/honganh1206/code-editing-agent/agent"
-	"github.com/honganh1206/code-editing-agent/inference"
-	"github.com/honganh1206/code-editing-agent/tools"
+	"github.com/honganh1206/adrift/agent"
+	"github.com/honganh1206/adrift/inference"
+	"github.com/honganh1206/adrift/tools"
 
 	"github.com/joho/godotenv"
 )
