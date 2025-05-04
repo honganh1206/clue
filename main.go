@@ -21,7 +21,6 @@ func main() {
 	if err != nil {
 		log.Fatal("Error loading .env file")
 	}
-	key := os.Getenv("ANTHROPIC_API_KEY")
 
 	// TODO: Make this more configurable to different prompts
 	promptPath, err := filepath.Abs("./prompts/system.txt")
@@ -36,7 +35,6 @@ func main() {
 		PromptPath: promptPath,
 		Model:      anthropic.ModelClaude3_7SonnetLatest,
 		MaxTokens:  1024,
-		Key:        key,
 	}
 
 	engine, err := inference.CreateEngine(engineConfig)
