@@ -1,4 +1,6 @@
-A simple AI code editing agent
+A simple CLI-based AI coding agent
+
+If this proves to be helpful to anyone, consider it my thanks to the open-source community :)
 
 ## Use
 
@@ -10,11 +12,13 @@ A simple AI code editing agent
 ## TODOs
 
 - [>] Add prompting
+- [ ] CLI interface
 - [ ] Options for local models via Ollama?
 - [>] Switching between different inference engines (OpenAI/Anthropic/etc.)
 - [ ] Make the output coming out smoother (streaming?)
 - [ ] Send image content block (For what? We dont know-keep going!)
-- [ ] Add thinking option (Start from Sonnet 3.7+)
+- [ ] Add thinking option (Start from Claude Sonnet 3.7+)
+- [ ] Add profiles
 - [ ] MCP server?
 
 Profiles
@@ -22,6 +26,7 @@ Profiles
 - [ ] Write
 - [ ] Ask
 - [ ] Manual
+- [ ] Minimal
 
 Tools
 
@@ -45,10 +50,11 @@ Tools
 - [anthropic-sdk-go (Official package from Anthropic)](https://github.com/anthropics/anthropic-sdk-go)
 - [openai-sdk-go](https://github.com/openai/openai-go)
 - [anthropic-sdk-go (Unofficial package)](https://github.com/unfunco/anthropic-sdk-go)
-- [cline](https://github.com/cline/cline)
-- [serena](https://github.com/oraios/serena)
-- [code-judger](https://github.com/mrnugget/code-judger)
-- [jan](https://github.com/menloresearch/jan/blob/dev/core/src/types/model/modelEntity.ts#L16)
-- [mcp-go](https://github.com/mark3labs/mcp-go/tree/main)
-- [go-grep](https://github.com/rastasheep/go-grep)
-- [deepseek-go (client for DeepSeek and Ollama)](https://github.com/cohesion-org/deepseek-go)
+- [cobra](https://github.com/spf13/cobra) - CLI
+- [cline](https://github.com/cline/cline) - Tool ideas, prompts and models?
+- [serena](https://github.com/oraios/serena) - Tool ideas, prompts and models?
+- [code-judger](https://github.com/mrnugget/code-judger) - Tool
+- [jan](https://github.com/menloresearch/jan/blob/dev/core/src/types/model/modelEntity.ts#L16) - Connecto to local models
+- [mcp-go](https://github.com/mark3labs/mcp-go/tree/main) - MCP (obv)
+- [go-grep](https://github.com/rastasheep/go-grep) - Tool
+- [deepseek-go](https://github.com/cohesion-org/deepseek-go) - Client for DeepSeek and Ollama

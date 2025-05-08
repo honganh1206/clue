@@ -49,7 +49,7 @@ func main() {
 	}
 
 	// Register tools
-	tools := []tools.AnthropicToolDefinition{tools.ReadFileDefinition, tools.ListFilesDefinition}
+	tools := []tools.ToolDefinition{tools.ReadFileDefinition, tools.ListFilesDefinition}
 	agent := agent.New(engine, getUserMsg, tools, promptPath)
 	err = agent.Run(context.TODO()) // Empty context when unclear what context to use
 	if err != nil {

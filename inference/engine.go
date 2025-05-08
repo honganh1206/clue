@@ -28,8 +28,7 @@ type ContentBlock struct {
 }
 
 type Engine interface {
-	// TODO: Not generic, still tied to Anthropic
-	RunInference(ctx context.Context, conversation []anthropic.MessageParam, tools []tools.AnthropicToolDefinition) (*anthropic.Message, error)
+	RunInference(ctx context.Context, conversation []Message, tools []tools.ToolDefinition) (*Message, error)
 }
 
 type EngineConfig struct {
