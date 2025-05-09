@@ -9,42 +9,6 @@ If this proves to be helpful to anyone, consider it my thanks to the open-source
 3. Install the [Go programming language](https://go.dev/doc/install)
 4. Execute `go run ./main.go` in the terminal (Make sure to `cd` into the folder holding the file)
 
-## TODOs
-
-- [>] Add prompting
-- [ ] CLI interface
-- [ ] Options for local models via Ollama?
-- [>] Switching between different inference engines (OpenAI/Anthropic/etc.)
-- [ ] Make the output coming out smoother (streaming?)
-- [ ] Send image content block (For what? We dont know-keep going!)
-- [ ] Add thinking option (Start from Claude Sonnet 3.7+)
-- [ ] Add profiles
-- [ ] MCP server?
-
-Profiles
-
-- [ ] Write
-- [ ] Ask
-- [ ] Manual
-- [ ] Minimal
-
-Tools
-
-- [ ] `copy_path`
-- [ ] `create_directory`
-- [ ] `web_search`
-- [ ] `knowledge_query`
-- [ ] `gen_doc`
-- [ ] `gen_code`
-- [ ] `judge_code`
-- [ ] `create_file`
-- [ ] `schedule`
-- [ ] `grep_search`
-- [ ] `propose_cmd`
-- [ ] `fuzzy_search`
-- [ ] `call_smarter_models`
-- [ ] `thinking`
-
 ## Refs
 
 - [anthropic-sdk-go (Official package from Anthropic)](https://github.com/anthropics/anthropic-sdk-go)
@@ -57,4 +21,5 @@ Tools
 - [jan](https://github.com/menloresearch/jan/blob/dev/core/src/types/model/modelEntity.ts#L16) - Connecto to local models
 - [mcp-go](https://github.com/mark3labs/mcp-go/tree/main) - MCP (obv)
 - [go-grep](https://github.com/rastasheep/go-grep) - Tool
+- [aider](https://github.com/Aider-AI/aider) - Terminal-based
 - [deepseek-go](https://github.com/cohesion-org/deepseek-go) - Client for DeepSeek and Ollama
