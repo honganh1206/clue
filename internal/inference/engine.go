@@ -7,7 +7,12 @@ import (
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
-	"github.com/honganh1206/adrift/tools"
+	"github.com/honganh1206/adrift/pkg/tools"
+)
+
+const (
+	AnthropicEngineName = "Claude"
+	OpenAIEngine        = "ChatGPT"
 )
 
 // Generic chat message
@@ -29,6 +34,7 @@ type ContentBlock struct {
 
 type Engine interface {
 	RunInference(ctx context.Context, conversation []Message, tools []tools.ToolDefinition) (*Message, error)
+	Name() string
 }
 
 type EngineConfig struct {

@@ -7,7 +7,7 @@ import (
 	"os"
 
 	"github.com/anthropics/anthropic-sdk-go"
-	"github.com/honganh1206/adrift/tools"
+	"github.com/honganh1206/adrift/pkg/tools"
 )
 
 type AnthropicEngine struct {
@@ -39,6 +39,10 @@ func NewAnthropicEngine(client *anthropic.Client, promptPath string, model strin
 		model:      model,
 		maxTokens:  maxTokens,
 	}
+}
+
+func (e *AnthropicEngine) Name() string {
+	return AnthropicEngineName
 }
 
 func (e *AnthropicEngine) RunInference(ctx context.Context, conversation []Message, tools []tools.ToolDefinition) (*Message, error) {
@@ -78,7 +82,6 @@ func (e *AnthropicEngine) RunInference(ctx context.Context, conversation []Messa
 
 }
 
-// TODO: This should be for all engines to use
 func (e *AnthropicEngine) loadPromptFile() (string, error) {
 	if e.promptPath == "" {
 		return "", nil
@@ -98,38 +101,10 @@ func convertToAnthropicConversation(conversation []Message) []anthropic.MessageP
 	anthropicMessages := make([]anthropic.MessageParam, 0, len(conversation))
 
 	for _, msg := range conversation {
-		// Sort of an unified inteface for different request types i.e. text, image, document, thinking
-		blocks := make([]anthropic.ContentBlockParamUnion, 0, len(msg.Content))
-
-		for _, block := range msg.Content {
-			switch block.Type {
-			case "tool_result":
-				blocks = append(blocks, anthropic.NewToolResultBlock(block.ID, block.Text, block.IsError))
-			case "text":
-				blocks = append(blocks, anthropic.NewTextBlock(block.Text))
-			case "tool_use":
-				// ← IMPORTANT: For tool use blocks, we maintain the ID as is
-				// Create a tool use block (this will be handled by the SDK's ToParam method)
-
-				var inputObj any
-				if err := json.Unmarshal(block.Input, &inputObj); err != nil {
-					inputObj = map[string]any{}
-				}
-
-				toolParam := anthropic.ToolUseBlockParam{
-					ID:    block.ID,
-					Name:  block.Name,
-					Input: inputObj,
-				}
-
-				toolUseBlock := anthropic.ContentBlockParamUnion{
-					OfRequestToolUseBlock: &toolParam,
-				}
-				blocks = append(blocks, toolUseBlock)
-			}
-		}
 
 		var anthropicMsg anthropic.MessageParam
+
+		blocks := convertToAnthropicBlocks(msg.Content)
 
 		if msg.Role == "user" {
 			anthropicMsg = anthropic.NewUserMessage(blocks...)
@@ -144,6 +119,44 @@ func convertToAnthropicConversation(conversation []Message) []anthropic.MessageP
 	}
 
 	return anthropicMessages
+}
+
+func convertToAnthropicBlocks(genericBlocks []ContentBlock) []anthropic.ContentBlockParamUnion {
+	// Sort of an unified inteface for different request types i.e. text, image, document, thinking
+	blocks := make([]anthropic.ContentBlockParamUnion, 0, len(genericBlocks))
+
+	// TODO: Move this out (with pattern matching by type?)
+	for _, block := range genericBlocks {
+		switch block.Type {
+		case "tool_result":
+			blocks = append(blocks, anthropic.NewToolResultBlock(block.ID, block.Text, block.IsError))
+		case "text":
+			blocks = append(blocks, anthropic.NewTextBlock(block.Text))
+		case "tool_use":
+			// ← IMPORTANT: For tool use blocks, we maintain the ID as is
+			// Create a tool use block (this will be handled by the SDK's ToParam method)
+
+			// TODO: Comment docs for this, and also little optimization?
+			var inputObj any
+			// Input, for example read_file, could be the path to the file to be read
+			if err := json.Unmarshal(block.Input, &inputObj); err != nil {
+				inputObj = map[string]any{}
+			}
+
+			toolParam := anthropic.ToolUseBlockParam{
+				ID:    block.ID,
+				Name:  block.Name,
+				Input: inputObj,
+			}
+
+			toolUseBlock := anthropic.ContentBlockParamUnion{
+				OfRequestToolUseBlock: &toolParam,
+			}
+			blocks = append(blocks, toolUseBlock)
+		}
+	}
+
+	return blocks
 }
 
 // Convert Anthropic responses to generic messages

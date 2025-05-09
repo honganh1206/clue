@@ -6,7 +6,7 @@ import (
 
 // Translate Go structs into JSON schema during runtime
 // Thus producing a standard format usable outside Go
-func GenerateRawSchema[T any]() *jsonschema.Schema {
+func Generate[T any]() *jsonschema.Schema {
 	reflector := jsonschema.Reflector{
 		AllowAdditionalProperties: false,
 		DoNotReference:            true,

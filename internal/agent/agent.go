@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/honganh1206/adrift/inference"
-	"github.com/honganh1206/adrift/tools"
+	"github.com/honganh1206/adrift/internal/inference"
+	"github.com/honganh1206/adrift/pkg/tools"
 )
 
 type Agent struct {
@@ -28,8 +28,9 @@ func New(engine inference.Engine, getUserMsg func() (string, bool), tools []tool
 func (a *Agent) Run(ctx context.Context) error {
 	conversation := []inference.Message{}
 
-	// TODO: Get the name of the engine to interpolate to this string
-	fmt.Println("Chat with Claude (use 'ctrl-c' to quit)")
+	engineName := a.engine.Name()
+
+	fmt.Printf("Chat with %s (use 'ctrl-c' to quit)\n", engineName)
 
 	readUserInput := true
 
@@ -47,7 +48,7 @@ func (a *Agent) Run(ctx context.Context) error {
 				Role: "user",
 				Content: []inference.ContentBlock{
 					{
-						Type: "text", // TODO: Hardcoding type here?
+						Type: "text",
 						Text: userInput,
 					},
 				},
@@ -72,8 +73,7 @@ func (a *Agent) Run(ctx context.Context) error {
 			switch content.Type {
 			// TODO: Add more, could be "code"?
 			case "text":
-				// TODO: Get the name of the engine to interpolate to this string
-				fmt.Printf("\u001b[93mClaude\u001b[0m: %s\n", content.Text)
+				fmt.Printf("\u001b[93m%s\u001b[0m: %s\n", engineName, content.Text)
 			case "tool_use":
 				result := a.executeTool(content.ID, content.Name, content.Input)
 				toolResults = append(toolResults, result)
@@ -89,7 +89,7 @@ func (a *Agent) Run(ctx context.Context) error {
 		readUserInput = false
 
 		toolResultMsg := inference.Message{
-			Role:    "user", // MUST BE THIS
+			Role:    "user", // tool_result MUST be sent by the user role
 			Content: toolResults,
 		}
 

@@ -3,15 +3,16 @@ package main
 import (
 	"bufio"
 	"context"
+	_ "embed"
 	"fmt"
 	"log"
 	"os"
-	"path/filepath"
 
 	"github.com/anthropics/anthropic-sdk-go"
-	"github.com/honganh1206/adrift/agent"
-	"github.com/honganh1206/adrift/inference"
-	"github.com/honganh1206/adrift/tools"
+	"github.com/honganh1206/adrift/internal/agent"
+	"github.com/honganh1206/adrift/internal/inference"
+	"github.com/honganh1206/adrift/pkg/prompts"
+	"github.com/honganh1206/adrift/pkg/tools"
 
 	"github.com/joho/godotenv"
 )
@@ -23,16 +24,18 @@ func main() {
 	}
 
 	// TODO: Make this more configurable to different prompts
-	promptPath, err := filepath.Abs("./prompts/system.txt")
+	// promptPath, err := filepath.Rel("../", "/pkg/prompts/system.txt")
 
 	if err != nil {
 		fmt.Printf("Error: %s\n", err.Error())
 	}
 
+	systemPrompt := prompts.System()
+
 	// TODO: Command line args to configure model
 	engineConfig := inference.EngineConfig{
 		Type:       "anthropic",
-		PromptPath: promptPath,
+		PromptPath: systemPrompt,
 		Model:      anthropic.ModelClaude3_7SonnetLatest,
 		MaxTokens:  1024,
 	}
@@ -50,7 +53,7 @@ func main() {
 
 	// Register tools
 	tools := []tools.ToolDefinition{tools.ReadFileDefinition, tools.ListFilesDefinition}
-	agent := agent.New(engine, getUserMsg, tools, promptPath)
+	agent := agent.New(engine, getUserMsg, tools, systemPrompt)
 	err = agent.Run(context.TODO()) // Empty context when unclear what context to use
 	if err != nil {
 		fmt.Printf("Error: %s\n", err.Error())

@@ -5,14 +5,14 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/honganh1206/adrift/schema"
+	"github.com/honganh1206/adrift/pkg/schema"
 )
 
 type ReadFileInput struct {
 	Path string `json:"path" jsonschema_description:"The relative path of a file in the working directory."`
 }
 
-var ReadFileInputSchema = schema.GenerateRawSchema[ReadFileInput]()
+var ReadFileInputSchema = schema.Generate[ReadFileInput]()
 
 var ReadFileDefinition = ToolDefinition{
 	Name:        "read_file",
@@ -47,7 +47,7 @@ type ListFilesInput struct {
 	Path string `json:"path,omitempty" jsonschema_description:"Optional relative path to list files from. Defaults to current directory if not provided."`
 }
 
-var ListFilesInputSchema = schema.GenerateRawSchema[ListFilesInput]()
+var ListFilesInputSchema = schema.Generate[ListFilesInput]()
 
 func ListFiles(input json.RawMessage) (string, error) {
 	listFilesInput := ListFilesInput{}
