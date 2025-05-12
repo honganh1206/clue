@@ -12,3 +12,7 @@ type ToolDefinition struct {
 	InputSchema *jsonschema.Schema `json:"input_schema"`
 	Function    func(input json.RawMessage) (string, error)
 }
+
+type ToolInput struct {
+	Path string `json:"path"`
+}

@@ -1,0 +1,63 @@
+package commands
+
+import (
+	"bufio"
+	"context"
+	"fmt"
+	"log"
+	"os"
+
+	"github.com/honganh1206/adrift/agent"
+	"github.com/honganh1206/adrift/inference"
+	"github.com/honganh1206/adrift/prompts"
+	"github.com/honganh1206/adrift/tools"
+	"github.com/spf13/cobra"
+)
+
+// chatCmd represents the chat command
+var chatCmd = &cobra.Command{
+	Use:   "chat",
+	Short: "Start a chat with the AI agent",
+	Run: func(cmd *cobra.Command, args []string) {
+		// FIXME: Some way to make this more configurable?
+		systemPrompt := prompts.System()
+
+		engineConfig.PromptPath = systemPrompt
+
+		provider := inference.Provider(engineConfig.Type)
+		if engineConfig.Model == "" {
+			defaultModel := inference.GetDefaultModel(provider)
+			if verbose {
+				fmt.Printf("No model specified, using default: %s\n", defaultModel)
+			}
+			engineConfig.Model = string(defaultModel)
+		}
+
+		// Create the engine
+		engine, err := inference.CreateEngine(engineConfig)
+		if err != nil {
+			log.Fatalf("Failed to create engine: %s", err.Error())
+		}
+
+		// Set up scanner for user input
+		scanner := bufio.NewScanner(os.Stdin)
+		getUserMsg := func() (string, bool) {
+			if !scanner.Scan() {
+				return "", false
+			}
+			return scanner.Text(), true
+		}
+
+		// Register tools
+		toolDefs := []tools.ToolDefinition{tools.ReadFileDefinition, tools.ListFilesDefinition}
+
+		// Create and run agent
+		agent := agent.New(engine, getUserMsg, toolDefs, prompts.System())
+		// In production, use Background() as the final root context()
+		// For dev env, TODO for temporary scaffolding
+		err = agent.Run(context.TODO())
+		if err != nil {
+			fmt.Printf("Error: %s\n", err.Error())
+		}
+	},
+}
