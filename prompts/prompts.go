@@ -11,5 +11,5 @@ func System() string {
 	if err != nil {
 		panic(err)
 	}
-	return filepath.Join(wd, "pkg", "prompts", "system.txt")
+	return filepath.Join(wd, "prompts", "system.txt")
 }

@@ -7,7 +7,8 @@ import (
 	"os"
 
 	"github.com/anthropics/anthropic-sdk-go"
-	"github.com/honganh1206/adrift/pkg/tools"
+	"github.com/honganh1206/adrift/messages"
+	"github.com/honganh1206/adrift/tools"
 )
 
 type AnthropicEngine struct {
@@ -45,7 +46,7 @@ func (e *AnthropicEngine) Name() string {
 	return AnthropicEngineName
 }
 
-func (e *AnthropicEngine) RunInference(ctx context.Context, conversation []Message, tools []tools.ToolDefinition) (*Message, error) {
+func (e *AnthropicEngine) RunInference(ctx context.Context, conversation []messages.Message, tools []tools.ToolDefinition) (*messages.Message, error) {
 	anthropicConversation := convertToAnthropicConversation(conversation)
 
 	anthropicTools, err := convertToAnthropicTools(tools)
@@ -69,7 +70,6 @@ func (e *AnthropicEngine) RunInference(ctx context.Context, conversation []Messa
 	})
 
 	if err != nil {
-		// FIXME: Sending a prompt message with empty content after invoking the tool with the result
 		panic(err)
 	}
 
@@ -96,7 +96,7 @@ func (e *AnthropicEngine) loadPromptFile() (string, error) {
 }
 
 // Convert generic requests to Anthropic messages
-func convertToAnthropicConversation(conversation []Message) []anthropic.MessageParam {
+func convertToAnthropicConversation(conversation []messages.Message) []anthropic.MessageParam {
 
 	anthropicMessages := make([]anthropic.MessageParam, 0, len(conversation))
 
@@ -106,9 +106,9 @@ func convertToAnthropicConversation(conversation []Message) []anthropic.MessageP
 
 		blocks := convertToAnthropicBlocks(msg.Content)
 
-		if msg.Role == "user" {
+		if msg.Role == messages.UserRole {
 			anthropicMsg = anthropic.NewUserMessage(blocks...)
-		} else if msg.Role == "assistant" {
+		} else if msg.Role == messages.AssistantRole {
 			anthropicMsg = anthropic.NewAssistantMessage(blocks...)
 		}
 
@@ -121,28 +121,27 @@ func convertToAnthropicConversation(conversation []Message) []anthropic.MessageP
 	return anthropicMessages
 }
 
-func convertToAnthropicBlocks(genericBlocks []ContentBlock) []anthropic.ContentBlockParamUnion {
+func convertToAnthropicBlocks(genericBlocks []messages.ContentBlock) []anthropic.ContentBlockParamUnion {
 	// Sort of an unified inteface for different request types i.e. text, image, document, thinking
 	blocks := make([]anthropic.ContentBlockParamUnion, 0, len(genericBlocks))
 
-	// TODO: Move this out (with pattern matching by type?)
 	for _, block := range genericBlocks {
 		switch block.Type {
-		case "tool_result":
+		case messages.ToolResultType:
 			blocks = append(blocks, anthropic.NewToolResultBlock(block.ID, block.Text, block.IsError))
-		case "text":
+		case messages.TextType:
 			blocks = append(blocks, anthropic.NewTextBlock(block.Text))
-		case "tool_use":
+		case messages.ToolUseType:
 			// ← IMPORTANT: For tool use blocks, we maintain the ID as is
 			// Create a tool use block (this will be handled by the SDK's ToParam method)
 
-			// TODO: Comment docs for this, and also little optimization?
-			var inputObj any
+			var inputObj any // FIXME: No concrete typing prevents compile-time optimization
 			// Input, for example read_file, could be the path to the file to be read
 			if err := json.Unmarshal(block.Input, &inputObj); err != nil {
-				inputObj = map[string]any{}
+				inputObj = map[string]any{} // FIXME: Silent error handling
 			}
 
+			// FIXME: Consider sync.Pool to reuse toolParam and toolUseBlock
 			toolParam := anthropic.ToolUseBlockParam{
 				ID:    block.ID,
 				Name:  block.Name,
@@ -160,28 +159,28 @@ func convertToAnthropicBlocks(genericBlocks []ContentBlock) []anthropic.ContentB
 }
 
 // Convert Anthropic responses to generic messages
-func convertFromAnthropicMessages(response *anthropic.Message) (*Message, error) {
-	msg := &Message{
+func convertFromAnthropicMessages(response *anthropic.Message) (*messages.Message, error) {
+	msg := &messages.Message{
 		Role:    string(response.Role), // Always assistant
-		Content: make([]ContentBlock, 0, len(response.Content)),
+		Content: make([]messages.ContentBlock, 0, len(response.Content)),
 	}
 
 	for _, block := range response.Content {
 
 		switch block.Type {
-		case "text":
-			msg.Content = append(msg.Content, ContentBlock{
-				Type: "text",
+		case messages.TextType:
+			msg.Content = append(msg.Content, messages.ContentBlock{
+				Type: messages.TextType,
 				Text: block.Text,
 			})
-		case "tool_use":
+		case messages.ToolUseType:
 			input, err := json.Marshal(block.Input)
 			if err != nil {
 				return nil, err
 			}
 
-			msg.Content = append(msg.Content, ContentBlock{
-				Type:     "tool_use",
+			msg.Content = append(msg.Content, messages.ContentBlock{
+				Type:     messages.ToolUseType,
 				ID:       block.ID,
 				Name:     block.Name,
 				Input:    input,

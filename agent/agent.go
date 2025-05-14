@@ -5,8 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/honganh1206/adrift/internal/inference"
-	"github.com/honganh1206/adrift/pkg/tools"
+	"github.com/honganh1206/adrift/inference"
+	"github.com/honganh1206/adrift/messages"
+	"github.com/honganh1206/adrift/tools"
 )
 
 type Agent struct {
@@ -26,7 +27,7 @@ func New(engine inference.Engine, getUserMsg func() (string, bool), tools []tool
 }
 
 func (a *Agent) Run(ctx context.Context) error {
-	conversation := []inference.Message{}
+	conversation := []messages.Message{}
 
 	engineName := a.engine.Name()
 
@@ -44,9 +45,9 @@ func (a *Agent) Run(ctx context.Context) error {
 				break
 			}
 
-			userMsg := inference.Message{
+			userMsg := messages.Message{
 				Role: "user",
-				Content: []inference.ContentBlock{
+				Content: []messages.ContentBlock{
 					{
 						Type: "text",
 						Text: userInput,
@@ -67,7 +68,7 @@ func (a *Agent) Run(ctx context.Context) error {
 		// a.printMessageAsJSON("New agent message", *agentMsg)
 
 		conversation = append(conversation, *agentMsg)
-		toolResults := []inference.ContentBlock{}
+		toolResults := []messages.ContentBlock{}
 
 		for _, content := range agentMsg.Content {
 			switch content.Type {
@@ -88,7 +89,7 @@ func (a *Agent) Run(ctx context.Context) error {
 
 		readUserInput = false
 
-		toolResultMsg := inference.Message{
+		toolResultMsg := messages.Message{
 			Role:    "user", // tool_result MUST be sent by the user role
 			Content: toolResults,
 		}
@@ -106,7 +107,7 @@ func (a *Agent) Run(ctx context.Context) error {
 }
 
 // FIXME: Should return anthropic.ContentBlockParamUnion
-func (a *Agent) executeTool(id, name string, input json.RawMessage) inference.ContentBlock {
+func (a *Agent) executeTool(id, name string, input json.RawMessage) messages.ContentBlock {
 	var toolDef tools.ToolDefinition
 	var found bool
 
@@ -122,7 +123,7 @@ func (a *Agent) executeTool(id, name string, input json.RawMessage) inference.Co
 	}
 
 	if !found {
-		return inference.ContentBlock{
+		return messages.ContentBlock{
 			Type:    "tool_result",
 			ID:      id,
 			Text:    "tool not found",
@@ -135,7 +136,7 @@ func (a *Agent) executeTool(id, name string, input json.RawMessage) inference.Co
 	response, err := toolDef.Function(input)
 
 	if err != nil {
-		return inference.ContentBlock{
+		return messages.ContentBlock{
 			Type:    "tool_result",
 			ID:      id,
 			Text:    err.Error(),
@@ -146,7 +147,7 @@ func (a *Agent) executeTool(id, name string, input json.RawMessage) inference.Co
 	// fmt.Printf("DEBUG - Tool executed successfully. Result length: %d\n", len(response))
 	// fmt.Printf("DEBUG - Result preview: %s\n", response[:min(30, len(response))]+"...")
 
-	result := inference.ContentBlock{
+	result := messages.ContentBlock{
 		Type:    "tool_result",
 		ID:      id,
 		Text:    response,
@@ -165,7 +166,7 @@ func (a *Agent) executeTool(id, name string, input json.RawMessage) inference.Co
 }
 
 // // Helper function to print a message as formatted JSON for debugging
-// func (a *Agent) printMessageAsJSON(label string, message inference.Message) {
+// func (a *Agent) printMessageAsJSON(label string, message messages.Message) {
 // 	jsonData, err := json.MarshalIndent(message, "", "  ")
 // 	if err != nil {
 // 		fmt.Printf("ERROR: Could not marshal message to JSON: %v\n", err)
@@ -178,7 +179,7 @@ func (a *Agent) executeTool(id, name string, input json.RawMessage) inference.Co
 // }
 
 // // Helper function to print the entire conversation as JSON for debugging
-// func (a *Agent) printConversationAsJSON(conversation []inference.Message) {
+// func (a *Agent) printConversationAsJSON(conversation []messages.Message) {
 // 	fmt.Printf("\n===== DEBUG: Conversation (length: %d) =====\n", len(conversation))
 // 	for i, msg := range conversation {
 // 		jsonData, err := json.MarshalIndent(msg, "", "  ")
