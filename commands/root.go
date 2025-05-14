@@ -15,15 +15,15 @@ var (
 	verbose      bool
 )
 
-// rootCmd represents the base command when called without any subcommands
+// The base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "adrift",
 	Short: "An AI agent for code editing and assistance",
+	// TODO: Update this as we progress
 	Long: `Adrift is a command line tool that provides an AI agent to help you with code editing and other tasks.
-It supports multiple AI engines including Anthropic, OpenAI, Gemini, and local models via Ollama.`,
-	// This will run before any subcommand
+It supports multiple AI engines including Anthropic, OpenAI (WIP), Gemini (WIP), and local models via Ollama (WIP).`,
+	// Run before any subcommand
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		// Load .env file
 		err := godotenv.Load(envPath)
 		if err != nil && verbose {
 			fmt.Printf("Warning: Error loading .env file: %v\n", err)
@@ -53,6 +53,7 @@ func NewRootCmd() *cobra.Command {
 	rootCmd.AddCommand(completionCmd)
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(chatCmd)
+	rootCmd.AddCommand(listModelsCmd)
 
 	return rootCmd
 }

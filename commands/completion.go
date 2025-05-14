@@ -44,6 +44,7 @@ Fish:
 			cmd.Root().GenZshCompletion(os.Stdout)
 		case "fish":
 			cmd.Root().GenFishCompletion(os.Stdout, true)
+			// TODO: When porting on Windows maybe
 			// case "powershell":
 			// 	cmd.Root().GenPowerShellCompletionWithDesc(os.Stdout)
 		}
