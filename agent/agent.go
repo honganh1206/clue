@@ -11,15 +11,15 @@ import (
 )
 
 type Agent struct {
-	engine         inference.Engine
+	model          inference.Model
 	getUserMessage func() (string, bool)
 	tools          []tools.ToolDefinition
 	promptPath     string
 }
 
-func New(engine inference.Engine, getUserMsg func() (string, bool), tools []tools.ToolDefinition, promptPath string) *Agent {
+func New(model inference.Model, getUserMsg func() (string, bool), tools []tools.ToolDefinition, promptPath string) *Agent {
 	return &Agent{
-		engine:         engine,
+		model:          model,
 		getUserMessage: getUserMsg,
 		tools:          tools,
 		promptPath:     promptPath,
@@ -27,55 +27,51 @@ func New(engine inference.Engine, getUserMsg func() (string, bool), tools []tool
 }
 
 func (a *Agent) Run(ctx context.Context) error {
-	conversation := []messages.Message{}
+	conversation := []messages.MessageParam{}
 
-	engineName := a.engine.Name()
+	modelName := a.model.Name()
 
-	fmt.Printf("Chat with %s (use 'ctrl-c' to quit)\n", engineName)
+	fmt.Printf("Chat with %s (use 'ctrl-c' to quit)\n", modelName)
 
 	readUserInput := true
 
 	for {
 		if readUserInput {
 
-			// ANSI escape code formatting to add colors and styles to terminal output for YOU
 			fmt.Print("\u001b[94mYou\u001b[0m: ")
 			userInput, ok := a.getUserMessage()
 			if !ok {
 				break
 			}
 
-			userMsg := messages.Message{
-				Role: "user",
-				Content: []messages.ContentBlock{
-					{
-						Type: "text",
-						Text: userInput,
+			userMsg := messages.MessageRequest{
+				MessageParam: messages.MessageParam{
+					Role: messages.UserRole,
+					Content: []messages.ContentBlock{
+						{
+							Type: tools.TextType,
+							Text: userInput,
+						},
 					},
 				},
 			}
-			conversation = append(conversation, userMsg)
+			conversation = append(conversation, userMsg.MessageParam)
 		}
-		// fmt.Printf("DEBUG - Sending message to engine: %+v\n", conversation[len(conversation)-1])
-		// Draw conclusions from prior knowledge
-		agentMsg, err := a.engine.RunInference(ctx, conversation, a.tools)
+
+		// TODO: Update with something interactive?
+		fmt.Printf("\u001b[93m%s\u001b[0m: ", modelName)
+		agentMsg, err := a.model.RunInference(ctx, conversation, a.tools)
 		if err != nil {
 			return err
 		}
-		// DEBUG: Print the current conversation as JSON
 		// a.printConversationAsJSON(conversation)
-		// DEBUG: Print the new agent message as JSON
-		// a.printMessageAsJSON("New agent message", *agentMsg)
 
-		conversation = append(conversation, *agentMsg)
+		conversation = append(conversation, *&agentMsg.MessageParam)
 		toolResults := []messages.ContentBlock{}
 
 		for _, content := range agentMsg.Content {
 			switch content.Type {
-			// TODO: Add more, could be "code"?
-			case "text":
-				fmt.Printf("\u001b[93m%s\u001b[0m: %s\n", engineName, content.Text)
-			case "tool_use":
+			case tools.ToolUseType:
 				result := a.executeTool(content.ID, content.Name, content.Input)
 				toolResults = append(toolResults, result)
 			}
@@ -89,15 +85,14 @@ func (a *Agent) Run(ctx context.Context) error {
 
 		readUserInput = false
 
-		toolResultMsg := messages.Message{
-			Role:    "user", // tool_result MUST be sent by the user role
-			Content: toolResults,
+		toolResultMsg := messages.MessageRequest{
+			MessageParam: messages.MessageParam{
+				Role:    messages.UserRole,
+				Content: toolResults,
+			},
 		}
 
-		conversation = append(conversation, toolResultMsg)
-
-		// DEBUG: Print the tool result message as JSON before adding to conversation
-		// a.printMessageAsJSON("Tool Results Message", toolResultMsg)
+		conversation = append(conversation, toolResultMsg.MessageParam)
 
 		// fmt.Printf("DEBUG - conversation now has %d messages\n", len(conversation))
 
@@ -106,7 +101,6 @@ func (a *Agent) Run(ctx context.Context) error {
 	return nil
 }
 
-// FIXME: Should return anthropic.ContentBlockParamUnion
 func (a *Agent) executeTool(id, name string, input json.RawMessage) messages.ContentBlock {
 	var toolDef tools.ToolDefinition
 	var found bool
@@ -124,7 +118,7 @@ func (a *Agent) executeTool(id, name string, input json.RawMessage) messages.Con
 
 	if !found {
 		return messages.ContentBlock{
-			Type:    "tool_result",
+			Type:    tools.ToolResultType,
 			ID:      id,
 			Text:    "tool not found",
 			IsError: true,
@@ -137,7 +131,7 @@ func (a *Agent) executeTool(id, name string, input json.RawMessage) messages.Con
 
 	if err != nil {
 		return messages.ContentBlock{
-			Type:    "tool_result",
+			Type:    tools.ToolResultType,
 			ID:      id,
 			Text:    err.Error(),
 			IsError: true,
@@ -148,7 +142,7 @@ func (a *Agent) executeTool(id, name string, input json.RawMessage) messages.Con
 	// fmt.Printf("DEBUG - Result preview: %s\n", response[:min(30, len(response))]+"...")
 
 	result := messages.ContentBlock{
-		Type:    "tool_result",
+		Type:    tools.ToolResultType,
 		ID:      id,
 		Text:    response,
 		IsError: false,
@@ -165,30 +159,17 @@ func (a *Agent) executeTool(id, name string, input json.RawMessage) messages.Con
 	return result
 }
 
-// // Helper function to print a message as formatted JSON for debugging
-// func (a *Agent) printMessageAsJSON(label string, message messages.Message) {
-// 	jsonData, err := json.MarshalIndent(message, "", "  ")
-// 	if err != nil {
-// 		fmt.Printf("ERROR: Could not marshal message to JSON: %v\n", err)
-// 		return
-// 	}
-
-// 	fmt.Printf("\n===== DEBUG: %s =====\n", label)
-// 	fmt.Println(string(jsonData))
-// 	fmt.Printf("=====\n\n")
-// }
-
-// // Helper function to print the entire conversation as JSON for debugging
-// func (a *Agent) printConversationAsJSON(conversation []messages.Message) {
-// 	fmt.Printf("\n===== DEBUG: Conversation (length: %d) =====\n", len(conversation))
-// 	for i, msg := range conversation {
-// 		jsonData, err := json.MarshalIndent(msg, "", "  ")
-// 		if err != nil {
-// 			fmt.Printf("ERROR: Could not marshal message %d to JSON: %v\n", i, err)
-// 			continue
-// 		}
-// 		fmt.Printf("--- Message %d (%s) ---\n", i, msg.Role)
-// 		fmt.Println(string(jsonData))
-// 	}
-// 	fmt.Printf("=====\n\n")
-// }
+// Helper function to print the entire conversation as JSON for debugging
+func (a *Agent) printConversationAsJSON(conversation []messages.MessageParam) {
+	fmt.Printf("\n===== DEBUG: Conversation (length: %d) =====\n", len(conversation))
+	for i, msg := range conversation {
+		jsonData, err := json.MarshalIndent(msg, "", "  ")
+		if err != nil {
+			fmt.Printf("ERROR: Could not marshal message %d to JSON: %v\n", i, err)
+			continue
+		}
+		fmt.Printf("--- Message %d (%s) ---\n", i, msg.Role)
+		fmt.Println(string(jsonData))
+	}
+	fmt.Printf("=====\n\n")
+}

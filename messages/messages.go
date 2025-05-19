@@ -1,10 +1,26 @@
 package messages
 
-// Generic chat message
-type Message struct {
+import "encoding/json"
+
+// TODO: use json annotation `json:"id"`
+type MessageParam struct {
 	Role    string
 	Content []ContentBlock
-	Source  string // Which LLM was used
+}
+
+type MessageRequest struct {
+	MessageParam
+}
+
+type MessageResponse struct {
+	MessageParam
+	// Optional fields for tool responses
+	ID       string
+	Name     string
+	Input    json.RawMessage
+	IsError  bool
+	ToolCall bool
+	Model    string // Which LLM was used
 }
 
 // Block of content within a message
@@ -13,16 +29,10 @@ type ContentBlock struct {
 	Text     string
 	ID       string
 	Name     string
-	Input    []byte
+	Input    json.RawMessage
 	IsError  bool
 	ToolCall bool
 }
-
-const (
-	TextType       = "text"
-	ToolUseType    = "tool_use"
-	ToolResultType = "tool_result"
-)
 
 const (
 	UserRole      = "user"

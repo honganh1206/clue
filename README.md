@@ -6,6 +6,7 @@ If this proves to be helpful to anyone, consider it my thanks to the open-source
 
 ## Use
 
+0. (Important) Read through this wonderful article on [how to build an agent by Thorsten Ball](https://ampcode.com/how-to-build-an-agent) and follow along if possible
 1. Change `env` to `.env`
 2. Add your Anthropic API key to `ANTHROPIC_API_KEY="your-api-key-here"` in the `.env` file
 3. Install the [Go programming language](https://go.dev/doc/install)
@@ -28,6 +29,10 @@ If this proves to be helpful to anyone, consider it my thanks to the open-source
 - [code-judger](https://github.com/mrnugget/code-judger) - Tool
 - [jan](https://github.com/menloresearch/jan/blob/dev/core/src/types/model/modelEntity.ts#L16) - Connect to local models?
 - [mcp-go](https://github.com/mark3labs/mcp-go/tree/main) - MCP (obv)
+- [mcp-language-server](https://github.com/isaacphi/mcp-language-server) - Build on top of mco-go
 - [go-grep](https://github.com/rastasheep/go-grep) - Tool
 - [aider](https://github.com/Aider-AI/aider) - Terminal-based
 - [deepseek-go](https://github.com/cohesion-org/deepseek-go) - Client for DeepSeek and Ollama
+- [smolcode](https://github.com/dhamidi/smolcode) - GenAI integration, memory management
+- [anthropic-go](https://github.com/madebywelch/anthropic-go) - Details on how to implement messages and message events
+- [anthrogo](https://github.com/dleviminzi/anthrogo) Message decoder

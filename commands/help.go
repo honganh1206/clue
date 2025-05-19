@@ -9,7 +9,7 @@ import (
 
 // WIP
 func showHelp() {
-	providers := []inference.Provider{
+	providers := []inference.ProviderName{
 		inference.AnthropicProvider,
 	}
 
@@ -17,7 +17,7 @@ func showHelp() {
 	fmt.Println("\nUsage:")
 	flag.PrintDefaults()
 
-	fmt.Println("\nEngine-specific details:")
+	fmt.Println("\nModel-specific details:")
 
 	for _, provider := range providers {
 		fmt.Printf("\n%s:\n", provider)
@@ -32,22 +32,9 @@ func showHelp() {
 		}
 
 		fmt.Printf("  Default model: %s\n", defaultModel)
-
-		// // Engine-specific notes
-		// switch provider {
-		// case :
-		// 	fmt.Println("  Note: Requires Ollama to be running. Set custom host with -ollama-host")
-		// case EngineLocalLLM:
-		// 	fmt.Println("  Note: Specify the complete model path with -model")
-		// case EngineAzureOpenAI:
-		// 	fmt.Println("  Note: Requires Azure-specific configuration in .env file")
-		// }
 	}
 
 	fmt.Println("\nExamples:")
-	fmt.Println("  ./code-editing-agent -engine anthropic -model claude-3-5-sonnet")
-	// fmt.Println("  ./code-editing-agent -engine openai -model gpt-4o -max-tokens 2048")
-	// fmt.Println("  ./code-editing-agent -engine ollama -model llama3 -ollama-host http://localhost:11434")
-	// fmt.Println("  ./code-editing-agent -engine gemini -model gemini-2.5-pro")
-	fmt.Println("  ./code-editing-agent -list-models -engine openai")
+	fmt.Println("  ./code-editing-agent -provider anthropic -model claude-3-5-sonnet")
+	fmt.Println("  ./code-editing-agent -list -provider openai")
 }

@@ -9,10 +9,10 @@ import (
 
 // listModelsCmd represents the listModels command
 var listModelsCmd = &cobra.Command{
-	Use:   "list-models",
-	Short: "List available models for the selected engine",
+	Use:   "list",
+	Short: "List available models for the selected provider",
 	Run: func(cmd *cobra.Command, args []string) {
-		provider := inference.Provider(engineConfig.Type)
+		provider := inference.ProviderName(modelConfig.Provider)
 		models := inference.ListAvailableModels(provider)
 
 		if len(models) > 0 {

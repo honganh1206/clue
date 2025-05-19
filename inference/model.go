@@ -3,55 +3,39 @@ package inference
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/anthropics/anthropic-sdk-go"
-	"github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/honganh1206/adrift/messages"
 	"github.com/honganh1206/adrift/tools"
 )
 
-type Engine interface {
-	RunInference(ctx context.Context, conversation []messages.Message, tools []tools.ToolDefinition) (*messages.Message, error)
+type Model interface {
+	// FIXME: VERY RESOURCE-CONSUMING since we are invoking this in every loop
+	// What to do? Maintain a parallel flattened view/Flatten incrementally with new messages/Modify the engine
+	RunInference(ctx context.Context, conversation []messages.MessageParam, tools []tools.ToolDefinition) (*messages.MessageResponse, error)
 	Name() string
 }
 
-type EngineConfig struct {
-	Type       string // "anthropic", "openai", "ollama"
+type ModelConfig struct {
+	Provider   string
 	PromptPath string
 	Model      string
 	MaxTokens  int64
 	ListModel  bool
 }
 
-func CreateEngine(config EngineConfig) (Engine, error) {
-	var key string
-
-	switch config.Type {
+func Init(config ModelConfig) (Model, error) {
+	switch config.Provider {
 	case AnthropicProvider:
-		key = os.Getenv("ANTHROPIC_API_KEY")
-		client := anthropic.NewClient(option.WithAPIKey(key))
-		return NewAnthropicEngine(&client, config.PromptPath, config.Model, config.MaxTokens), nil
-
-	// case "openai":
-	// 	apiKey := os.Getenv("OPENAI_API_KEY")
-	// 	if apiKey == "" {
-	// 		return nil, fmt.Errorf("OPENAI_API_KEY not set")
-	// 	}
-	// 	client := openai.NewClient(apiKey)
-	// 	return NewOpenAIEngine(client, config.PromptPath, config.Model, int(config.MaxTokens)), nil
-
-	// case "ollama":
-	// 	// Implement for Ollama
-	// 	return nil, fmt.Errorf("ollama engine not implemented yet")
-
+		client := anthropic.NewClient() // Default to look up ANTHROPIC_API_KEY
+		return NewAnthropicModel(&client, config.PromptPath, config.Model, config.MaxTokens), nil
 	default:
-		return nil, fmt.Errorf("unknown engine type: %s", config.Type)
+		return nil, fmt.Errorf("unknown model provider: %s", config.Provider)
 	}
 }
 
-func GetModelForProvider(provider Provider, model Model) string {
+func GetModelForProvider(provider ProviderName, model ModelVersion) string {
 	switch provider {
 	case AnthropicProvider:
 		return getAnthropicModel(model)
@@ -60,10 +44,10 @@ func GetModelForProvider(provider Provider, model Model) string {
 	}
 }
 
-func ListAvailableModels(provider Provider) []Model {
+func ListAvailableModels(provider ProviderName) []ModelVersion {
 	switch provider {
 	case AnthropicProvider:
-		return []Model{
+		return []ModelVersion{
 			Claude37Sonnet,
 			Claude35Sonnet,
 			Claude35Haiku,
@@ -72,11 +56,11 @@ func ListAvailableModels(provider Provider) []Model {
 			Claude3Haiku,
 		}
 	default:
-		return []Model{}
+		return []ModelVersion{}
 	}
 }
 
-func GetDefaultModel(provider Provider) string {
+func GetDefaultModel(provider ProviderName) string {
 	switch provider {
 	case AnthropicProvider:
 		return anthropic.ModelClaude3_7SonnetLatest
@@ -86,7 +70,7 @@ func GetDefaultModel(provider Provider) string {
 }
 
 // formatModelsForHelp formats a list of models for help text
-func FormatModelsForHelp(models []Model) string {
+func FormatModelsForHelp(models []ModelVersion) string {
 	if len(models) == 0 {
 		return ""
 	}
@@ -98,7 +82,7 @@ func FormatModelsForHelp(models []Model) string {
 	return strings.Join(modelStrings, ", ")
 }
 
-func getAnthropicModel(model Model) string {
+func getAnthropicModel(model ModelVersion) string {
 	switch model {
 	case Claude37Sonnet:
 		return anthropic.ModelClaude3_7SonnetLatest

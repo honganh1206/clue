@@ -22,21 +22,20 @@ var chatCmd = &cobra.Command{
 		// FIXME: Some way to make this more configurable?
 		systemPrompt := prompts.System()
 
-		engineConfig.PromptPath = systemPrompt
+		modelConfig.PromptPath = systemPrompt
 
-		provider := inference.Provider(engineConfig.Type)
-		if engineConfig.Model == "" {
+		provider := inference.ProviderName(modelConfig.Provider)
+		if modelConfig.Model == "" {
 			defaultModel := inference.GetDefaultModel(provider)
 			if verbose {
 				fmt.Printf("No model specified, using default: %s\n", defaultModel)
 			}
-			engineConfig.Model = string(defaultModel)
+			modelConfig.Model = string(defaultModel)
 		}
 
-		// Create the engine
-		engine, err := inference.CreateEngine(engineConfig)
+		model, err := inference.Init(modelConfig)
 		if err != nil {
-			log.Fatalf("Failed to create engine: %s", err.Error())
+			log.Fatalf("Failed to initialize model: %s", err.Error())
 		}
 
 		// Set up scanner for user input
@@ -52,7 +51,7 @@ var chatCmd = &cobra.Command{
 		toolDefs := []tools.ToolDefinition{tools.ReadFileDefinition, tools.ListFilesDefinition}
 
 		// Create and run agent
-		agent := agent.New(engine, getUserMsg, toolDefs, prompts.System())
+		agent := agent.New(model, getUserMsg, toolDefs, prompts.System())
 		// In production, use Background() as the final root context()
 		// For dev env, TODO for temporary scaffolding
 		err = agent.Run(context.TODO())

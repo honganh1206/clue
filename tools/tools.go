@@ -16,3 +16,9 @@ type ToolDefinition struct {
 type ToolInput struct {
 	Path string `json:"path"`
 }
+
+const (
+	TextType       = "text"
+	ToolUseType    = "tool_use"
+	ToolResultType = "tool_result"
+)

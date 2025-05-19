@@ -7,25 +7,19 @@ import (
 	"os"
 
 	"github.com/anthropics/anthropic-sdk-go"
+	"github.com/anthropics/anthropic-sdk-go/packages/ssestream"
 	"github.com/honganh1206/adrift/messages"
 	"github.com/honganh1206/adrift/tools"
 )
 
-type AnthropicEngine struct {
+type AnthropicModel struct {
 	client     *anthropic.Client
 	promptPath string
 	model      string
 	maxTokens  int64
 }
 
-type AnthropicToolDefinition struct {
-	Name        string                         `json:"name"`
-	Description string                         `json:"description"`
-	InputSchema anthropic.ToolInputSchemaParam `json:"input_schema"`
-	Function    func(input json.RawMessage) (string, error)
-}
-
-func NewAnthropicEngine(client *anthropic.Client, promptPath string, model string, maxTokens int64) *AnthropicEngine {
+func NewAnthropicModel(client *anthropic.Client, promptPath string, model string, maxTokens int64) *AnthropicModel {
 	if model == "" {
 		model = anthropic.ModelClaude3_7SonnetLatest
 	}
@@ -34,7 +28,7 @@ func NewAnthropicEngine(client *anthropic.Client, promptPath string, model strin
 		maxTokens = 1024
 	}
 
-	return &AnthropicEngine{
+	return &AnthropicModel{
 		client:     client,
 		promptPath: promptPath,
 		model:      model,
@@ -42,26 +36,26 @@ func NewAnthropicEngine(client *anthropic.Client, promptPath string, model strin
 	}
 }
 
-func (e *AnthropicEngine) Name() string {
-	return AnthropicEngineName
+func (m *AnthropicModel) Name() string {
+	return AnthropicModelName
 }
 
-func (e *AnthropicEngine) RunInference(ctx context.Context, conversation []messages.Message, tools []tools.ToolDefinition) (*messages.Message, error) {
+func (m *AnthropicModel) RunInference(ctx context.Context, conversation []messages.MessageParam, tools []tools.ToolDefinition) (*messages.MessageResponse, error) {
 	anthropicConversation := convertToAnthropicConversation(conversation)
 
 	anthropicTools, err := convertToAnthropicTools(tools)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to convert tools: %w", err)
 	}
 
-	systemPrompt, err := e.loadPromptFile()
+	systemPrompt, err := m.loadPromptFile()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to load prompt: %w", err)
 	}
 
-	anthropicResponse, err := e.client.Messages.New(ctx, anthropic.MessageNewParams{
-		Model:     e.model,
-		MaxTokens: e.maxTokens,
+	anthropicStream := m.client.Messages.NewStreaming(ctx, anthropic.MessageNewParams{
+		Model:     m.model,
+		MaxTokens: m.maxTokens,
 		Messages:  anthropicConversation,
 		Tools:     anthropicTools,
 		System: []anthropic.TextBlockParam{
@@ -69,11 +63,7 @@ func (e *AnthropicEngine) RunInference(ctx context.Context, conversation []messa
 		},
 	})
 
-	if err != nil {
-		panic(err)
-	}
-
-	response, err := convertFromAnthropicMessages(anthropicResponse)
+	response, err := streamFromAnthropicResponse(anthropicStream)
 	if err != nil {
 		return nil, err
 	}
@@ -82,22 +72,8 @@ func (e *AnthropicEngine) RunInference(ctx context.Context, conversation []messa
 
 }
 
-func (e *AnthropicEngine) loadPromptFile() (string, error) {
-	if e.promptPath == "" {
-		return "", nil
-	}
-
-	data, err := os.ReadFile(e.promptPath)
-	if err != nil {
-		return "", fmt.Errorf("failed to read prompt file: %w", err)
-	}
-
-	return string(data), nil
-}
-
-// Convert generic requests to Anthropic messages
-func convertToAnthropicConversation(conversation []messages.Message) []anthropic.MessageParam {
-
+// Convert generic conversation to Anthropic one
+func convertToAnthropicConversation(conversation []messages.MessageParam) []anthropic.MessageParam {
 	anthropicMessages := make([]anthropic.MessageParam, 0, len(conversation))
 
 	for _, msg := range conversation {
@@ -127,25 +103,16 @@ func convertToAnthropicBlocks(genericBlocks []messages.ContentBlock) []anthropic
 
 	for _, block := range genericBlocks {
 		switch block.Type {
-		case messages.ToolResultType:
+		case tools.ToolResultType:
 			blocks = append(blocks, anthropic.NewToolResultBlock(block.ID, block.Text, block.IsError))
-		case messages.TextType:
+		case tools.TextType:
 			blocks = append(blocks, anthropic.NewTextBlock(block.Text))
-		case messages.ToolUseType:
-			// ← IMPORTANT: For tool use blocks, we maintain the ID as is
-			// Create a tool use block (this will be handled by the SDK's ToParam method)
-
-			var inputObj any // FIXME: No concrete typing prevents compile-time optimization
-			// Input, for example read_file, could be the path to the file to be read
-			if err := json.Unmarshal(block.Input, &inputObj); err != nil {
-				inputObj = map[string]any{} // FIXME: Silent error handling
-			}
-
+		case tools.ToolUseType:
 			// FIXME: Consider sync.Pool to reuse toolParam and toolUseBlock
 			toolParam := anthropic.ToolUseBlockParam{
 				ID:    block.ID,
 				Name:  block.Name,
-				Input: inputObj,
+				Input: block.Input,
 			}
 
 			toolUseBlock := anthropic.ContentBlockParamUnion{
@@ -158,29 +125,61 @@ func convertToAnthropicBlocks(genericBlocks []messages.ContentBlock) []anthropic
 	return blocks
 }
 
-// Convert Anthropic responses to generic messages
-func convertFromAnthropicMessages(response *anthropic.Message) (*messages.Message, error) {
-	msg := &messages.Message{
-		Role:    string(response.Role), // Always assistant
-		Content: make([]messages.ContentBlock, 0, len(response.Content)),
+func streamFromAnthropicResponse(responseStream *ssestream.Stream[anthropic.MessageStreamEventUnion]) (*messages.MessageResponse, error) {
+	anthropicMsg := anthropic.Message{}
+
+	for responseStream.Next() {
+		event := responseStream.Current()
+		if err := anthropicMsg.Accumulate(event); err != nil {
+			// FIXME: unexpected end of JSON input when searching for files inside folders e.g., anthropic.go
+			panic(err)
+		}
+
+		switch event := event.AsAny().(type) {
+		// Incremental updates sent during text generation
+		case anthropic.ContentBlockDeltaEvent:
+			fmt.Print(event.Delta.Text)
+		case anthropic.ContentBlockStartEvent:
+			if event.ContentBlock.Name != "" {
+				print(event.ContentBlock.Name + ": ")
+			}
+		case anthropic.ContentBlockStopEvent:
+			println()
+		case anthropic.MessageStopEvent:
+		case anthropic.MessageStartEvent:
+		case anthropic.MessageDeltaEvent:
+		default:
+			fmt.Printf("Unhandled event type: %T\n", event)
+		}
 	}
 
-	for _, block := range response.Content {
+	if responseStream.Err() != nil {
+		panic(responseStream.Err())
+	}
 
-		switch block.Type {
-		case messages.TextType:
+	msg := &messages.MessageResponse{
+		MessageParam: messages.MessageParam{
+			Role:    messages.AssistantRole, // Always assistant
+			Content: make([]messages.ContentBlock, 0),
+		},
+	}
+
+	for _, block := range anthropicMsg.Content {
+		switch variant := block.AsAny().(type) {
+		case anthropic.TextBlock:
 			msg.Content = append(msg.Content, messages.ContentBlock{
-				Type: messages.TextType,
+				Type: tools.TextType,
 				Text: block.Text,
 			})
-		case messages.ToolUseType:
-			input, err := json.Marshal(block.Input)
+		case anthropic.ToolUseBlock:
+			var input json.RawMessage
+			// print(variant.JSON.Input.Raw())
+			err := json.Unmarshal([]byte(variant.JSON.Input.Raw()), &input)
 			if err != nil {
 				return nil, err
 			}
-
 			msg.Content = append(msg.Content, messages.ContentBlock{
-				Type:     messages.ToolUseType,
+				Type:     tools.ToolUseType,
 				ID:       block.ID,
 				Name:     block.Name,
 				Input:    input,
@@ -227,4 +226,17 @@ func convertToAnthropicTool(tool tools.ToolDefinition) (*anthropic.ToolUnionPara
 			InputSchema: anthropicSchema,
 		},
 	}, nil
+}
+
+func (m *AnthropicModel) loadPromptFile() (string, error) {
+	if m.promptPath == "" {
+		return "", nil
+	}
+
+	data, err := os.ReadFile(m.promptPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read prompt file: %w", err)
+	}
+
+	return string(data), nil
 }
