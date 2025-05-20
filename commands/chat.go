@@ -14,7 +14,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// chatCmd represents the chat command
 var chatCmd = &cobra.Command{
 	Use:   "chat",
 	Short: "Start a chat with the AI agent",
@@ -38,7 +37,6 @@ var chatCmd = &cobra.Command{
 			log.Fatalf("Failed to initialize model: %s", err.Error())
 		}
 
-		// Set up scanner for user input
 		scanner := bufio.NewScanner(os.Stdin)
 		getUserMsg := func() (string, bool) {
 			if !scanner.Scan() {
@@ -47,10 +45,8 @@ var chatCmd = &cobra.Command{
 			return scanner.Text(), true
 		}
 
-		// Register tools
 		toolDefs := []tools.ToolDefinition{tools.ReadFileDefinition, tools.ListFilesDefinition}
 
-		// Create and run agent
 		agent := agent.New(model, getUserMsg, toolDefs, prompts.System())
 		// In production, use Background() as the final root context()
 		// For dev env, TODO for temporary scaffolding

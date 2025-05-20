@@ -125,16 +125,19 @@ func convertToAnthropicBlocks(genericBlocks []messages.ContentBlock) []anthropic
 	return blocks
 }
 
-func streamFromAnthropicResponse(responseStream *ssestream.Stream[anthropic.MessageStreamEventUnion]) (*messages.MessageResponse, error) {
+func streamFromAnthropicResponse(stream *ssestream.Stream[anthropic.MessageStreamEventUnion]) (*messages.MessageResponse, error) {
 	anthropicMsg := anthropic.Message{}
 
-	for responseStream.Next() {
-		event := responseStream.Current()
-		if err := anthropicMsg.Accumulate(event); err != nil {
-			// FIXME: unexpected end of JSON input when searching for files inside folders e.g., anthropic.go
-			panic(err)
-		}
-
+	for stream.Next() {
+		event := stream.Current()
+		// Weird: This does not work with list_files({})
+		// Since it leads to error calling MarshalJSON for json.RawMessage: Unexpected end of JSON input
+		// FIXME: Should not skip error handling here
+		// if err := anthropicMsg.Accumulate(event); err != nil {
+		// 	panic(err)
+		// 	// return nil, fmt.Errorf("stream error mid-processing: %w", err)
+		// }
+		anthropicMsg.Accumulate(event)
 		switch event := event.AsAny().(type) {
 		// Incremental updates sent during text generation
 		case anthropic.ContentBlockDeltaEvent:
@@ -153,8 +156,8 @@ func streamFromAnthropicResponse(responseStream *ssestream.Stream[anthropic.Mess
 		}
 	}
 
-	if responseStream.Err() != nil {
-		panic(responseStream.Err())
+	if stream.Err() != nil {
+		panic(stream.Err())
 	}
 
 	msg := &messages.MessageResponse{
@@ -173,7 +176,6 @@ func streamFromAnthropicResponse(responseStream *ssestream.Stream[anthropic.Mess
 			})
 		case anthropic.ToolUseBlock:
 			var input json.RawMessage
-			// print(variant.JSON.Input.Raw())
 			err := json.Unmarshal([]byte(variant.JSON.Input.Raw()), &input)
 			if err != nil {
 				return nil, err

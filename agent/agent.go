@@ -58,8 +58,10 @@ func (a *Agent) Run(ctx context.Context) error {
 			conversation = append(conversation, userMsg.MessageParam)
 		}
 
-		// TODO: Update with something interactive?
+		// TODO: Block after tool use also display the name. Should it be the right behavior?
+		// Also update with something interactive
 		fmt.Printf("\u001b[93m%s\u001b[0m: ", modelName)
+
 		agentMsg, err := a.model.RunInference(ctx, conversation, a.tools)
 		if err != nil {
 			return err
@@ -71,6 +73,8 @@ func (a *Agent) Run(ctx context.Context) error {
 
 		for _, content := range agentMsg.Content {
 			switch content.Type {
+			// case tools.TextType:
+			// 	fmt.Printf("\u001b[93m%s\u001b[0m: %s\n", modelName, content.Text)
 			case tools.ToolUseType:
 				result := a.executeTool(content.ID, content.Name, content.Input)
 				toolResults = append(toolResults, result)
@@ -138,23 +142,12 @@ func (a *Agent) executeTool(id, name string, input json.RawMessage) messages.Con
 		}
 	}
 
-	// fmt.Printf("DEBUG - Tool executed successfully. Result length: %d\n", len(response))
-	// fmt.Printf("DEBUG - Result preview: %s\n", response[:min(30, len(response))]+"...")
-
 	result := messages.ContentBlock{
 		Type:    tools.ToolResultType,
 		ID:      id,
 		Text:    response,
 		IsError: false,
 	}
-	// DEBUG: Print the tool result block
-	// resultJSON, _ := json.MarshalIndent(result, "", "  ")
-	// fmt.Printf("\n===== DEBUG: Tool Result Block =====\n")
-	// fmt.Printf("ID: %s (should match tool_use ID)\n", id)
-	// fmt.Println(string(resultJSON))
-	// fmt.Printf("=====\n\n")
-
-	// fmt.Printf("DEBUG - Tool result created: %+v\n", result)
 
 	return result
 }
