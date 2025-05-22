@@ -102,17 +102,20 @@ func convertToAnthropicBlocks(genericBlocks []messages.ContentBlock) []anthropic
 	blocks := make([]anthropic.ContentBlockParamUnion, 0, len(genericBlocks))
 
 	for _, block := range genericBlocks {
-		switch block.Type {
-		case tools.ToolResultType:
-			blocks = append(blocks, anthropic.NewToolResultBlock(block.ID, block.Text, block.IsError))
-		case tools.TextType:
-			blocks = append(blocks, anthropic.NewTextBlock(block.Text))
-		case tools.ToolUseType:
-			// FIXME: Consider sync.Pool to reuse toolParam and toolUseBlock
+		switch b := block.(type) {
+		case messages.ToolResultContentBlock:
+			content, ok := b.Content.(string)
+			if !ok {
+				continue
+			}
+			blocks = append(blocks, anthropic.NewToolResultBlock(b.ToolUseID, content, b.IsError))
+		case messages.TextContentBlock:
+			blocks = append(blocks, anthropic.NewTextBlock(b.Text))
+		case messages.ToolUseContentBlock:
 			toolParam := anthropic.ToolUseBlockParam{
-				ID:    block.ID,
-				Name:  block.Name,
-				Input: block.Input,
+				ID:    b.ID,
+				Name:  b.Name,
+				Input: b.Input,
 			}
 
 			toolUseBlock := anthropic.ContentBlockParamUnion{
@@ -137,15 +140,17 @@ func streamFromAnthropicResponse(stream *ssestream.Stream[anthropic.MessageStrea
 		// 	panic(err)
 		// 	// return nil, fmt.Errorf("stream error mid-processing: %w", err)
 		// }
+
 		anthropicMsg.Accumulate(event)
+
 		switch event := event.AsAny().(type) {
 		// Incremental updates sent during text generation
 		case anthropic.ContentBlockDeltaEvent:
 			fmt.Print(event.Delta.Text)
 		case anthropic.ContentBlockStartEvent:
-			if event.ContentBlock.Name != "" {
-				print(event.ContentBlock.Name + ": ")
-			}
+			// if event.ContentBlock.Name != "" {
+			// 	print(event.ContentBlock.Name + ": ")
+			// }
 		case anthropic.ContentBlockStopEvent:
 			println()
 		case anthropic.MessageStopEvent:
@@ -160,9 +165,13 @@ func streamFromAnthropicResponse(stream *ssestream.Stream[anthropic.MessageStrea
 		panic(stream.Err())
 	}
 
+	return convertFromAnthropicMessage(anthropicMsg)
+}
+
+func convertFromAnthropicMessage(anthropicMsg anthropic.Message) (*messages.MessageResponse, error) {
 	msg := &messages.MessageResponse{
 		MessageParam: messages.MessageParam{
-			Role:    messages.AssistantRole, // Always assistant
+			Role:    messages.AssistantRole,
 			Content: make([]messages.ContentBlock, 0),
 		},
 	}
@@ -170,24 +179,14 @@ func streamFromAnthropicResponse(stream *ssestream.Stream[anthropic.MessageStrea
 	for _, block := range anthropicMsg.Content {
 		switch variant := block.AsAny().(type) {
 		case anthropic.TextBlock:
-			msg.Content = append(msg.Content, messages.ContentBlock{
-				Type: tools.TextType,
-				Text: block.Text,
-			})
+			msg.Content = append(msg.Content, messages.NewTextContentBlock(block.Text))
 		case anthropic.ToolUseBlock:
 			var input json.RawMessage
 			err := json.Unmarshal([]byte(variant.JSON.Input.Raw()), &input)
 			if err != nil {
 				return nil, err
 			}
-			msg.Content = append(msg.Content, messages.ContentBlock{
-				Type:     tools.ToolUseType,
-				ID:       block.ID,
-				Name:     block.Name,
-				Input:    input,
-				Text:     block.Text,
-				ToolCall: true,
-			})
+			msg.Content = append(msg.Content, messages.NewToolUseContentBlock(block.ID, block.Name, input))
 		}
 	}
 

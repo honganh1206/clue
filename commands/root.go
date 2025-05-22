@@ -42,7 +42,7 @@ func Execute() {
 func NewRootCmd() *cobra.Command {
 	rootCmd.PersistentFlags().StringVar(&modelConfig.Provider, "provider", string(inference.AnthropicProvider), "Provider (anthropic, openai, gemini, ollama, deepseek)")
 	rootCmd.PersistentFlags().StringVar(&modelConfig.Model, "model", "", "Model to use (depends on selected model)")
-	rootCmd.PersistentFlags().Int64Var(&modelConfig.MaxTokens, "max-tokens", 1024, "Maximum number of tokens in response")
+	rootCmd.PersistentFlags().Int64Var(&modelConfig.MaxTokens, "max-tokens", 2048, "Maximum number of tokens in response")
 	// rootCmd.PersistentFlags().StringVar(&engineConfig.OllamaHost, "ollama-host", "http://localhost:11434", "Host for Ollama API (when using Ollama engine)")
 	// rootCmd.PersistentFlags().StringVar(&engineConfig.APIEndpoint, "api-endpoint", "", "Custom API endpoint for selected engine")
 	rootCmd.PersistentFlags().StringVar(&envPath, "env", "./.env", "Path to .env file")

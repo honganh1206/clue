@@ -46,13 +46,8 @@ func (a *Agent) Run(ctx context.Context) error {
 
 			userMsg := messages.MessageRequest{
 				MessageParam: messages.MessageParam{
-					Role: messages.UserRole,
-					Content: []messages.ContentBlock{
-						{
-							Type: tools.TextType,
-							Text: userInput,
-						},
-					},
+					Role:    messages.UserRole,
+					Content: []messages.ContentBlock{messages.NewTextContentBlock(userInput)},
 				},
 			}
 			conversation = append(conversation, userMsg.MessageParam)
@@ -72,11 +67,9 @@ func (a *Agent) Run(ctx context.Context) error {
 		toolResults := []messages.ContentBlock{}
 
 		for _, content := range agentMsg.Content {
-			switch content.Type {
-			// case tools.TextType:
-			// 	fmt.Printf("\u001b[93m%s\u001b[0m: %s\n", modelName, content.Text)
-			case tools.ToolUseType:
-				result := a.executeTool(content.ID, content.Name, content.Input)
+			switch c := content.(type) {
+			case messages.ToolUseContentBlock:
+				result := a.executeTool(c.ID, c.Name, c.Input)
 				toolResults = append(toolResults, result)
 			}
 		}
@@ -121,12 +114,8 @@ func (a *Agent) executeTool(id, name string, input json.RawMessage) messages.Con
 	}
 
 	if !found {
-		return messages.ContentBlock{
-			Type:    tools.ToolResultType,
-			ID:      id,
-			Text:    "tool not found",
-			IsError: true,
-		}
+		errorMsg := "tool not found"
+		return messages.NewToolResultContentBlock(id, errorMsg, true)
 	}
 
 	fmt.Printf("\u001b[92mtool\u001b[0m: %s(%s)\n", name, input)
@@ -134,22 +123,10 @@ func (a *Agent) executeTool(id, name string, input json.RawMessage) messages.Con
 	response, err := toolDef.Function(input)
 
 	if err != nil {
-		return messages.ContentBlock{
-			Type:    tools.ToolResultType,
-			ID:      id,
-			Text:    err.Error(),
-			IsError: true,
-		}
+		return messages.NewToolResultContentBlock(id, err.Error(), true)
 	}
 
-	result := messages.ContentBlock{
-		Type:    tools.ToolResultType,
-		ID:      id,
-		Text:    response,
-		IsError: false,
-	}
-
-	return result
+	return messages.NewToolResultContentBlock(id, response, true)
 }
 
 // Helper function to print the entire conversation as JSON for debugging

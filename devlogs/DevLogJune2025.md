@@ -4,3 +4,5 @@ Maybe a buffer is enoug? Get the stream, push the data from the stream to the bu
 
 content_block_start events for tool use blocks
 content_block_delta events with accumulated partial JSON
+
+`ContentBlock` as an unified interface for different content block types
