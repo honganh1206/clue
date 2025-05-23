@@ -29,18 +29,9 @@ func Init(config ModelConfig) (Model, error) {
 	switch config.Provider {
 	case AnthropicProvider:
 		client := anthropic.NewClient() // Default to look up ANTHROPIC_API_KEY
-		return NewAnthropicModel(&client, config.PromptPath, config.Model, config.MaxTokens), nil
+		return NewAnthropicModel(&client, config.PromptPath, ModelVersion(config.Model), config.MaxTokens), nil
 	default:
 		return nil, fmt.Errorf("unknown model provider: %s", config.Provider)
-	}
-}
-
-func GetModelForProvider(provider ProviderName, model ModelVersion) string {
-	switch provider {
-	case AnthropicProvider:
-		return getAnthropicModel(model)
-	default:
-		return string(model) // Default to using the model name directly
 	}
 }
 
@@ -48,6 +39,7 @@ func ListAvailableModels(provider ProviderName) []ModelVersion {
 	switch provider {
 	case AnthropicProvider:
 		return []ModelVersion{
+			Claude4Sonnet,
 			Claude37Sonnet,
 			Claude35Sonnet,
 			Claude35Haiku,
@@ -60,10 +52,10 @@ func ListAvailableModels(provider ProviderName) []ModelVersion {
 	}
 }
 
-func GetDefaultModel(provider ProviderName) string {
+func GetDefaultModel(provider ProviderName) ModelVersion {
 	switch provider {
 	case AnthropicProvider:
-		return anthropic.ModelClaude3_7SonnetLatest
+		return ModelVersion(anthropic.ModelClaude4Sonnet20250514)
 	default:
 		return ""
 	}
@@ -80,24 +72,4 @@ func FormatModelsForHelp(models []ModelVersion) string {
 		modelStrings[i] = string(model)
 	}
 	return strings.Join(modelStrings, ", ")
-}
-
-func getAnthropicModel(model ModelVersion) string {
-	switch model {
-	case Claude37Sonnet:
-		return anthropic.ModelClaude3_7SonnetLatest
-	case Claude35Sonnet:
-		return anthropic.ModelClaude3_5SonnetLatest
-	case Claude35Haiku:
-		return anthropic.ModelClaude3_5HaikuLatest
-	case Claude3Opus:
-		return anthropic.ModelClaude3OpusLatest
-	case Claude3Sonnet:
-		// FIXME: Deprecated soon
-		return anthropic.ModelClaude_3_Sonnet_20240229
-	case Claude3Haiku:
-		return anthropic.ModelClaude_3_Haiku_20240307
-	default:
-		return anthropic.ModelClaude3_7SonnetLatest
-	}
 }

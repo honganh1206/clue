@@ -12,6 +12,7 @@ type ProviderName string
 type ModelVersion string
 
 const (
+	Claude4Sonnet  ModelVersion = "claude-4-sonnet"
 	Claude37Sonnet ModelVersion = "claude-3-7-sonnet"
 	Claude35Sonnet ModelVersion = "claude-3-5-sonnet"
 	Claude35Haiku  ModelVersion = "claude-3-5-haiku"

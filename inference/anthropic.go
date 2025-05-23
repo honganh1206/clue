@@ -15,13 +15,13 @@ import (
 type AnthropicModel struct {
 	client     *anthropic.Client
 	promptPath string
-	model      string
+	model      ModelVersion
 	maxTokens  int64
 }
 
-func NewAnthropicModel(client *anthropic.Client, promptPath string, model string, maxTokens int64) *AnthropicModel {
+func NewAnthropicModel(client *anthropic.Client, promptPath string, model ModelVersion, maxTokens int64) *AnthropicModel {
 	if model == "" {
-		model = anthropic.ModelClaude3_7SonnetLatest
+		model = ModelVersion(anthropic.ModelClaudeSonnet4_0)
 	}
 
 	if maxTokens == 0 {
@@ -40,6 +40,28 @@ func (m *AnthropicModel) Name() string {
 	return AnthropicModelName
 }
 
+func getAnthropicModel(model ModelVersion) anthropic.Model {
+	switch model {
+	case Claude4Sonnet:
+		return anthropic.ModelClaudeSonnet4_0
+	case Claude37Sonnet:
+		return anthropic.ModelClaude3_7SonnetLatest
+	case Claude35Sonnet:
+		return anthropic.ModelClaude3_5SonnetLatest
+	case Claude35Haiku:
+		return anthropic.ModelClaude3_5HaikuLatest
+	case Claude3Opus:
+		return anthropic.ModelClaude3OpusLatest
+	case Claude3Sonnet:
+		// FIXME: Deprecated soon
+		return anthropic.ModelClaude_3_Sonnet_20240229
+	case Claude3Haiku:
+		return anthropic.ModelClaude_3_Haiku_20240307
+	default:
+		return anthropic.ModelClaudeSonnet4_0
+	}
+}
+
 func (m *AnthropicModel) RunInference(ctx context.Context, conversation []messages.MessageParam, tools []tools.ToolDefinition) (*messages.MessageResponse, error) {
 	anthropicConversation := convertToAnthropicConversation(conversation)
 
@@ -54,7 +76,7 @@ func (m *AnthropicModel) RunInference(ctx context.Context, conversation []messag
 	}
 
 	anthropicStream := m.client.Messages.NewStreaming(ctx, anthropic.MessageNewParams{
-		Model:     m.model,
+		Model:     getAnthropicModel(m.model),
 		MaxTokens: m.maxTokens,
 		Messages:  anthropicConversation,
 		Tools:     anthropicTools,
@@ -119,7 +141,7 @@ func convertToAnthropicBlocks(genericBlocks []messages.ContentBlock) []anthropic
 			}
 
 			toolUseBlock := anthropic.ContentBlockParamUnion{
-				OfRequestToolUseBlock: &toolParam,
+				OfToolUse: &toolParam,
 			}
 			blocks = append(blocks, toolUseBlock)
 		}
