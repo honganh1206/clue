@@ -8,8 +8,8 @@ import (
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/packages/ssestream"
-	"github.com/honganh1206/adrift/messages"
-	"github.com/honganh1206/adrift/tools"
+	"github.com/honganh1206/clue/messages"
+	"github.com/honganh1206/clue/tools"
 )
 
 type AnthropicModel struct {

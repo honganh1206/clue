@@ -1,11 +1,11 @@
-The first dev log! The idea of adrift came from [this wonderful on how to build an Agent by Thorsten Ball](https://ampcode.com/how-to-build-an-agent)
+The first dev log! The idea of clue came from [this wonderful on how to build an Agent by Thorsten Ball](https://ampcode.com/how-to-build-an-agent)
 
-So what so special about adrift? Hard to answer, since adrift is pretty run-off-the-mill: jan, cline, serena... there are probably hundreds of them out there with thousand of users daily. So my answer would be:
+So what so special about clue? Hard to answer, since clue is pretty run-off-the-mill: jan, cline, serena... there are probably hundreds of them out there with thousand of users daily. So my answer would be:
 
 1. It's written in Go(not really special, I know) and
 2. It's CLI-based (booooo think of better things to say)
 
-That is why I do not intend to commercialize it, and adrift would stay to be a for-fun thing (for now, contact me VCs if you see something potential)
+That is why I do not intend to commercialize it, and clue would stay to be a for-fun thing (for now, contact me VCs if you see something potential)
 
 But I have a handful of ideas at the moment: Expanding the toolset, integrating different models into it, creating profiles, etc., and for a person who loves tinkering like me, this is like a kid walking into a candy store. I love having ideas for my work and try to make them come to live and become useful.
 

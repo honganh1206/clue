@@ -3,7 +3,7 @@ package commands
 import (
 	"fmt"
 
-	"github.com/honganh1206/adrift/inference"
+	"github.com/honganh1206/clue/inference"
 	"github.com/spf13/cobra"
 )
 

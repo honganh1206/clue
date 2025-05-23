@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/honganh1206/adrift/inference"
-	"github.com/honganh1206/adrift/messages"
-	"github.com/honganh1206/adrift/tools"
+	"github.com/honganh1206/clue/inference"
+	"github.com/honganh1206/clue/messages"
+	"github.com/honganh1206/clue/tools"
 )
 
 type Agent struct {

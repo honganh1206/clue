@@ -3,4 +3,4 @@ chat:
 list:
 	go run ./main.go list
 build:
-	go build -ldflags='-s' -o bin/adrift main.go
+	go build -ldflags='-s' -o bin/clue main.go

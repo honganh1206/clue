@@ -4,7 +4,7 @@ import (
 	"flag"
 	"fmt"
 
-	"github.com/honganh1206/adrift/inference"
+	"github.com/honganh1206/clue/inference"
 )
 
 // WIP
@@ -13,7 +13,7 @@ func showHelp() {
 		inference.AnthropicProvider,
 	}
 
-	fmt.Println("adrift- A simple CLI-based AI coding agent")
+	fmt.Println("clue- A simple CLI-based AI coding agent")
 	fmt.Println("\nUsage:")
 	flag.PrintDefaults()
 

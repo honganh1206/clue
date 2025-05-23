@@ -1,4 +1,4 @@
-# adrift
+# clue
 
 A simple CLI-based AI coding agent
 

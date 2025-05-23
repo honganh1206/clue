@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/honganh1206/adrift/schema"
+	"github.com/honganh1206/clue/schema"
 )
 
 type ReadFileInput struct {

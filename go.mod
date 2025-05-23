@@ -1,4 +1,4 @@
-module github.com/honganh1206/adrift
+module github.com/honganh1206/clue
 
 go 1.23.3
 

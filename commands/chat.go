@@ -7,10 +7,10 @@ import (
 	"log"
 	"os"
 
-	"github.com/honganh1206/adrift/agent"
-	"github.com/honganh1206/adrift/inference"
-	"github.com/honganh1206/adrift/prompts"
-	"github.com/honganh1206/adrift/tools"
+	"github.com/honganh1206/clue/agent"
+	"github.com/honganh1206/clue/inference"
+	"github.com/honganh1206/clue/prompts"
+	"github.com/honganh1206/clue/tools"
 	"github.com/spf13/cobra"
 )
 

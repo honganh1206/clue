@@ -3,7 +3,7 @@ package main
 import (
 	_ "embed"
 
-	"github.com/honganh1206/adrift/commands"
+	"github.com/honganh1206/clue/commands"
 )
 
 func main() {

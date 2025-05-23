@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/anthropics/anthropic-sdk-go"
-	"github.com/honganh1206/adrift/messages"
-	"github.com/honganh1206/adrift/tools"
+	"github.com/honganh1206/clue/messages"
+	"github.com/honganh1206/clue/tools"
 )
 
 type Model interface {
@@ -39,7 +39,7 @@ func ListAvailableModels(provider ProviderName) []ModelVersion {
 	switch provider {
 	case AnthropicProvider:
 		return []ModelVersion{
-			Claude4Opus
+			Claude4Opus,
 			Claude4Sonnet,
 			Claude37Sonnet,
 			Claude35Sonnet,

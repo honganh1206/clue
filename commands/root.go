@@ -3,7 +3,7 @@ package commands
 import (
 	"os"
 
-	"github.com/honganh1206/adrift/inference"
+	"github.com/honganh1206/clue/inference"
 	"github.com/spf13/cobra"
 )
 
@@ -15,10 +15,10 @@ var (
 
 // The base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "adrift",
+	Use:   "clue",
 	Short: "An AI agent for code editing and assistance",
 	// TODO: Update this as we progress
-	Long: `Adrift is a command line tool that provides an AI agent to help you with code editing and other tasks.
+	Long: `Clue is a command line tool that provides an AI agent to help you with code editing and other tasks.
 It supports multiple AI models from Anthropic, OpenAI (WIP), Gemini (WIP), and local models via Ollama (WIP).`,
 	// Run before any subcommand
 	// PersistentPreRun: func(cmd *cobra.Command, args []string) {
