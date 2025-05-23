@@ -42,6 +42,8 @@ func (m *AnthropicModel) Name() string {
 
 func getAnthropicModel(model ModelVersion) anthropic.Model {
 	switch model {
+	case Claude4Opus:
+		return anthropic.ModelClaudeOpus4_0
 	case Claude4Sonnet:
 		return anthropic.ModelClaudeSonnet4_0
 	case Claude37Sonnet:

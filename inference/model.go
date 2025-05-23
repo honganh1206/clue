@@ -39,6 +39,7 @@ func ListAvailableModels(provider ProviderName) []ModelVersion {
 	switch provider {
 	case AnthropicProvider:
 		return []ModelVersion{
+			Claude4Opus
 			Claude4Sonnet,
 			Claude37Sonnet,
 			Claude35Sonnet,
