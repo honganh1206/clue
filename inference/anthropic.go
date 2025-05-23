@@ -7,34 +7,28 @@ import (
 	"os"
 
 	"github.com/anthropics/anthropic-sdk-go"
-	"github.com/honganh1206/adrift/messages"
-	"github.com/honganh1206/adrift/tools"
+	"github.com/anthropics/anthropic-sdk-go/packages/ssestream"
+	"github.com/honganh1206/clue/messages"
+	"github.com/honganh1206/clue/tools"
 )
 
-type AnthropicEngine struct {
+type AnthropicModel struct {
 	client     *anthropic.Client
 	promptPath string
-	model      string
+	model      ModelVersion
 	maxTokens  int64
 }
 
-type AnthropicToolDefinition struct {
-	Name        string                         `json:"name"`
-	Description string                         `json:"description"`
-	InputSchema anthropic.ToolInputSchemaParam `json:"input_schema"`
-	Function    func(input json.RawMessage) (string, error)
-}
-
-func NewAnthropicEngine(client *anthropic.Client, promptPath string, model string, maxTokens int64) *AnthropicEngine {
+func NewAnthropicModel(client *anthropic.Client, promptPath string, model ModelVersion, maxTokens int64) *AnthropicModel {
 	if model == "" {
-		model = anthropic.ModelClaude3_7SonnetLatest
+		model = ModelVersion(anthropic.ModelClaudeSonnet4_0)
 	}
 
 	if maxTokens == 0 {
 		maxTokens = 1024
 	}
 
-	return &AnthropicEngine{
+	return &AnthropicModel{
 		client:     client,
 		promptPath: promptPath,
 		model:      model,
@@ -42,26 +36,50 @@ func NewAnthropicEngine(client *anthropic.Client, promptPath string, model strin
 	}
 }
 
-func (e *AnthropicEngine) Name() string {
-	return AnthropicEngineName
+func (m *AnthropicModel) Name() string {
+	return AnthropicModelName
 }
 
-func (e *AnthropicEngine) RunInference(ctx context.Context, conversation []messages.Message, tools []tools.ToolDefinition) (*messages.Message, error) {
+func getAnthropicModel(model ModelVersion) anthropic.Model {
+	switch model {
+	case Claude4Opus:
+		return anthropic.ModelClaudeOpus4_0
+	case Claude4Sonnet:
+		return anthropic.ModelClaudeSonnet4_0
+	case Claude37Sonnet:
+		return anthropic.ModelClaude3_7SonnetLatest
+	case Claude35Sonnet:
+		return anthropic.ModelClaude3_5SonnetLatest
+	case Claude35Haiku:
+		return anthropic.ModelClaude3_5HaikuLatest
+	case Claude3Opus:
+		return anthropic.ModelClaude3OpusLatest
+	case Claude3Sonnet:
+		// FIXME: Deprecated soon
+		return anthropic.ModelClaude_3_Sonnet_20240229
+	case Claude3Haiku:
+		return anthropic.ModelClaude_3_Haiku_20240307
+	default:
+		return anthropic.ModelClaudeSonnet4_0
+	}
+}
+
+func (m *AnthropicModel) RunInference(ctx context.Context, conversation []messages.MessageParam, tools []tools.ToolDefinition) (*messages.MessageResponse, error) {
 	anthropicConversation := convertToAnthropicConversation(conversation)
 
 	anthropicTools, err := convertToAnthropicTools(tools)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to convert tools: %w", err)
 	}
 
-	systemPrompt, err := e.loadPromptFile()
+	systemPrompt, err := m.loadPromptFile()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to load prompt: %w", err)
 	}
 
-	anthropicResponse, err := e.client.Messages.New(ctx, anthropic.MessageNewParams{
-		Model:     e.model,
-		MaxTokens: e.maxTokens,
+	anthropicStream := m.client.Messages.NewStreaming(ctx, anthropic.MessageNewParams{
+		Model:     getAnthropicModel(m.model),
+		MaxTokens: m.maxTokens,
 		Messages:  anthropicConversation,
 		Tools:     anthropicTools,
 		System: []anthropic.TextBlockParam{
@@ -69,11 +87,7 @@ func (e *AnthropicEngine) RunInference(ctx context.Context, conversation []messa
 		},
 	})
 
-	if err != nil {
-		panic(err)
-	}
-
-	response, err := convertFromAnthropicMessages(anthropicResponse)
+	response, err := streamFromAnthropicResponse(anthropicStream)
 	if err != nil {
 		return nil, err
 	}
@@ -82,22 +96,8 @@ func (e *AnthropicEngine) RunInference(ctx context.Context, conversation []messa
 
 }
 
-func (e *AnthropicEngine) loadPromptFile() (string, error) {
-	if e.promptPath == "" {
-		return "", nil
-	}
-
-	data, err := os.ReadFile(e.promptPath)
-	if err != nil {
-		return "", fmt.Errorf("failed to read prompt file: %w", err)
-	}
-
-	return string(data), nil
-}
-
-// Convert generic requests to Anthropic messages
-func convertToAnthropicConversation(conversation []messages.Message) []anthropic.MessageParam {
-
+// Convert generic conversation to Anthropic one
+func convertToAnthropicConversation(conversation []messages.MessageParam) []anthropic.MessageParam {
 	anthropicMessages := make([]anthropic.MessageParam, 0, len(conversation))
 
 	for _, msg := range conversation {
@@ -126,30 +126,24 @@ func convertToAnthropicBlocks(genericBlocks []messages.ContentBlock) []anthropic
 	blocks := make([]anthropic.ContentBlockParamUnion, 0, len(genericBlocks))
 
 	for _, block := range genericBlocks {
-		switch block.Type {
-		case messages.ToolResultType:
-			blocks = append(blocks, anthropic.NewToolResultBlock(block.ID, block.Text, block.IsError))
-		case messages.TextType:
-			blocks = append(blocks, anthropic.NewTextBlock(block.Text))
-		case messages.ToolUseType:
-			// ← IMPORTANT: For tool use blocks, we maintain the ID as is
-			// Create a tool use block (this will be handled by the SDK's ToParam method)
-
-			var inputObj any // FIXME: No concrete typing prevents compile-time optimization
-			// Input, for example read_file, could be the path to the file to be read
-			if err := json.Unmarshal(block.Input, &inputObj); err != nil {
-				inputObj = map[string]any{} // FIXME: Silent error handling
+		switch b := block.(type) {
+		case messages.ToolResultContentBlock:
+			content, ok := b.Content.(string)
+			if !ok {
+				continue
 			}
-
-			// FIXME: Consider sync.Pool to reuse toolParam and toolUseBlock
+			blocks = append(blocks, anthropic.NewToolResultBlock(b.ToolUseID, content, b.IsError))
+		case messages.TextContentBlock:
+			blocks = append(blocks, anthropic.NewTextBlock(b.Text))
+		case messages.ToolUseContentBlock:
 			toolParam := anthropic.ToolUseBlockParam{
-				ID:    block.ID,
-				Name:  block.Name,
-				Input: inputObj,
+				ID:    b.ID,
+				Name:  b.Name,
+				Input: b.Input,
 			}
 
 			toolUseBlock := anthropic.ContentBlockParamUnion{
-				OfRequestToolUseBlock: &toolParam,
+				OfToolUse: &toolParam,
 			}
 			blocks = append(blocks, toolUseBlock)
 		}
@@ -158,35 +152,65 @@ func convertToAnthropicBlocks(genericBlocks []messages.ContentBlock) []anthropic
 	return blocks
 }
 
-// Convert Anthropic responses to generic messages
-func convertFromAnthropicMessages(response *anthropic.Message) (*messages.Message, error) {
-	msg := &messages.Message{
-		Role:    string(response.Role), // Always assistant
-		Content: make([]messages.ContentBlock, 0, len(response.Content)),
+func streamFromAnthropicResponse(stream *ssestream.Stream[anthropic.MessageStreamEventUnion]) (*messages.MessageResponse, error) {
+	anthropicMsg := anthropic.Message{}
+
+	for stream.Next() {
+		event := stream.Current()
+		// Weird: This does not work with list_files({})
+		// Since it leads to error calling MarshalJSON for json.RawMessage: Unexpected end of JSON input
+		// FIXME: Should not skip error handling here
+		// if err := anthropicMsg.Accumulate(event); err != nil {
+		// 	panic(err)
+		// 	// return nil, fmt.Errorf("stream error mid-processing: %w", err)
+		// }
+
+		anthropicMsg.Accumulate(event)
+
+		switch event := event.AsAny().(type) {
+		// Incremental updates sent during text generation
+		case anthropic.ContentBlockDeltaEvent:
+			fmt.Print(event.Delta.Text)
+		case anthropic.ContentBlockStartEvent:
+			// if event.ContentBlock.Name != "" {
+			// 	print(event.ContentBlock.Name + ": ")
+			// }
+		case anthropic.ContentBlockStopEvent:
+			println()
+		case anthropic.MessageStopEvent:
+		case anthropic.MessageStartEvent:
+		case anthropic.MessageDeltaEvent:
+		default:
+			fmt.Printf("Unhandled event type: %T\n", event)
+		}
 	}
 
-	for _, block := range response.Content {
+	if stream.Err() != nil {
+		panic(stream.Err())
+	}
 
-		switch block.Type {
-		case messages.TextType:
-			msg.Content = append(msg.Content, messages.ContentBlock{
-				Type: messages.TextType,
-				Text: block.Text,
-			})
-		case messages.ToolUseType:
-			input, err := json.Marshal(block.Input)
+	return convertFromAnthropicMessage(anthropicMsg)
+}
+
+func convertFromAnthropicMessage(anthropicMsg anthropic.Message) (*messages.MessageResponse, error) {
+	msg := &messages.MessageResponse{
+		MessageParam: messages.MessageParam{
+			Role:    messages.AssistantRole,
+			Content: make([]messages.ContentBlock, 0),
+		},
+	}
+
+	for _, block := range anthropicMsg.Content {
+		switch variant := block.AsAny().(type) {
+		case anthropic.TextBlock:
+			msg.Content = append(msg.Content, messages.NewTextContentBlock(block.Text))
+		case anthropic.ToolUseBlock:
+			var input json.RawMessage
+			err := json.Unmarshal([]byte(variant.JSON.Input.Raw()), &input)
 			if err != nil {
 				return nil, err
 			}
-
-			msg.Content = append(msg.Content, messages.ContentBlock{
-				Type:     messages.ToolUseType,
-				ID:       block.ID,
-				Name:     block.Name,
-				Input:    input,
-				Text:     block.Text,
-				ToolCall: true,
-			})
+			msg.Content = append(msg.Content, messages.NewToolUseContentBlock(block.ID, block.Name, input))
 		}
 	}
 
@@ -227,4 +251,17 @@ func convertToAnthropicTool(tool tools.ToolDefinition) (*anthropic.ToolUnionPara
 			InputSchema: anthropicSchema,
 		},
 	}, nil
+}
+
+func (m *AnthropicModel) loadPromptFile() (string, error) {
+	if m.promptPath == "" {
+		return "", nil
+	}
+
+	data, err := os.ReadFile(m.promptPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read prompt file: %w", err)
+	}
+
+	return string(data), nil
 }

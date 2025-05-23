@@ -1,22 +1,23 @@
 package inference
 
 const (
-	AnthropicEngineName = "Claude"
-	OpenAIEngine        = "ChatGPT"
+	AnthropicModelName = "Claude"
 )
 
 const (
 	AnthropicProvider = "anthropic"
 )
 
-type Provider string
-type Model string
+type ProviderName string
+type ModelVersion string
 
 const (
-	Claude37Sonnet Model = "claude-3-7-sonnet"
-	Claude35Sonnet Model = "claude-3-5-sonnet"
-	Claude35Haiku  Model = "claude-3-5-haiku"
-	Claude3Opus    Model = "claude-3-opus"
-	Claude3Sonnet  Model = "claude-3-sonnet"
-	Claude3Haiku   Model = "claude-3-haiku"
+	Claude4Opus    ModelVersion = "claude-4-opus"
+	Claude4Sonnet  ModelVersion = "claude-4-sonnet"
+	Claude37Sonnet ModelVersion = "claude-3-7-sonnet"
+	Claude35Sonnet ModelVersion = "claude-3-5-sonnet"
+	Claude35Haiku  ModelVersion = "claude-3-5-haiku"
+	Claude3Opus    ModelVersion = "claude-3-opus"
+	Claude3Sonnet  ModelVersion = "claude-3-sonnet"
+	Claude3Haiku   ModelVersion = "claude-3-haiku"
 )

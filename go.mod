@@ -1,11 +1,10 @@
-module github.com/honganh1206/adrift
+module github.com/honganh1206/clue
 
 go 1.23.3
 
 require (
-	github.com/anthropics/anthropic-sdk-go v0.2.0-beta.3
+	github.com/anthropics/anthropic-sdk-go v1.2.0
 	github.com/invopop/jsonschema v0.13.0
-	github.com/joho/godotenv v1.5.1
 )
 
 require (

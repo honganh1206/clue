@@ -15,8 +15,8 @@ var (
 
 var versionCmd = &cobra.Command{
 	Use:   "version",
-	Short: "Print the version number of Adrift",
+	Short: "Print the version number of clue",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("Adrift version %s (commit: %s, built: %s)\n", Version, GitCommit, BuildTime)
+		fmt.Printf("Clue version %s (commit: %s, built: %s)\n", Version, GitCommit, BuildTime)
 	},
 }

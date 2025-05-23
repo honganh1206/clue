@@ -13,13 +13,13 @@ var completionCmd = &cobra.Command{
 	Long: `To load completions:
 
 Bash:
-  $ source <(adrift completion bash)
+  $ source <(clue completion bash)
 
   # To load completions for each session, execute once:
   # Linux:
-  $ adrift completion bash > /etc/bash_completion.d/adrift
+  $ clue completion bash > /etc/bash_completion.d/clue
   # macOS:
-  $ adrift completion bash > /usr/local/etc/bash_completion.d/adrift
+  $ clue completion bash > /usr/local/etc/bash_completion.d/clue
 
 Zsh:
   # If shell completion is not already enabled in your environment,
@@ -28,10 +28,10 @@ Zsh:
   $ echo "autoload -U compinit; compinit" >> ~/.zshrc
 
   # To load completions for each session, execute once:
-  $ adrift completion zsh > "${fpath[1]}/_adrift"
+  $ clue completion zsh > "${fpath[1]}/_clue"
 
 Fish:
-  $ adrift completion fish > ~/.config/fish/completions/adrift.fish
+  $ clue completion fish > ~/.config/fish/completions/clue.fish
 `,
 	DisableFlagsInUseLine: true,
 	ValidArgs:             []string{"bash", "zsh", "fish", "powershell"},
