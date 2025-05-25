@@ -45,7 +45,7 @@ var chatCmd = &cobra.Command{
 			return scanner.Text(), true
 		}
 
-		toolDefs := []tools.ToolDefinition{tools.ReadFileDefinition, tools.ListFilesDefinition}
+		toolDefs := []tools.ToolDefinition{tools.ReadFileDefinition, tools.ListFilesDefinition, tools.EditFileDefinition}
 
 		agent := agent.New(model, getUserMsg, toolDefs, prompts.System())
 		// In production, use Background() as the final root context()

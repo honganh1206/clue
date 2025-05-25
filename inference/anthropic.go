@@ -205,12 +205,11 @@ func convertFromAnthropicMessage(anthropicMsg anthropic.Message) (*messages.Mess
 		case anthropic.TextBlock:
 			msg.Content = append(msg.Content, messages.NewTextContentBlock(block.Text))
 		case anthropic.ToolUseBlock:
-			var input json.RawMessage
-			err := json.Unmarshal([]byte(variant.JSON.Input.Raw()), &input)
+			err := json.Unmarshal([]byte(variant.JSON.Input.Raw()), &block.Input)
 			if err != nil {
 				return nil, err
 			}
-			msg.Content = append(msg.Content, messages.NewToolUseContentBlock(block.ID, block.Name, input))
+			msg.Content = append(msg.Content, messages.NewToolUseContentBlock(block.ID, block.Name, block.Input))
 		}
 	}
 

@@ -13,7 +13,7 @@ func showHelp() {
 		inference.AnthropicProvider,
 	}
 
-	fmt.Println("clue- A simple CLI-based AI coding agent")
+	fmt.Println("clue - A simple CLI-based AI coding agent")
 	fmt.Println("\nUsage:")
 	flag.PrintDefaults()
 
