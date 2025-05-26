@@ -32,6 +32,7 @@ If this proves to be helpful to anyone, consider it my thanks to the open-source
 - [go-grep](https://github.com/rastasheep/go-grep) - Tool
 - [aider](https://github.com/Aider-AI/aider) - Terminal-based
 - [deepseek-go](https://github.com/cohesion-org/deepseek-go) - Client for DeepSeek and Ollama
-- [smolcode](https://github.com/dhamidi/smolcode) - GenAI integration, memory management
+- [smolcode](https://github.com/dhamidi/smolcode) - Gemini integration, memory management
 - [anthropic-go](https://github.com/madebywelch/anthropic-go) - Details on how to implement messages and message events
 - [anthrogo](https://github.com/dleviminzi/anthrogo) Message decoder
+- [stainless-api-cli](https://github.com/honganh1206/stainless-api-cli) - How to structure a CLI app professionally?

@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/honganh1206/clue/agent"
+	"github.com/honganh1206/clue/history"
 	"github.com/honganh1206/clue/inference"
 	"github.com/honganh1206/clue/prompts"
 	"github.com/honganh1206/clue/tools"
@@ -18,6 +19,13 @@ var chatCmd = &cobra.Command{
 	Use:   "chat",
 	Short: "Start a chat with the AI agent",
 	Run: func(cmd *cobra.Command, args []string) {
+		db, err := history.InitDB()
+
+		if err != nil {
+			log.Fatalf("Failed to initialize database: %s", err.Error())
+		}
+		defer db.Close()
+
 		// FIXME: Some way to make this more configurable?
 		systemPrompt := prompts.System()
 
@@ -47,7 +55,7 @@ var chatCmd = &cobra.Command{
 
 		toolDefs := []tools.ToolDefinition{tools.ReadFileDefinition, tools.ListFilesDefinition, tools.EditFileDefinition}
 
-		agent := agent.New(model, getUserMsg, toolDefs, prompts.System())
+		agent := agent.New(model, getUserMsg, toolDefs, prompts.System(), db)
 		// In production, use Background() as the final root context()
 		// For dev env, TODO for temporary scaffolding
 		err = agent.Run(context.TODO())

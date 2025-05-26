@@ -83,7 +83,7 @@ func (m *AnthropicModel) RunInference(ctx context.Context, conversation []messag
 		Messages:  anthropicConversation,
 		Tools:     anthropicTools,
 		System: []anthropic.TextBlockParam{
-			{Text: systemPrompt},
+			{Text: systemPrompt}, // TODO: Cache the system prompt?
 		},
 	})
 
