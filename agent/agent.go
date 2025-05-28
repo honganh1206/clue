@@ -19,14 +19,13 @@ type Agent struct {
 	getUserMessage func() (string, bool)
 	tools          []tools.ToolDefinition
 	promptPath     string
-	conversation   *history.Conversation // TODO: Use types from messages package?
-	history        []messages.MessageParam
+	history        *history.Conversation
+	conversation   []messages.MessageParam
 	db             *sql.DB
 }
 
 func New(model inference.Model, getUserMsg func() (string, bool), tools []tools.ToolDefinition, promptPath string, db *sql.DB) *Agent {
-
-	persistentConversaion, err := history.NewConversation()
+	history, err := history.NewConversation()
 	if err != nil {
 		return nil
 	}
@@ -37,14 +36,12 @@ func New(model inference.Model, getUserMsg func() (string, bool), tools []tools.
 		tools:          tools,
 		promptPath:     promptPath,
 		db:             db,
-		conversation:   persistentConversaion,
+		conversation:   []messages.MessageParam{},
+		history:        history,
 	}
 }
 
 func (a *Agent) Run(ctx context.Context) error {
-	// FIXME: Only one conversation in the DB?
-	conversation := []messages.MessageParam{}
-
 	modelName := a.model.Name()
 
 	fmt.Printf("Chat with %s (use 'ctrl-c' to quit)\n", modelName)
@@ -66,26 +63,25 @@ func (a *Agent) Run(ctx context.Context) error {
 					Content: []messages.ContentBlock{messages.NewTextContentBlock(userInput)},
 				},
 			}
-			conversation = append(conversation, userMsg.MessageParam)
-			a.history = append(a.history, userMsg.MessageParam)
+			a.conversation = append(a.conversation, userMsg.MessageParam)
+			a.history.Append(userMsg.MessageParam)
 			// printConversationAsJSON(conversation)
-			a.saveConversation(conversation)
+			a.saveConversation()
 		}
 
 		// TODO: Block after tool use also display the name. Should it be the right behavior?
 		// Also update with something interactive
 		fmt.Printf("\u001b[93m%s\u001b[0m: ", modelName)
 
-		agentMsg, err := a.model.RunInference(ctx, conversation, a.tools)
+		agentMsg, err := a.model.RunInference(ctx, a.conversation, a.tools)
 		if err != nil {
 			return err
 		}
 
-		a.history = append(a.history, agentMsg.MessageParam)
+		a.conversation = append(a.conversation, agentMsg.MessageParam)
+		a.history.Append(agentMsg.MessageParam)
+		a.saveConversation()
 
-		conversation = append(conversation, *&agentMsg.MessageParam)
-		a.history = append(a.history, agentMsg.MessageParam)
-		a.saveConversation(conversation)
 		toolResults := []messages.ContentBlock{}
 
 		for _, content := range agentMsg.Content {
@@ -111,10 +107,9 @@ func (a *Agent) Run(ctx context.Context) error {
 			},
 		}
 
-		conversation = append(conversation, toolResultMsg.MessageParam)
-		a.saveConversation(conversation)
-		// fmt.Printf("DEBUG - conversation now has %d messages\n", len(conversation))
-
+		a.conversation = append(a.conversation, toolResultMsg.MessageParam)
+		a.history.Append(toolResultMsg.MessageParam)
+		a.saveConversation()
 	}
 
 	return nil
@@ -151,16 +146,16 @@ func (a *Agent) executeTool(id, name string, input json.RawMessage) messages.Con
 	return messages.NewToolResultContentBlock(id, response, true)
 }
 
-func (a *Agent) saveConversation(conversation []messages.MessageParam) error {
+func (a *Agent) saveConversation() error {
 	// For now we store the serializable representation i.e. JSON
 	// The history package will handle the marshalling
-	a.conversation.Messages = []*history.Message{} // Clear existing messages?
-	for _, content := range conversation {
-		a.conversation.Append(content)
+	a.history.Messages = []*history.Message{} // Clear existing messages?
+	for _, content := range a.conversation {
+		a.history.Append(content)
 	}
 
-	// FIXME: Very drafty. Consider moving the db field out of Agent struct
-	err := history.SaveTo(a.db, a.conversation)
+	// FIXME: Very drafty. Consider moving the db field out of Agent struct?
+	err := a.history.SaveTo(a.db)
 	if err != nil {
 		// 4. Log any errors from history.Save to os.Stderr and return the error.
 		fmt.Fprintf(os.Stderr, "Warning: could not save conversation to DB: %v\n", err)

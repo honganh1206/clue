@@ -66,7 +66,7 @@ func (c *Conversation) Append(payload messages.MessageParam) {
 	c.Messages = append(c.Messages, msg)
 }
 
-func SaveTo(db *sql.DB, conversation *Conversation) error {
+func (c *Conversation) SaveTo(db *sql.DB) error {
 	// Begin a transaction
 	tx, err := db.Begin()
 	if err != nil {
@@ -80,7 +80,7 @@ func SaveTo(db *sql.DB, conversation *Conversation) error {
 	VALUES(?, ?);
 	`
 
-	if _, err = tx.Exec(query, conversation.ID, conversation.CreatedAt); err != nil {
+	if _, err = tx.Exec(query, c.ID, c.CreatedAt); err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -89,7 +89,7 @@ func SaveTo(db *sql.DB, conversation *Conversation) error {
 	DELETE FROM messages WHERE conversation_id = ?;
 	`
 
-	if _, err = tx.Exec(query, conversation.ID); err != nil {
+	if _, err = tx.Exec(query, c.ID); err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -106,14 +106,14 @@ func SaveTo(db *sql.DB, conversation *Conversation) error {
 	}
 	defer stmt.Close()
 
-	for i, msg := range conversation.Messages {
+	for i, msg := range c.Messages {
 		jsonBytes, jsonErr := json.Marshal(msg.Payload)
 		if jsonErr != nil {
 			tx.Rollback()
 			return jsonErr
 		}
 		payloadString := string(jsonBytes)
-		_, err = stmt.Exec(conversation.ID, i, payloadString, msg.CreatedAt)
+		_, err = stmt.Exec(c.ID, i, payloadString, msg.CreatedAt)
 		if err != nil {
 			tx.Rollback()
 			return err
