@@ -80,6 +80,8 @@ func (c *Conversation) SaveTo(db *sql.DB) error {
 		return err
 	}
 
+	// FIXME: Currently delete and re-insert all messages, extremely inefficient
+	// There should be a lastSavedIndex to insert the latest message. Should it be a column?
 	query = `
 	DELETE FROM messages WHERE conversation_id = ?;
 	`
