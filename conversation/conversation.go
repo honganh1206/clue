@@ -1,4 +1,4 @@
-package history
+package conversation
 
 import (
 	"database/sql"
@@ -8,27 +8,21 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/honganh1206/clue/db"
-	"github.com/honganh1206/clue/messages"
 )
 
 //go:embed schema.sql
 var schemaSQL string
 
-var DefaultDatabasePath = ".dbs/history.db"
-
-type Message struct {
-	Payload   messages.MessageParam
-	CreatedAt time.Time
-}
+var DefaultDatabasePath = ".dbs/conversation.db"
 
 type Conversation struct {
 	ID        string
-	Messages  []*Message
+	Messages  []MessageParam
 	CreatedAt time.Time
 }
 
 func InitDB() (*sql.DB, error) {
-	// TODO: Make this configurable
+	// TODO: Make this configurable?
 	dbConfig := db.Config{
 		Dsn:          DefaultDatabasePath,
 		MaxOpenConns: 25,
@@ -44,7 +38,7 @@ func InitDB() (*sql.DB, error) {
 	return historyDb, nil
 }
 
-func NewConversation() (*Conversation, error) {
+func New() (*Conversation, error) {
 	id, err := uuid.NewRandom()
 	if err != nil {
 		return nil, err
@@ -52,16 +46,17 @@ func NewConversation() (*Conversation, error) {
 
 	return &Conversation{
 		ID:        id.String(),
-		Messages:  make([]*Message, 0),
+		Messages:  make([]MessageParam, 0),
 		CreatedAt: time.Now(),
 	}, nil
 }
 
-func (c *Conversation) Append(payload messages.MessageParam) {
-	msg := &Message{
-		Payload:   payload,
-		CreatedAt: time.Now(),
-	}
+func (c *Conversation) Append(msg MessageParam) {
+	now := time.Now()
+	sequence := len(c.Messages)
+
+	msg.CreatedAt = now
+	msg.Sequence = sequence
 
 	c.Messages = append(c.Messages, msg)
 }
@@ -107,7 +102,7 @@ func (c *Conversation) SaveTo(db *sql.DB) error {
 	defer stmt.Close()
 
 	for i, msg := range c.Messages {
-		jsonBytes, jsonErr := json.Marshal(msg.Payload)
+		jsonBytes, jsonErr := json.Marshal(msg.Content)
 		if jsonErr != nil {
 			tx.Rollback()
 			return jsonErr

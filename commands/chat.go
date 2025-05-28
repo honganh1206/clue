@@ -8,7 +8,7 @@ import (
 	"os"
 
 	"github.com/honganh1206/clue/agent"
-	"github.com/honganh1206/clue/history"
+	"github.com/honganh1206/clue/conversation"
 	"github.com/honganh1206/clue/inference"
 	"github.com/honganh1206/clue/prompts"
 	"github.com/honganh1206/clue/tools"
@@ -19,7 +19,7 @@ var chatCmd = &cobra.Command{
 	Use:   "chat",
 	Short: "Start a chat with the AI agent",
 	Run: func(cmd *cobra.Command, args []string) {
-		db, err := history.InitDB()
+		db, err := conversation.InitDB()
 
 		if err != nil {
 			log.Fatalf("Failed to initialize database: %s", err.Error())
