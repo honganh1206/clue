@@ -4,10 +4,12 @@ import (
 	"database/sql"
 	_ "embed"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/honganh1206/clue/db"
+	"github.com/honganh1206/clue/utils"
 )
 
 //go:embed schema.sql
@@ -19,6 +21,13 @@ type Conversation struct {
 	ID        string
 	Messages  []MessageParam
 	CreatedAt time.Time
+}
+
+type ConversationMetadata struct {
+	ID                string
+	LatestMessageTime time.Time
+	MessageCount      int
+	CreatedAt         time.Time
 }
 
 func InitDB() (*sql.DB, error) {
@@ -118,4 +127,63 @@ func (c *Conversation) SaveTo(db *sql.DB) error {
 	}
 
 	return tx.Commit()
+}
+
+func List(db *sql.DB) ([]ConversationMetadata, error) {
+	query := `
+		SELECT
+			c.id,
+			c.created_at,
+			COUNT(m.id) as message_count,
+			COALESCE(MAX(m.created_at), c.created_at) as latest_message_at
+		FROM
+			conversations c
+		LEFT JOIN
+			messages m ON c.id = m.conversation_id
+		GROUP BY
+			c.id
+		ORDER BY
+			latest_message_at DESC;
+	`
+
+	rows, err := db.Query(query)
+	if err != nil {
+		// Check for missing tables
+		var tableCheck string
+		errTable := db.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='conversations'").Scan(&tableCheck)
+		if errTable == sql.ErrNoRows {
+			return []ConversationMetadata{}, nil // No 'conversations' table, so no conversations
+		}
+		return nil, fmt.Errorf("failed to query conversations: %w", err)
+	}
+
+	defer rows.Close()
+
+	var metadataList []ConversationMetadata
+	for rows.Next() {
+		var meta ConversationMetadata
+		var createdAt string
+		var latestTimestamp string
+
+		if err := rows.Scan(&meta.ID, &createdAt, &meta.MessageCount, &latestTimestamp); err != nil {
+			return nil, fmt.Errorf("failed to scan conversation metadata: %w", err)
+		}
+		meta.CreatedAt, err = utils.ParseTimeWithFallback(createdAt)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse conversation created_at: %w", err)
+		}
+
+		meta.LatestMessageTime, err = utils.ParseTimeWithFallback(latestTimestamp)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse latest_message_timestamp: %w", err)
+		}
+		metadataList = append(metadataList, meta)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating rows: %w", err)
+	}
+
+	return metadataList, nil
+
 }

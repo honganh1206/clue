@@ -8,8 +8,8 @@ import (
 )
 
 // listModelsCmd represents the listModels command
-var listModelsCmd = &cobra.Command{
-	Use:   "list",
+var modelCmd = &cobra.Command{
+	Use:   "model",
 	Short: "List available models for the selected provider",
 	Run: func(cmd *cobra.Command, args []string) {
 		provider := inference.ProviderName(modelConfig.Provider)
