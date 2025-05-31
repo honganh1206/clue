@@ -29,3 +29,6 @@ clue
 
 # AMP
 AGENT.md
+
+# Local DBs
+.dbs/
