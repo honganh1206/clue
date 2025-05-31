@@ -19,7 +19,7 @@ var DefaultDatabasePath = ".dbs/conversation.db"
 
 type Conversation struct {
 	ID        string
-	Messages  []MessageParam
+	Messages  []*MessageParam
 	CreatedAt time.Time
 }
 
@@ -55,7 +55,7 @@ func New() (*Conversation, error) {
 
 	return &Conversation{
 		ID:        id.String(),
-		Messages:  make([]MessageParam, 0),
+		Messages:  make([]*MessageParam, 0),
 		CreatedAt: time.Now(),
 	}, nil
 }
@@ -67,7 +67,7 @@ func (c *Conversation) Append(msg MessageParam) {
 	msg.CreatedAt = now
 	msg.Sequence = sequence
 
-	c.Messages = append(c.Messages, msg)
+	c.Messages = append(c.Messages, &msg)
 }
 
 func (c *Conversation) SaveTo(db *sql.DB) error {
@@ -187,3 +187,13 @@ func List(db *sql.DB) ([]ConversationMetadata, error) {
 	return metadataList, nil
 
 }
+
+// func Load(id string, db *sql.DB) (*Conversation, error) {
+// 	query := `
+// 		SELECT created_at FROM conversations WHERE id = ?
+// 	`
+
+// 	conv := &Conversation{ID: id, Messages: make([]*MessageParam, 0)}
+
+// 	err := db.QueryRow(query, id).Scan(&conv)
+// }

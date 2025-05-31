@@ -64,7 +64,7 @@ func getAnthropicModel(model ModelVersion) anthropic.Model {
 	}
 }
 
-func (m *AnthropicModel) RunInference(ctx context.Context, msgs []conversation.MessageParam, tools []tools.ToolDefinition) (*conversation.MessageResponse, error) {
+func (m *AnthropicModel) RunInference(ctx context.Context, msgs []*conversation.MessageParam, tools []tools.ToolDefinition) (*conversation.MessageResponse, error) {
 	anthropicMsgs := convertToAnthropicMsgs(msgs)
 
 	anthropicTools, err := convertToAnthropicTools(tools)
@@ -97,7 +97,7 @@ func (m *AnthropicModel) RunInference(ctx context.Context, msgs []conversation.M
 }
 
 // Convert generic messages to Anthropic ones
-func convertToAnthropicMsgs(msgs []conversation.MessageParam) []anthropic.MessageParam {
+func convertToAnthropicMsgs(msgs []*conversation.MessageParam) []anthropic.MessageParam {
 	anthropicMsgs := make([]anthropic.MessageParam, 0, len(msgs))
 
 	for _, msg := range msgs {
@@ -157,15 +157,9 @@ func streamAnthropicResponse(stream *ssestream.Stream[anthropic.MessageStreamEve
 
 	for stream.Next() {
 		event := stream.Current()
-		// Weird: This does not work with list_files({})
-		// Since it leads to error calling MarshalJSON for json.RawMessage: Unexpected end of JSON input
-		// FIXME: Should not skip error handling here
-		// if err := anthropicMsg.Accumulate(event); err != nil {
-		// 	panic(err)
-		// 	// return nil, fmt.Errorf("stream error mid-processing: %w", err)
-		// }
-
-		anthropicMsg.Accumulate(event)
+		if err := anthropicMsg.Accumulate(event); err != nil {
+			panic(err)
+		}
 
 		switch event := event.AsAny().(type) {
 		// Incremental updates sent during text generation

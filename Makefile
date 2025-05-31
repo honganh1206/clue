@@ -1,5 +1,5 @@
-chat:
-	go run ./main.go chat
+run:
+	go run ./main.go
 list/models:
 	go run ./main.go list
 list/conversations:

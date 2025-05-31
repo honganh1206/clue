@@ -1,17 +1,47 @@
 package agent
 
 import (
+	"bufio"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 
 	"github.com/honganh1206/clue/conversation"
 	"github.com/honganh1206/clue/inference"
+	"github.com/honganh1206/clue/prompts"
 	"github.com/honganh1206/clue/tools"
 	_ "github.com/mattn/go-sqlite3"
 )
+
+func Code(conversationID string, modelConfig inference.ModelConfig, db *sql.DB) error {
+	model, err := inference.Init(modelConfig)
+	if err != nil {
+		log.Fatalf("Failed to initialize model: %s", err.Error())
+	}
+
+	scanner := bufio.NewScanner(os.Stdin)
+	getUserMsg := func() (string, bool) {
+		if !scanner.Scan() {
+			return "", false
+		}
+		return scanner.Text(), true
+	}
+	toolDefs := []tools.ToolDefinition{tools.ReadFileDefinition, tools.ListFilesDefinition, tools.EditFileDefinition}
+
+	agent := New(model, getUserMsg, toolDefs, prompts.System(), db)
+	// In production, use Background() as the final root context()
+	// For dev env, TODO for temporary scaffolding
+	err = agent.Run(context.TODO())
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
 
 type Agent struct {
 	model          inference.Model
@@ -48,7 +78,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	for {
 		if readUserInput {
 
-			fmt.Print("\u001b[94mYou\u001b[0m: ")
+			fmt.Print("\u001b[94m>\u001b[0m ")
 			userInput, ok := a.getUserMessage()
 			if !ok {
 				break
@@ -65,7 +95,7 @@ func (a *Agent) Run(ctx context.Context) error {
 		}
 
 		// TODO: Update with something interactive
-		fmt.Printf("\u001b[93m%s\u001b[0m: ", modelName)
+		// fmt.Printf("\u001b[93m%s\u001b[0m: ", modelName)
 
 		agentMsg, err := a.model.RunInference(ctx, a.conversation.Messages, a.tools)
 		if err != nil {
@@ -86,7 +116,6 @@ func (a *Agent) Run(ctx context.Context) error {
 		}
 
 		if len(toolResults) == 0 {
-			// No tools were used, waiting for user input
 			readUserInput = true
 			continue
 		}
