@@ -16,7 +16,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-func Code(conversationID string, modelConfig inference.ModelConfig, db *sql.DB) error {
+func Gen(conversationID string, modelConfig inference.ModelConfig, db *sql.DB) error {
 	model, err := inference.Init(modelConfig)
 	if err != nil {
 		log.Fatalf("Failed to initialize model: %s", err.Error())
@@ -29,12 +29,28 @@ func Code(conversationID string, modelConfig inference.ModelConfig, db *sql.DB) 
 		}
 		return scanner.Text(), true
 	}
+
 	toolDefs := []tools.ToolDefinition{tools.ReadFileDefinition, tools.ListFilesDefinition, tools.EditFileDefinition}
 
-	agent := New(model, getUserMsg, toolDefs, prompts.System(), db)
+	var a *Agent
+	var conv *conversation.Conversation
+
+	if conversationID != "" {
+		conv, err = conversation.Load(conversationID, db)
+		if err != nil {
+			return err
+		}
+	} else {
+		conv, err = conversation.New()
+		if err != nil {
+			return err
+		}
+	}
+	a = New(model, getUserMsg, conv, toolDefs, prompts.System(), db)
+
 	// In production, use Background() as the final root context()
 	// For dev env, TODO for temporary scaffolding
-	err = agent.Run(context.TODO())
+	err = a.run(context.TODO())
 
 	if err != nil {
 		return err
@@ -48,27 +64,23 @@ type Agent struct {
 	getUserMessage func() (string, bool)
 	tools          []tools.ToolDefinition
 	promptPath     string
-	conversation   *conversation.Conversation // TODO: Make this a single source of truth
-	db             *sql.DB
+	conversation   *conversation.Conversation
+	// FIXME: CRUD operations should be on its own, not a field in Agent
+	db *sql.DB
 }
 
-func New(model inference.Model, getUserMsg func() (string, bool), tools []tools.ToolDefinition, promptPath string, db *sql.DB) *Agent {
-	conv, err := conversation.New()
-	if err != nil {
-		return nil
-	}
-
+func New(model inference.Model, getUserMsg func() (string, bool), conversation *conversation.Conversation, tools []tools.ToolDefinition, promptPath string, db *sql.DB) *Agent {
 	return &Agent{
 		model:          model,
 		getUserMessage: getUserMsg,
 		tools:          tools,
 		promptPath:     promptPath,
+		conversation:   conversation,
 		db:             db,
-		conversation:   conv,
 	}
 }
 
-func (a *Agent) Run(ctx context.Context) error {
+func (a *Agent) run(ctx context.Context) error {
 	modelName := a.model.Name()
 
 	fmt.Printf("Chat with %s (use 'ctrl-c' to quit)\n", modelName)
@@ -149,6 +161,7 @@ func (a *Agent) executeTool(id, name string, input json.RawMessage) conversation
 	}
 
 	if !found {
+		// TODO: Return proper error type
 		errorMsg := "tool not found"
 		return conversation.NewToolResultContentBlock(id, errorMsg, true)
 	}

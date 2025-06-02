@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -16,6 +17,10 @@ import (
 var schemaSQL string
 
 var DefaultDatabasePath = ".dbs/conversation.db"
+
+var (
+	ErrConversationNotFound = errors.New("history: conversation not found")
+)
 
 type Conversation struct {
 	ID        string
@@ -113,7 +118,7 @@ func (c *Conversation) SaveTo(db *sql.DB) error {
 	defer stmt.Close()
 
 	for i, msg := range c.Messages {
-		jsonBytes, jsonErr := json.Marshal(msg.Content)
+		jsonBytes, jsonErr := json.Marshal(msg)
 		if jsonErr != nil {
 			tx.Rollback()
 			return jsonErr
@@ -188,12 +193,143 @@ func List(db *sql.DB) ([]ConversationMetadata, error) {
 
 }
 
-// func Load(id string, db *sql.DB) (*Conversation, error) {
-// 	query := `
-// 		SELECT created_at FROM conversations WHERE id = ?
-// 	`
+func LatestID(db *sql.DB) (string, error) {
+	query := `
+		SELECT id FROM conversations ORDER BY created_at DESC LIMIT 1
+	`
 
-// 	conv := &Conversation{ID: id, Messages: make([]*MessageParam, 0)}
+	var id string
+	err := db.QueryRow(query).Scan(&id)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", ErrConversationNotFound // Return custom error
+		}
+		return "", fmt.Errorf("failed to query for latest conversation ID: %w", err)
+	}
 
-// 	err := db.QueryRow(query, id).Scan(&conv)
-// }
+	return id, nil
+}
+
+func Load(id string, db *sql.DB) (*Conversation, error) {
+	query := `
+		SELECT created_at FROM conversations WHERE id = ?
+	`
+
+	conv := &Conversation{ID: id, Messages: make([]*MessageParam, 0)}
+
+	err := db.QueryRow(query, id).Scan(&conv.CreatedAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, ErrConversationNotFound
+		}
+		return nil, fmt.Errorf("failed to query conversation metadata for ID '%s': %w", id, err)
+	}
+
+	query = `
+		SELECT
+			sequence_number,
+			payload,
+			created_at
+		FROM
+			messages WHERE conversation_id = ?
+		ORDER BY
+			sequence_number ASC
+	`
+
+	rows, err := db.Query(query, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query messages for conversation ID '%s': %w", id, err)
+	}
+	defer rows.Close()
+
+	type indexedMessage struct {
+		seq int
+		msg *MessageParam
+	}
+	var indexedMsgs []indexedMessage
+
+	for rows.Next() {
+		var seq int
+		var payload []byte
+		var createdAt time.Time
+
+		if err := rows.Scan(&seq, &payload, &createdAt); err != nil {
+			return nil, fmt.Errorf("failed to scan message for conversation ID '%s': %w", id, err)
+		}
+
+		// First unmarshal into a temporary struct to access the content
+		var tempMsg struct {
+			Role    string `json:"role"`
+			Content []struct {
+				Type string `json:"type"`
+			} `json:"content"`
+		}
+
+		if err := json.Unmarshal(payload, &tempMsg); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal temp message payload for conversation ID '%s': %w", id, err)
+		}
+
+		// Now unmarshal the full message with proper content blocks
+		var fullMsg struct {
+			Role    string            `json:"role"`
+			Content []json.RawMessage `json:"content"`
+		}
+
+		if err := json.Unmarshal(payload, &fullMsg); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal full message payload for conversation ID '%s': %w", id, err)
+		}
+
+		msg := &MessageParam{
+			Role:      fullMsg.Role,
+			Content:   make([]ContentBlock, 0, len(fullMsg.Content)),
+			CreatedAt: createdAt,
+			Sequence:  seq,
+		}
+
+		// Unmarshal each content block based on its type
+		for i, rawContent := range fullMsg.Content {
+			var contentBlock ContentBlock
+
+			switch tempMsg.Content[i].Type {
+			case TextType:
+				var textBlock TextContentBlock
+				if err := json.Unmarshal(rawContent, &textBlock); err != nil {
+					return nil, fmt.Errorf("failed to unmarshal text content block for conversation ID '%s': %w", id, err)
+				}
+				contentBlock = textBlock
+
+			case ToolUseType:
+				var toolUseBlock ToolUseContentBlock
+				if err := json.Unmarshal(rawContent, &toolUseBlock); err != nil {
+					return nil, fmt.Errorf("failed to unmarshal tool use content block for conversation ID '%s': %w", id, err)
+				}
+				contentBlock = toolUseBlock
+
+			case ToolResultType:
+				var toolResultBlock ToolResultContentBlock
+				if err := json.Unmarshal(rawContent, &toolResultBlock); err != nil {
+					return nil, fmt.Errorf("failed to unmarshal tool result content block for conversation ID '%s': %w", id, err)
+				}
+				contentBlock = toolResultBlock
+
+			default:
+				return nil, fmt.Errorf("unknown content block type '%s' for conversation ID '%s'", tempMsg.Content[i].Type, id)
+			}
+
+			msg.Content = append(msg.Content, contentBlock)
+		}
+
+		indexedMsgs = append(indexedMsgs, indexedMessage{seq: seq, msg: msg})
+
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error during message rows iteration for conversation ID '%s': %w", id, err)
+	}
+
+	for _, indexedMsg := range indexedMsgs {
+		conv.Messages = append(conv.Messages, indexedMsg.msg)
+	}
+	return conv, nil
+
+}

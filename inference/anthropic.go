@@ -166,6 +166,7 @@ func streamAnthropicResponse(stream *ssestream.Stream[anthropic.MessageStreamEve
 		case anthropic.ContentBlockDeltaEvent:
 			fmt.Print(event.Delta.Text)
 		case anthropic.ContentBlockStartEvent:
+			println()
 			// if event.ContentBlock.Name != "" {
 			// 	print(event.ContentBlock.Name + ": ")
 			// }

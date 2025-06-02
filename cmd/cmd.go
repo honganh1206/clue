@@ -19,6 +19,7 @@ var (
 	envPath      string
 	verbose      bool
 	continueConv bool
+	latestConvId string
 )
 var (
 	Version   = "0.1.0"
@@ -35,8 +36,12 @@ func HelpHandler(cmd *cobra.Command, args []string) error {
 }
 
 func ChatHandler(cmd *cobra.Command, args []string) error {
-	db, err := conversation.InitDB()
+	cont, err := cmd.Flags().GetBool("continue")
+	if err != nil {
+		return err
+	}
 
+	db, err := conversation.InitDB()
 	if err != nil {
 		log.Fatalf("Failed to initialize database: %s", err.Error())
 	}
@@ -56,9 +61,17 @@ func ChatHandler(cmd *cobra.Command, args []string) error {
 		modelConfig.Model = string(defaultModel)
 	}
 
-	// TODO: Load the latest conversation here
+	var conversationID string
+	if cont {
+		conversationID, err = conversation.LatestID(db)
+		if err != nil {
+			return err
+		}
+	} else {
+		conversationID = ""
+	}
 
-	err = agent.Code("AAA", modelConfig, db)
+	err = agent.Gen(conversationID, modelConfig, db)
 	if err != nil {
 		fmt.Printf("Error: %s\n", err.Error())
 	}
@@ -67,11 +80,9 @@ func ChatHandler(cmd *cobra.Command, args []string) error {
 }
 
 func ConversationHandler(cmd *cobra.Command, args []string) error {
-	list, errList := cmd.Flags().GetBool("list")
-	for _, boolErr := range []error{errList} {
-		if boolErr != nil {
-			return errors.New("error retrieving flags")
-		}
+	list, err := cmd.Flags().GetBool("list")
+	if err != nil {
+		return err
 	}
 
 	flagsSet := 0
