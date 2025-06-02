@@ -1,0 +1,25 @@
+# References
+
+- [anthropic-sdk-go (Official package from Anthropic)](https://github.com/anthropics/anthropic-sdk-go)
+- [maestro](https://github.com/Doriandarko/maestro) - Orchestrate subagents
+- [bubbletea](https://github.com/charmbracelet/bubbletea) - Terminal UI
+- [claude-engieer](https://github.com/Doriandarko/claude-engineer) - Self-explanatory, lots of tools
+- [openai-sdk-go](https://github.com/openai/openai-go)
+- [anthropic-sdk-go (Unofficial package)](https://github.com/unfunco/anthropic-sdk-go)
+- [ollama APIs](https://pkg.go.dev/github.com/ollama/ollama@v0.6.8/api) - Interact with local models on Ollama
+- [ollama-termui](https://github.com/mxyng/ollama-termui) - (Experimental) Terminal interface for Ollama
+- [cobra](https://github.com/spf13/cobra) - CLI
+- [cline](https://github.com/cline/cline) - Tool ideas, prompts and models?
+- [code-judger](https://github.com/mrnugget/code-judger) - Tool
+- [mcp-go](https://github.com/mark3labs/mcp-go/tree/main) - MCP (obv)
+- [mcp-language-server](https://github.com/isaacphi/mcp-language-server) - Build on top of mco-go
+- [MCP servers examples from Anthropic](https://github.com/modelcontextprotocol/servers) - Cool servers like sequential thinking, memory, fetch, filesystem
+- [go-grep](https://github.com/rastasheep/go-grep) - Tool
+- [aider](https://github.com/Aider-AI/aider) - Terminal-based AI coding agent
+- [deepseek-go](https://github.com/cohesion-org/deepseek-go) - Client for DeepSeek API and Ollama
+- [smolcode](https://github.com/dhamidi/smolcode) - GenAI integration, memory management
+- [anthropic-go](https://github.com/madebywelch/anthropic-go) - Details on how to implement messages and message events
+- [anthrogo](https://github.com/dleviminzi/anthrogo) Message decoder
+- [stainless-api-cli](https://github.com/honganh1206/stainless-api-cli) - How to structure a CLI app professionally?
+- [goose](https://github.com/block/goose) - Extensible AI agent, working with any LLM
+- [ai-wrapper](https://github.com/obutora/ai-wrapper) - Unified interface for LLM, really cool project
