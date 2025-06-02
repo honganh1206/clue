@@ -242,6 +242,7 @@ func Load(id string, db *sql.DB) (*Conversation, error) {
 	}
 	defer rows.Close()
 
+	// While ORDER BY ensures the order, this is just to double-guarantee
 	type indexedMessage struct {
 		seq int
 		msg *MessageParam
@@ -257,9 +258,8 @@ func Load(id string, db *sql.DB) (*Conversation, error) {
 			return nil, fmt.Errorf("failed to scan message for conversation ID '%s': %w", id, err)
 		}
 
-		// First unmarshal into a temporary struct to access the content
+		// Temp struct to access the content block type
 		var tempMsg struct {
-			Role    string `json:"role"`
 			Content []struct {
 				Type string `json:"type"`
 			} `json:"content"`
@@ -269,7 +269,7 @@ func Load(id string, db *sql.DB) (*Conversation, error) {
 			return nil, fmt.Errorf("failed to unmarshal temp message payload for conversation ID '%s': %w", id, err)
 		}
 
-		// Now unmarshal the full message with proper content blocks
+		// Complete message struct with proper content blocks
 		var fullMsg struct {
 			Role    string            `json:"role"`
 			Content []json.RawMessage `json:"content"`
@@ -330,6 +330,7 @@ func Load(id string, db *sql.DB) (*Conversation, error) {
 	for _, indexedMsg := range indexedMsgs {
 		conv.Messages = append(conv.Messages, indexedMsg.msg)
 	}
+
 	return conv, nil
 
 }
