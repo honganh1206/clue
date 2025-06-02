@@ -19,7 +19,7 @@ var (
 	envPath      string
 	verbose      bool
 	continueConv bool
-	latestConvId string
+	convID       string
 )
 var (
 	Version   = "0.1.0"
@@ -36,7 +36,12 @@ func HelpHandler(cmd *cobra.Command, args []string) error {
 }
 
 func ChatHandler(cmd *cobra.Command, args []string) error {
-	cont, err := cmd.Flags().GetBool("continue")
+	new, err := cmd.Flags().GetBool("new-conversation")
+	if err != nil {
+		return err
+	}
+
+	id, err := cmd.Flags().GetString("id")
 	if err != nil {
 		return err
 	}
@@ -62,13 +67,17 @@ func ChatHandler(cmd *cobra.Command, args []string) error {
 	}
 
 	var conversationID string
-	if cont {
-		conversationID, err = conversation.LatestID(db)
-		if err != nil {
-			return err
-		}
-	} else {
+	if new {
 		conversationID = ""
+	} else {
+		if id != "" {
+			conversationID = id
+		} else {
+			conversationID, err = conversation.LatestID(db)
+			if err != nil {
+				return err
+			}
+		}
 	}
 
 	err = agent.Gen(conversationID, modelConfig, db)
@@ -195,7 +204,8 @@ func NewCLI() *cobra.Command {
 	rootCmd.PersistentFlags().StringVar(&modelConfig.Model, "model", "", "Model to use (depends on selected model)")
 	rootCmd.PersistentFlags().Int64Var(&modelConfig.MaxTokens, "max-tokens", 4096, "Maximum number of tokens in response")
 	rootCmd.PersistentFlags().BoolVar(&verbose, "verbose", false, "Enable verbose output")
-	rootCmd.Flags().BoolVarP(&continueConv, "continue", "c", false, "Continue from the latest conversation")
+	rootCmd.Flags().BoolVarP(&continueConv, "new-conversation", "n", true, "Continue from the latest conversation")
+	rootCmd.Flags().StringVarP(&convID, "id", "i", "", "Conversation ID to ")
 
 	rootCmd.AddCommand(versionCmd, modelCmd, conversationCmd, helpCmd)
 

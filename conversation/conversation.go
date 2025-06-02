@@ -6,6 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/google/uuid"
@@ -16,7 +19,7 @@ import (
 //go:embed schema.sql
 var schemaSQL string
 
-var DefaultDatabasePath = ".dbs/conversation.db"
+var DefaultDatabasePath string
 
 var (
 	ErrConversationNotFound = errors.New("history: conversation not found")
@@ -36,6 +39,13 @@ type ConversationMetadata struct {
 }
 
 func InitDB() (*sql.DB, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		log.Fatal("Failed to get home directory:", err)
+	}
+
+	// Create app data directory in user's home
+	DefaultDatabasePath = filepath.Join(homeDir, ".local", ".clue", "conversation.db")
 	// TODO: Make this configurable?
 	dbConfig := db.Config{
 		Dsn:          DefaultDatabasePath,
@@ -242,12 +252,7 @@ func Load(id string, db *sql.DB) (*Conversation, error) {
 	}
 	defer rows.Close()
 
-	// While ORDER BY ensures the order, this is just to double-guarantee
-	type indexedMessage struct {
-		seq int
-		msg *MessageParam
-	}
-	var indexedMsgs []indexedMessage
+	var msgs []*MessageParam
 
 	for rows.Next() {
 		var seq int
@@ -318,17 +323,15 @@ func Load(id string, db *sql.DB) (*Conversation, error) {
 
 			msg.Content = append(msg.Content, contentBlock)
 		}
-
-		indexedMsgs = append(indexedMsgs, indexedMessage{seq: seq, msg: msg})
-
+		msgs = append(msgs, msg)
 	}
 
 	if err = rows.Err(); err != nil {
 		return nil, fmt.Errorf("error during message rows iteration for conversation ID '%s': %w", id, err)
 	}
 
-	for _, indexedMsg := range indexedMsgs {
-		conv.Messages = append(conv.Messages, indexedMsg.msg)
+	for _, msg := range msgs {
+		conv.Messages = append(conv.Messages, msg)
 	}
 
 	return conv, nil
