@@ -28,7 +28,7 @@ jobs:
         run: go install github.com/honganh1206/clue
 
       - name: Build
-        run: bash ./scripts/build.sh $(cat VERSION)
+        run: bash ./scripts/build.sh $(cat ./scripts/VERSION)
 
       - name: Archive artifacts
         uses: actions/upload-artifact@v4
