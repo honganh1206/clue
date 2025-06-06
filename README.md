@@ -9,10 +9,10 @@ If this proves to be helpful to anyone, consider it my thanks to the open-source
 ## Installation
 
 1. Add Anthropic API key as an environment variable with `export ANTHROPIC_API_KEY="your-api-key-here"`
-2. Run the installation script
+2. Run the installation script for the latest version:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/honganh1206/clue/0.1.0/scripts/install.sh | sudo -E bash
+curl -fsSL https://raw.githubusercontent.com/honganh1206/clue/main/scripts/install.sh | sudo -E bash
 ```
 
 [References](./docs/References.md)
