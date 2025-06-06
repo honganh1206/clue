@@ -4,19 +4,18 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/packages/ssestream"
 	"github.com/honganh1206/clue/conversation"
+	"github.com/honganh1206/clue/prompts"
 	"github.com/honganh1206/clue/tools"
 )
 
 type AnthropicModel struct {
-	client     *anthropic.Client
-	promptPath string
-	model      ModelVersion
-	maxTokens  int64
+	client    *anthropic.Client
+	model     ModelVersion
+	maxTokens int64
 }
 
 func NewAnthropicModel(client *anthropic.Client, promptPath string, model ModelVersion, maxTokens int64) *AnthropicModel {
@@ -29,10 +28,9 @@ func NewAnthropicModel(client *anthropic.Client, promptPath string, model ModelV
 	}
 
 	return &AnthropicModel{
-		client:     client,
-		promptPath: promptPath,
-		model:      model,
-		maxTokens:  maxTokens,
+		client:    client,
+		model:     model,
+		maxTokens: maxTokens,
 	}
 }
 
@@ -72,10 +70,7 @@ func (m *AnthropicModel) RunInference(ctx context.Context, msgs []*conversation.
 		return nil, fmt.Errorf("failed to convert tools: %w", err)
 	}
 
-	systemPrompt, err := m.loadPromptFile()
-	if err != nil {
-		return nil, fmt.Errorf("failed to load prompt: %w", err)
-	}
+	systemPrompt := prompts.System()
 
 	anthropicStream := m.client.Messages.NewStreaming(ctx, anthropic.MessageNewParams{
 		Model:     getAnthropicModel(m.model),
@@ -83,8 +78,7 @@ func (m *AnthropicModel) RunInference(ctx context.Context, msgs []*conversation.
 		Messages:  anthropicMsgs,
 		Tools:     anthropicTools,
 		System: []anthropic.TextBlockParam{
-			{Text: systemPrompt}, // TODO: Cache the system prompt?
-		},
+			{Text: systemPrompt, CacheControl: anthropic.NewCacheControlEphemeralParam()}},
 	})
 
 	response, err := streamAnthropicResponse(anthropicStream)
@@ -245,17 +239,4 @@ func convertToAnthropicTool(tool tools.ToolDefinition) (*anthropic.ToolUnionPara
 			InputSchema: anthropicSchema,
 		},
 	}, nil
-}
-
-func (m *AnthropicModel) loadPromptFile() (string, error) {
-	if m.promptPath == "" {
-		return "", nil
-	}
-
-	data, err := os.ReadFile(m.promptPath)
-	if err != nil {
-		return "", fmt.Errorf("failed to read prompt file: %w", err)
-	}
-
-	return string(data), nil
 }

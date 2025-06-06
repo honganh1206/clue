@@ -2,14 +2,11 @@ package prompts
 
 import (
 	_ "embed"
-	"os"
-	"path/filepath"
 )
 
+//go:embed system.txt
+var systemPrompt string
+
 func System() string {
-	wd, err := os.Getwd()
-	if err != nil {
-		panic(err)
-	}
-	return filepath.Join(wd, "prompts", "system.txt")
+	return systemPrompt
 }
