@@ -16,6 +16,7 @@ type AnthropicModel struct {
 	client    *anthropic.Client
 	model     ModelVersion
 	maxTokens int64
+	cache     anthropic.CacheControlEphemeralParam
 }
 
 func NewAnthropicModel(client *anthropic.Client, promptPath string, model ModelVersion, maxTokens int64) *AnthropicModel {
@@ -31,6 +32,7 @@ func NewAnthropicModel(client *anthropic.Client, promptPath string, model ModelV
 		client:    client,
 		model:     model,
 		maxTokens: maxTokens,
+		cache:     anthropic.NewCacheControlEphemeralParam(),
 	}
 }
 
@@ -65,12 +67,12 @@ func getAnthropicModel(model ModelVersion) anthropic.Model {
 func (m *AnthropicModel) RunInference(ctx context.Context, msgs []*conversation.MessageParam, tools []tools.ToolDefinition) (*conversation.MessageResponse, error) {
 	anthropicMsgs := convertToAnthropicMsgs(msgs)
 
-	anthropicTools, err := convertToAnthropicTools(tools)
+	anthropicTools, err := m.convertToAnthropicTools(tools)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert tools: %w", err)
 	}
 
-	systemPrompt := prompts.System()
+	systemPrompt := prompts.ClaudeSystemPrompt()
 
 	anthropicStream := m.client.Messages.NewStreaming(ctx, anthropic.MessageNewParams{
 		Model:     getAnthropicModel(m.model),
@@ -78,7 +80,7 @@ func (m *AnthropicModel) RunInference(ctx context.Context, msgs []*conversation.
 		Messages:  anthropicMsgs,
 		Tools:     anthropicTools,
 		System: []anthropic.TextBlockParam{
-			{Text: systemPrompt, CacheControl: anthropic.NewCacheControlEphemeralParam()}},
+			{Text: systemPrompt, CacheControl: m.cache}},
 	})
 
 	response, err := streamAnthropicResponse(anthropicStream)
@@ -116,7 +118,7 @@ func convertToAnthropicMsgs(msgs []*conversation.MessageParam) []anthropic.Messa
 }
 
 func convertToAnthropicBlocks(genericBlocks []conversation.ContentBlock) []anthropic.ContentBlockParamUnion {
-	// Sort of an unified inteface for different request types i.e. text, image, document, thinking
+	// Unified inteface for different request types i.e. text, image, document, thinking
 	blocks := make([]anthropic.ContentBlockParamUnion, 0, len(genericBlocks))
 
 	for _, block := range genericBlocks {
@@ -126,18 +128,21 @@ func convertToAnthropicBlocks(genericBlocks []conversation.ContentBlock) []anthr
 			if !ok {
 				continue
 			}
-			blocks = append(blocks, anthropic.NewToolResultBlock(b.ToolUseID, content, b.IsError))
+			toolResultBlock := anthropic.NewToolResultBlock(b.ToolUseID, content, b.IsError)
+			blocks = append(blocks, toolResultBlock)
 		case conversation.TextContentBlock:
 			blocks = append(blocks, anthropic.NewTextBlock(b.Text))
 		case conversation.ToolUseContentBlock:
-			toolParam := anthropic.ToolUseBlockParam{
+			toolUseParam := anthropic.ToolUseBlockParam{
 				ID:    b.ID,
 				Name:  b.Name,
 				Input: b.Input,
+				// Maximum of 4 blocks with cache_control
+				// CacheControl: anthropic.NewCacheControlEphemeralParam(),
 			}
 
 			toolUseBlock := anthropic.ContentBlockParamUnion{
-				OfToolUse: &toolParam,
+				OfToolUse: &toolUseParam,
 			}
 			blocks = append(blocks, toolUseBlock)
 		}
@@ -152,21 +157,19 @@ func streamAnthropicResponse(stream *ssestream.Stream[anthropic.MessageStreamEve
 	for stream.Next() {
 		event := stream.Current()
 		if err := anthropicMsg.Accumulate(event); err != nil {
-			panic(err)
+			fmt.Printf("error accumulating event: %v\n", err)
+			continue
 		}
 
 		switch event := event.AsAny().(type) {
 		// Incremental updates sent during text generation
 		case anthropic.ContentBlockDeltaEvent:
-			fmt.Print(event.Delta.Text)
+			print(event.Delta.Text)
 		case anthropic.ContentBlockStartEvent:
-			println()
-			// if event.ContentBlock.Name != "" {
-			// 	print(event.ContentBlock.Name + ": ")
-			// }
 		case anthropic.ContentBlockStopEvent:
 			println()
 		case anthropic.MessageStopEvent:
+			println()
 		case anthropic.MessageStartEvent:
 		case anthropic.MessageDeltaEvent:
 		default:
@@ -175,6 +178,8 @@ func streamAnthropicResponse(stream *ssestream.Stream[anthropic.MessageStreamEve
 	}
 
 	if stream.Err() != nil {
+		// TODO: Make the agent retry the operation instead
+		// The tokens must flow
 		panic(stream.Err())
 	}
 
@@ -205,11 +210,11 @@ func convertFromAnthropicMessage(anthropicMsg anthropic.Message) (*conversation.
 	return msg, nil
 }
 
-func convertToAnthropicTools(tools []tools.ToolDefinition) ([]anthropic.ToolUnionParam, error) {
+func (m *AnthropicModel) convertToAnthropicTools(tools []tools.ToolDefinition) ([]anthropic.ToolUnionParam, error) {
 	anthropicTools := make([]anthropic.ToolUnionParam, 0, len(tools))
 
 	for _, tool := range tools {
-		anthropicTool, err := convertToAnthropicTool(tool)
+		anthropicTool, err := m.convertToAnthropicTool(tool)
 		if err != nil {
 			return nil, err
 		}
@@ -221,7 +226,7 @@ func convertToAnthropicTools(tools []tools.ToolDefinition) ([]anthropic.ToolUnio
 }
 
 // Convert generic schema to Anthropic schema
-func convertToAnthropicTool(tool tools.ToolDefinition) (*anthropic.ToolUnionParam, error) {
+func (m *AnthropicModel) convertToAnthropicTool(tool tools.ToolDefinition) (*anthropic.ToolUnionParam, error) {
 	schemaBytes, err := json.Marshal(tool.InputSchema)
 	if err != nil {
 		return nil, err
@@ -234,9 +239,10 @@ func convertToAnthropicTool(tool tools.ToolDefinition) (*anthropic.ToolUnionPara
 	// No need to know the internal details
 	return &anthropic.ToolUnionParam{
 		OfTool: &anthropic.ToolParam{
-			Name:        tool.Name,
-			Description: anthropic.String(tool.Description),
-			InputSchema: anthropicSchema,
+			Name:         tool.Name,
+			Description:  anthropic.String(tool.Description),
+			InputSchema:  anthropicSchema,
+			CacheControl: m.cache,
 		},
 	}, nil
 }

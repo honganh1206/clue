@@ -23,3 +23,4 @@
 - [stainless-api-cli](https://github.com/honganh1206/stainless-api-cli) - How to structure a CLI app professionally?
 - [goose](https://github.com/block/goose) - Extensible AI agent, working with any LLM
 - [ai-wrapper](https://github.com/obutora/ai-wrapper) - Unified interface for LLM, really cool project
+- [web-crawler](https://github.com/afazio1/web-crawler) - Web search tool
