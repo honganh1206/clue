@@ -4,9 +4,9 @@ import (
 	_ "embed"
 )
 
-//go:embed system.txt
-var systemPrompt string
+//go:embed claude.txt
+var claudeSystemPrompt string
 
-func System() string {
-	return systemPrompt
+func ClaudeSystemPrompt() string {
+	return claudeSystemPrompt
 }

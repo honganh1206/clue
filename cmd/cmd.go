@@ -53,7 +53,7 @@ func ChatHandler(cmd *cobra.Command, args []string) error {
 	defer db.Close()
 
 	// FIXME: Some way to make this more configurable?
-	systemPrompt := prompts.System()
+	systemPrompt := prompts.ClaudeSystemPrompt()
 
 	modelConfig.PromptPath = systemPrompt
 

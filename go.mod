@@ -1,6 +1,6 @@
 module github.com/honganh1206/clue
 
-go 1.23.3
+go 1.24.4
 
 require (
 	github.com/anthropics/anthropic-sdk-go v1.2.0

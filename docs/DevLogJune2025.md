@@ -7,6 +7,15 @@ content_block_delta events with accumulated partial JSON
 
 `ContentBlock` as a unified interface for different content block types
 
-sqlite3 as a lightweight option to store conversation
+sqlite3 as a lightweight option to store conversations
 
-Flag to choose between snapshot response and streaming response?
+Two modes: Snapshot and streaming
+
+Too many tools and the agent would stuck and not know which one to use. A curated set of tools is important
+
+The tokens must flow. The agent should retry the operation instead of halting it
+
+Next tools:
+
+Structural Search Interface (full‑text, regex, and language-aware structural code search)?
+Commit Diff Lookup

@@ -46,7 +46,7 @@ func Gen(conversationID string, modelConfig inference.ModelConfig, db *sql.DB) e
 			return err
 		}
 	}
-	a = New(model, getUserMsg, conv, toolDefs, prompts.System(), db)
+	a = New(model, getUserMsg, conv, toolDefs, prompts.ClaudeSystemPrompt(), db)
 
 	// In production, use Background() as the final root context()
 	// For dev env, TODO for temporary scaffolding
@@ -188,19 +188,4 @@ func (a *Agent) saveConversation() error {
 
 	return nil
 
-}
-
-// Helper function to print the entire conversation as JSON for debugging
-func printConversationAsJSON(conversation []conversation.MessageParam) {
-	fmt.Printf("\n===== DEBUG: Conversation (length: %d) =====\n", len(conversation))
-	for i, msg := range conversation {
-		jsonData, err := json.MarshalIndent(msg, "", "  ")
-		if err != nil {
-			fmt.Printf("ERROR: Could not marshal message %d to JSON: %v\n", i, err)
-			continue
-		}
-		fmt.Printf("--- Message %d (%s) ---\n", i, msg.Role)
-		fmt.Println(string(jsonData))
-	}
-	fmt.Printf("=====\n\n")
 }
