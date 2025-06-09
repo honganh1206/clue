@@ -3,6 +3,7 @@ package inference
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/anthropics/anthropic-sdk-go"
@@ -177,10 +178,15 @@ func streamAnthropicResponse(stream *ssestream.Stream[anthropic.MessageStreamEve
 		}
 	}
 
-	if stream.Err() != nil {
+	if err := stream.Err(); err != nil {
 		// TODO: Make the agent retry the operation instead
 		// The tokens must flow
-		panic(stream.Err())
+		var apierr *anthropic.Error
+		if errors.As(err, &apierr) {
+			println(string(apierr.DumpRequest(true)))  // Prints the serialized HTTP request
+			println(string(apierr.DumpResponse(true))) // Prints the serialized HTTP response
+		}
+		panic(err)
 	}
 
 	return convertFromAnthropicMessage(anthropicMsg)

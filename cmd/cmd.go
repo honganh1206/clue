@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/honganh1206/clue/agent"
@@ -35,6 +37,16 @@ func HelpHandler(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+func initConversationDsn() string {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		log.Fatal("Failed to get home directory:", err)
+	}
+
+	dsn := filepath.Join(homeDir, ".local", ".clue", "conversation.db")
+	return dsn
+}
+
 func ChatHandler(cmd *cobra.Command, args []string) error {
 	new, err := cmd.Flags().GetBool("new-conversation")
 	if err != nil {
@@ -46,7 +58,8 @@ func ChatHandler(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	db, err := conversation.InitDB()
+	dsn := initConversationDsn()
+	db, err := conversation.InitDB(dsn)
 	if err != nil {
 		log.Fatalf("Failed to initialize database: %s", err.Error())
 	}
@@ -106,7 +119,8 @@ func ConversationHandler(cmd *cobra.Command, args []string) error {
 		return errors.New("only one of '--list'")
 	}
 
-	db, err := conversation.InitDB()
+	dsn := initConversationDsn()
+	db, err := conversation.InitDB(dsn)
 
 	if err != nil {
 		log.Fatalf("Failed to initialize database: %s", err.Error())

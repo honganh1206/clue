@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/honganh1206/clue/conversation"
 	"github.com/honganh1206/clue/inference"
@@ -80,10 +81,31 @@ func New(model inference.Model, getUserMsg func() (string, bool), conversation *
 	}
 }
 
+// Returns the appropriate ANSI color code for the given model name
+func getModelColor(modelName string) string {
+	modelLower := strings.ToLower(modelName)
+
+	if strings.Contains(modelLower, inference.AnthropicModelName) {
+		return "\u001b[38;5;208m" // Orange
+	} else if strings.Contains(modelLower, inference.GoogleModelName) {
+		return "\u001b[94m" // Blue
+	} else if strings.Contains(modelLower, inference.OpenAIModelName) {
+		return "\u001b[92m" // Green
+	} else if strings.Contains(modelLower, inference.MetaModelName) {
+		return "\u001b[95m" // Purple/Magenta
+	} else if strings.Contains(modelLower, inference.MistralModelName) {
+		return "\u001b[96m" // Cyan
+	} else {
+		return "\u001b[97m" // White (default)
+	}
+}
+
 func (a *Agent) run(ctx context.Context) error {
 	modelName := a.model.Name()
+	colorCode := getModelColor(modelName)
+	resetCode := "\u001b[0m"
 
-	fmt.Printf("Chat with %s (use 'ctrl-c' to quit)\n", modelName)
+	fmt.Printf("Chat with %s%s%s (use 'ctrl-c' to quit)\n", colorCode, modelName, resetCode)
 
 	readUserInput := true
 

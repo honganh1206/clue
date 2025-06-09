@@ -6,9 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/google/uuid"
@@ -18,8 +15,6 @@ import (
 
 //go:embed schema.sql
 var schemaSQL string
-
-var DefaultDatabasePath string
 
 var (
 	ErrConversationNotFound = errors.New("history: conversation not found")
@@ -38,28 +33,20 @@ type ConversationMetadata struct {
 	CreatedAt         time.Time
 }
 
-func InitDB() (*sql.DB, error) {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		log.Fatal("Failed to get home directory:", err)
-	}
-
-	// Create app data directory in user's home
-	DefaultDatabasePath = filepath.Join(homeDir, ".local", ".clue", "conversation.db")
-	// TODO: Make this configurable?
+func InitDB(dsn string) (*sql.DB, error) {
 	dbConfig := db.Config{
-		Dsn:          DefaultDatabasePath,
+		Dsn:          dsn,
 		MaxOpenConns: 25,
 		MaxIdleConns: 25,
 		MaxIdleTime:  "15m",
 	}
 
-	historyDb, err := db.InitDB(dbConfig, schemaSQL)
+	conversationDb, err := db.InitDB(dbConfig, schemaSQL)
 	if err != nil {
 		return nil, err
 	}
 
-	return historyDb, nil
+	return conversationDb, nil
 }
 
 func New() (*Conversation, error) {
