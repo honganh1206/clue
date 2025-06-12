@@ -1,64 +1,18 @@
 package agent
 
 import (
-	"bufio"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"strings"
 
 	"github.com/honganh1206/clue/conversation"
 	"github.com/honganh1206/clue/inference"
-	"github.com/honganh1206/clue/prompts"
 	"github.com/honganh1206/clue/tools"
 	_ "github.com/mattn/go-sqlite3"
 )
-
-func Gen(conversationID string, modelConfig inference.ModelConfig, db *sql.DB) error {
-	model, err := inference.Init(modelConfig)
-	if err != nil {
-		log.Fatalf("Failed to initialize model: %s", err.Error())
-	}
-
-	scanner := bufio.NewScanner(os.Stdin)
-	getUserMsg := func() (string, bool) {
-		if !scanner.Scan() {
-			return "", false
-		}
-		return scanner.Text(), true
-	}
-
-	toolDefs := []tools.ToolDefinition{tools.ReadFileDefinition, tools.ListFilesDefinition, tools.EditFileDefinition}
-
-	var a *Agent
-	var conv *conversation.Conversation
-
-	if conversationID != "" {
-		conv, err = conversation.Load(conversationID, db)
-		if err != nil {
-			return err
-		}
-	} else {
-		conv, err = conversation.New()
-		if err != nil {
-			return err
-		}
-	}
-	a = New(model, getUserMsg, conv, toolDefs, prompts.ClaudeSystemPrompt(), db)
-
-	// In production, use Background() as the final root context()
-	// For dev env, TODO for temporary scaffolding
-	err = a.run(context.TODO())
-
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
 
 type Agent struct {
 	model          inference.Model
@@ -100,7 +54,7 @@ func getModelColor(modelName string) string {
 	}
 }
 
-func (a *Agent) run(ctx context.Context) error {
+func (a *Agent) Run(ctx context.Context) error {
 	modelName := a.model.Name()
 	colorCode := getModelColor(modelName)
 	resetCode := "\u001b[0m"
@@ -111,7 +65,6 @@ func (a *Agent) run(ctx context.Context) error {
 
 	for {
 		if readUserInput {
-
 			fmt.Print("\u001b[94m>\u001b[0m ")
 			userInput, ok := a.getUserMessage()
 			if !ok {
