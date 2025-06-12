@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/honganh1206/clue/app"
 	"github.com/honganh1206/clue/conversation"
 	"github.com/honganh1206/clue/inference"
 	"github.com/honganh1206/clue/prompts"
@@ -93,11 +92,7 @@ func ChatHandler(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	lc := app.NewLifecycle()
-	lc.Start()
-	defer lc.Shutdown()
-
-	err = interactive(lc.Ctx, convID, modelConfig, db)
+	err = interactive(cmd.Context(), convID, modelConfig, db)
 	if err != nil {
 		fmt.Printf("Error: %s\n", err.Error())
 	}
