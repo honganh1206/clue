@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/honganh1206/clue/agent"
+	"github.com/honganh1206/clue/app"
 	"github.com/honganh1206/clue/conversation"
 	"github.com/honganh1206/clue/inference"
 	"github.com/honganh1206/clue/prompts"
@@ -79,21 +79,25 @@ func ChatHandler(cmd *cobra.Command, args []string) error {
 		modelConfig.Model = string(defaultModel)
 	}
 
-	var conversationID string
+	var convID string
 	if new {
-		conversationID = ""
+		convID = ""
 	} else {
 		if id != "" {
-			conversationID = id
+			convID = id
 		} else {
-			conversationID, err = conversation.LatestID(db)
+			convID, err = conversation.LatestID(db)
 			if err != nil {
 				return err
 			}
 		}
 	}
 
-	err = agent.Gen(conversationID, modelConfig, db)
+	lc := app.NewLifecycle()
+	lc.Start()
+	defer lc.Shutdown()
+
+	err = interactive(lc.Ctx, convID, modelConfig, db)
 	if err != nil {
 		fmt.Printf("Error: %s\n", err.Error())
 	}
