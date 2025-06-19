@@ -10,14 +10,14 @@ import (
 	"time"
 )
 
-type Config struct {
+type DbConfig struct {
 	Dsn          string
 	MaxOpenConns int
 	MaxIdleConns int
 	MaxIdleTime  string
 }
 
-func InitDB(cfg Config, schema string) (*sql.DB, error) {
+func OpenDB(cfg DbConfig, schema string) (*sql.DB, error) {
 	dbDir := filepath.Dir(cfg.Dsn)
 	if _, err := os.Stat(dbDir); os.IsNotExist(err) {
 		err = os.MkdirAll(dbDir, 0755)

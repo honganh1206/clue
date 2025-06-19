@@ -10,14 +10,12 @@ import (
 
 	"github.com/honganh1206/clue/conversation"
 	"github.com/honganh1206/clue/inference"
-	"github.com/honganh1206/clue/prompts"
 	"github.com/honganh1206/clue/utils"
 	"github.com/spf13/cobra"
 )
 
 var (
 	modelConfig  inference.ModelConfig
-	envPath      string
 	verbose      bool
 	continueConv bool
 	convID       string
@@ -63,11 +61,6 @@ func ChatHandler(cmd *cobra.Command, args []string) error {
 		log.Fatalf("Failed to initialize database: %s", err.Error())
 	}
 	defer db.Close()
-
-	// FIXME: Some way to make this more configurable?
-	systemPrompt := prompts.ClaudeSystemPrompt()
-
-	modelConfig.PromptPath = systemPrompt
 
 	provider := inference.ProviderName(modelConfig.Provider)
 	if modelConfig.Model == "" {

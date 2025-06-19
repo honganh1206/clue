@@ -84,7 +84,7 @@ func (a *Agent) Run(ctx context.Context) error {
 		// TODO: Update with something interactive
 		// fmt.Printf("\u001b[93m%s\u001b[0m: ", modelName)
 
-		agentMsg, err := a.model.RunInference(ctx, a.conversation.Messages, a.tools)
+		agentMsg, err := a.model.CompleteStream(ctx, a.conversation.Messages, a.tools)
 		if err != nil {
 			return err
 		}

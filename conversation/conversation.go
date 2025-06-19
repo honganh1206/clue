@@ -34,14 +34,14 @@ type ConversationMetadata struct {
 }
 
 func InitDB(dsn string) (*sql.DB, error) {
-	dbConfig := db.Config{
+	dbConfig := db.DbConfig{
 		Dsn:          dsn,
 		MaxOpenConns: 25,
 		MaxIdleConns: 25,
 		MaxIdleTime:  "15m",
 	}
 
-	conversationDb, err := db.InitDB(dbConfig, schemaSQL)
+	conversationDb, err := db.OpenDB(dbConfig, schemaSQL)
 	if err != nil {
 		return nil, err
 	}
