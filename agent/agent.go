@@ -8,8 +8,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/honganh1206/clue/conversation"
 	"github.com/honganh1206/clue/inference"
+	"github.com/honganh1206/clue/server/conversation"
 	"github.com/honganh1206/clue/tools"
 	_ "github.com/mattn/go-sqlite3"
 )

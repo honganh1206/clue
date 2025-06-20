@@ -8,9 +8,9 @@ import (
 	"os"
 
 	"github.com/honganh1206/clue/agent"
-	"github.com/honganh1206/clue/conversation"
 	"github.com/honganh1206/clue/inference"
 	"github.com/honganh1206/clue/prompts"
+	"github.com/honganh1206/clue/server/conversation"
 	"github.com/honganh1206/clue/tools"
 )
 

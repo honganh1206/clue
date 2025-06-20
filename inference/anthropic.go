@@ -8,8 +8,8 @@ import (
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/packages/ssestream"
-	"github.com/honganh1206/clue/conversation"
 	"github.com/honganh1206/clue/prompts"
+	"github.com/honganh1206/clue/server/conversation"
 	"github.com/honganh1206/clue/tools"
 )
 

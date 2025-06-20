@@ -9,7 +9,6 @@ import (
 )
 
 func main() {
-	// lifecycle.Run()
 	cli := cmd.NewCLI()
 	err := cli.ExecuteContext(context.Background())
 	if err != nil {

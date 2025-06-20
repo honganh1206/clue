@@ -8,10 +8,9 @@ import (
 	"sync"
 	"syscall"
 	"time"
-
-	"github.com/honganh1206/clue/app/store"
 )
 
+// Manage lifecycle of all internal services
 func Run() error {
 	var wg sync.WaitGroup
 	// Graceful shutdown
@@ -45,14 +44,6 @@ func Run() error {
 	}()
 
 	wg.Wait()
-	if !store.GetFirstTimeRun() {
-		slog.Debug("First time run")
-
-		// TODO: Add display 1st time run noti if we have tray
-		store.SetFirstTimeRun(true)
-	} else {
-		slog.Debug("Not first time, skipping first run configuration")
-	}
 
 	return nil
 }

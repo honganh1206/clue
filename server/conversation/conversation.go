@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/honganh1206/clue/db"
+	"github.com/honganh1206/clue/server/db"
 	"github.com/honganh1206/clue/utils"
 )
 
@@ -34,7 +34,7 @@ type ConversationMetadata struct {
 }
 
 func InitDB(dsn string) (*sql.DB, error) {
-	dbConfig := db.DbConfig{
+	dbConfig := db.Config{
 		Dsn:          dsn,
 		MaxOpenConns: 25,
 		MaxIdleConns: 25,

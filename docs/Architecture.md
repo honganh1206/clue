@@ -2,9 +2,13 @@
 
 Multi-binary architecture like Ollama
 
-Root `main.go` as command-line interface and client operations
+CLI, server and model engine are separate
 
-`app/main.go` as server daemon and API service (background processing)
+Root `main.go` as stateless command-line interface and client operations. The CLI starts conversations and manages user I/O
+
+The CLI client `clue serve` send HTTP request to `server/`
+
+`app/main.go` as server daemon and API service (background processing). The server performs CRUD operations on conversations and messages (also inference routing?)
 
 ## High-level Components
 
@@ -28,12 +32,12 @@ Root `main.go` as command-line interface and client operations
    Captures and parses command outputs
    Manages environment variables and context
    Handles background and long-running processes
-5. AI Integration Layer (`conversation/, db/, app/`)
+5. AI Integration Layer (`server/, app/`)
    Formats requests to the Claude API
    Processes and parses AI responses
    Manages AI context and history
    Handles authentication and API communication
-6. File Operation System (?)
+6. File Operation System (?) (`server/`)
    Reads and writes files with appropriate permissions
    Generates diffs and patches
    Implements version control operations

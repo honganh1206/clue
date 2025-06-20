@@ -4,12 +4,15 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"time"
 
-	"github.com/honganh1206/clue/conversation"
 	"github.com/honganh1206/clue/inference"
+	"github.com/honganh1206/clue/server"
+	"github.com/honganh1206/clue/server/conversation"
 	"github.com/honganh1206/clue/utils"
 	"github.com/spf13/cobra"
 )
@@ -91,6 +94,20 @@ func ChatHandler(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
+}
+
+func RunServer(cmd *cobra.Command, args []string) error {
+	ln, err := net.Listen("tcp", ":11435")
+	if err != nil {
+		return err
+	}
+
+	err = server.Serve(ln)
+	if errors.Is(err, http.ErrServerClosed) {
+		return nil
+	}
+
+	return err
 }
 
 func ConversationHandler(cmd *cobra.Command, args []string) error {
@@ -200,6 +217,14 @@ func NewCLI() *cobra.Command {
 			fmt.Printf("Clue version %s (commit: %s, built: %s)\n", Version, GitCommit, BuildTime)
 		},
 	}
+
+	serveCmd := &cobra.Command{
+		Use:   "serve",
+		Short: "Start clue server",
+		Args:  cobra.ExactArgs(0),
+		RunE:  RunServer,
+	}
+
 	rootCmd := &cobra.Command{
 		Use:   "clue",
 		Short: "An AI agent for code editing and assistance",
@@ -213,7 +238,7 @@ func NewCLI() *cobra.Command {
 	rootCmd.Flags().BoolVarP(&continueConv, "new-conversation", "n", true, "Continue from the latest conversation")
 	rootCmd.Flags().StringVarP(&convID, "id", "i", "", "Conversation ID to ")
 
-	rootCmd.AddCommand(versionCmd, modelCmd, conversationCmd, helpCmd)
+	rootCmd.AddCommand(versionCmd, modelCmd, conversationCmd, helpCmd, serveCmd)
 
 	return rootCmd
 }

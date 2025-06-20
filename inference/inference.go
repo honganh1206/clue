@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/anthropics/anthropic-sdk-go"
-	"github.com/honganh1206/clue/conversation"
+	"github.com/honganh1206/clue/server/conversation"
 	"github.com/honganh1206/clue/tools"
 )
 
