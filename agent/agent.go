@@ -2,16 +2,14 @@ package agent
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 
+	"github.com/honganh1206/clue/api"
 	"github.com/honganh1206/clue/inference"
 	"github.com/honganh1206/clue/server/conversation"
 	"github.com/honganh1206/clue/tools"
-	_ "github.com/mattn/go-sqlite3"
 )
 
 type Agent struct {
@@ -20,18 +18,17 @@ type Agent struct {
 	tools          []tools.ToolDefinition
 	promptPath     string
 	conversation   *conversation.Conversation
-	// FIXME: CRUD operations should be on its own, not a field in Agent
-	db *sql.DB
+	client         *api.Client
 }
 
-func New(model inference.Model, getUserMsg func() (string, bool), conversation *conversation.Conversation, tools []tools.ToolDefinition, promptPath string, db *sql.DB) *Agent {
+func New(model inference.Model, getUserMsg func() (string, bool), conversation *conversation.Conversation, tools []tools.ToolDefinition, promptPath string, client *api.Client) *Agent {
 	return &Agent{
 		model:          model,
 		getUserMessage: getUserMsg,
 		tools:          tools,
 		promptPath:     promptPath,
 		conversation:   conversation,
-		db:             db,
+		client:         client,
 	}
 }
 
@@ -74,31 +71,29 @@ func (a *Agent) Run(ctx context.Context) error {
 			userMsg := conversation.MessageRequest{
 				MessageParam: conversation.MessageParam{
 					Role:    conversation.UserRole,
-					Content: []conversation.ContentBlock{conversation.NewTextContentBlock(userInput)},
+					Content: []conversation.ContentBlockJSON{conversation.ToContentBlockJSON(conversation.NewTextContentBlock(userInput))},
 				},
 			}
-			a.conversation.Append(userMsg.MessageParam)
+			a.conversation.Messages = append(a.conversation.Messages, &userMsg.MessageParam)
 			a.saveConversation()
 		}
-
-		// TODO: Update with something interactive
-		// fmt.Printf("\u001b[93m%s\u001b[0m: ", modelName)
 
 		agentMsg, err := a.model.CompleteStream(ctx, a.conversation.Messages, a.tools)
 		if err != nil {
 			return err
 		}
 
-		a.conversation.Append(agentMsg.MessageParam)
+		a.conversation.Messages = append(a.conversation.Messages, &agentMsg.MessageParam)
 		a.saveConversation()
 
-		toolResults := []conversation.ContentBlock{}
+		toolResults := []conversation.ContentBlockJSON{}
 
 		for _, content := range agentMsg.Content {
-			switch c := content.(type) {
+			cb := conversation.FromContentBlockJSON(content)
+			switch c := cb.(type) {
 			case conversation.ToolUseContentBlock:
 				result := a.executeTool(c.ID, c.Name, c.Input)
-				toolResults = append(toolResults, result)
+				toolResults = append(toolResults, conversation.ToContentBlockJSON(result))
 			}
 		}
 
@@ -116,7 +111,7 @@ func (a *Agent) Run(ctx context.Context) error {
 			},
 		}
 
-		a.conversation.Append(toolResultMsg.MessageParam)
+		a.conversation.Messages = append(a.conversation.Messages, &toolResultMsg.MessageParam)
 		a.saveConversation()
 	}
 
@@ -153,14 +148,13 @@ func (a *Agent) executeTool(id, name string, input json.RawMessage) conversation
 }
 
 func (a *Agent) saveConversation() error {
-	// FIXME: Very drafty. Consider moving the db field out of Agent struct?
-	err := a.conversation.SaveTo(a.db)
-	if err != nil {
-		// 4. Log any errors from history.Save to os.Stderr and return the error.
-		fmt.Fprintf(os.Stderr, "Warning: could not save conversation to DB: %v\n", err)
-		return err
+	if len(a.conversation.Messages) > 0 {
+		err := a.client.SaveConversation(a.conversation)
+		if err != nil {
+			fmt.Printf("DEBUG: Failed conversation details - ConversationID: %s\n", a.conversation.ID)
+			return err
+		}
 	}
 
 	return nil
-
 }

@@ -101,7 +101,7 @@ func convertToAnthropicMsgs(msgs []*conversation.MessageParam) []anthropic.Messa
 
 		var anthropicMsg anthropic.MessageParam
 
-		blocks := convertToAnthropicBlocks(msg.Content)
+		blocks := convertToAnthropicBlocks(conversation.FromContentBlockJSONSlice(msg.Content))
 
 		if msg.Role == conversation.UserRole {
 			anthropicMsg = anthropic.NewUserMessage(blocks...)
@@ -196,20 +196,20 @@ func convertFromAnthropicMessage(anthropicMsg anthropic.Message) (*conversation.
 	msg := &conversation.MessageResponse{
 		MessageParam: conversation.MessageParam{
 			Role:    conversation.AssistantRole,
-			Content: make([]conversation.ContentBlock, 0),
+			Content: make([]conversation.ContentBlockJSON, 0),
 		},
 	}
 
 	for _, block := range anthropicMsg.Content {
 		switch variant := block.AsAny().(type) {
 		case anthropic.TextBlock:
-			msg.Content = append(msg.Content, conversation.NewTextContentBlock(block.Text))
+			msg.Content = append(msg.Content, conversation.ToContentBlockJSON(conversation.NewTextContentBlock(block.Text)))
 		case anthropic.ToolUseBlock:
 			err := json.Unmarshal([]byte(variant.JSON.Input.Raw()), &block.Input)
 			if err != nil {
 				return nil, err
 			}
-			msg.Content = append(msg.Content, conversation.NewToolUseContentBlock(block.ID, block.Name, block.Input))
+			msg.Content = append(msg.Content, conversation.ToContentBlockJSON(conversation.NewToolUseContentBlock(block.ID, block.Name, block.Input)))
 		}
 	}
 

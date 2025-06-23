@@ -3,18 +3,18 @@ package cmd
 import (
 	"bufio"
 	"context"
-	"database/sql"
 	"log"
 	"os"
 
 	"github.com/honganh1206/clue/agent"
+	"github.com/honganh1206/clue/api"
 	"github.com/honganh1206/clue/inference"
 	"github.com/honganh1206/clue/prompts"
 	"github.com/honganh1206/clue/server/conversation"
 	"github.com/honganh1206/clue/tools"
 )
 
-func interactive(ctx context.Context, convID string, modelConfig inference.ModelConfig, db *sql.DB) error {
+func interactive(ctx context.Context, convID string, modelConfig inference.ModelConfig, client *api.Client) error {
 	model, err := inference.Init(modelConfig)
 	if err != nil {
 		log.Fatalf("Failed to initialize model: %s", err.Error())
@@ -37,17 +37,17 @@ func interactive(ctx context.Context, convID string, modelConfig inference.Model
 	var conv *conversation.Conversation
 
 	if convID != "" {
-		conv, err = conversation.Load(convID, db)
+		conv, err = client.GetConversation(convID)
 		if err != nil {
 			return err
 		}
 	} else {
-		conv, err = conversation.New()
+		conv, err = client.CreateConversation()
 		if err != nil {
 			return err
 		}
 	}
-	a := agent.New(model, getUserMsg, conv, toolDefs, prompts.ClaudeSystemPrompt(), db)
+	a := agent.New(model, getUserMsg, conv, toolDefs, prompts.ClaudeSystemPrompt(), client)
 
 	// In production, use Background() as the final root context()
 	// For dev env, TODO for temporary scaffolding

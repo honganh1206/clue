@@ -2,6 +2,7 @@ package conversation
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 )
 
@@ -21,8 +22,8 @@ const (
 )
 
 type MessageParam struct {
-	Role    string         `json:"role"`
-	Content []ContentBlock `json:"content"`
+	Role    string             `json:"role"`
+	Content []ContentBlockJSON `json:"content"`
 	// Optional as metadata
 	ID        string    `json:"id,omitempty" db:"id"`
 	CreatedAt time.Time `json:"created_at,omitempty" db:"created_at"`
@@ -97,3 +98,75 @@ func NewToolResultContentBlock(toolUseID string, content any, isError bool) Cont
 }
 
 func (t ToolResultContentBlock) isContentBlock() {}
+
+// ContentBlockJSON is a wrapper for JSON marshaling/unmarshaling of ContentBlock
+type ContentBlockJSON struct {
+	ContentBlock
+}
+
+func (cbj *ContentBlockJSON) UnmarshalJSON(data []byte) error {
+	// First unmarshal to determine the type
+	var temp struct {
+		Type string `json:"type"`
+	}
+
+	if err := json.Unmarshal(data, &temp); err != nil {
+		return err
+	}
+
+	// Create the appropriate concrete type based on the type field
+	switch temp.Type {
+	case TextType:
+		var textBlock TextContentBlock
+		if err := json.Unmarshal(data, &textBlock); err != nil {
+			return err
+		}
+		cbj.ContentBlock = textBlock
+	case ToolUseType:
+		var toolUseBlock ToolUseContentBlock
+		if err := json.Unmarshal(data, &toolUseBlock); err != nil {
+			return err
+		}
+		cbj.ContentBlock = toolUseBlock
+	case ToolResultType:
+		var toolResultBlock ToolResultContentBlock
+		if err := json.Unmarshal(data, &toolResultBlock); err != nil {
+			return err
+		}
+		cbj.ContentBlock = toolResultBlock
+	default:
+		return fmt.Errorf("unknown content block type: %s", temp.Type)
+	}
+
+	return nil
+}
+
+func (cbj ContentBlockJSON) MarshalJSON() ([]byte, error) {
+	// Marshal the concrete type directly
+	return json.Marshal(cbj.ContentBlock)
+}
+
+// Helper functions to convert between ContentBlock and ContentBlockJSON
+func ToContentBlockJSON(cb ContentBlock) ContentBlockJSON {
+	return ContentBlockJSON{ContentBlock: cb}
+}
+
+func ToContentBlockJSONSlice(cbs []ContentBlock) []ContentBlockJSON {
+	result := make([]ContentBlockJSON, len(cbs))
+	for i, cb := range cbs {
+		result[i] = ToContentBlockJSON(cb)
+	}
+	return result
+}
+
+func FromContentBlockJSON(cbj ContentBlockJSON) ContentBlock {
+	return cbj.ContentBlock
+}
+
+func FromContentBlockJSONSlice(cbjs []ContentBlockJSON) []ContentBlock {
+	result := make([]ContentBlock, len(cbjs))
+	for i, cbj := range cbjs {
+		result[i] = FromContentBlockJSON(cbj)
+	}
+	return result
+}

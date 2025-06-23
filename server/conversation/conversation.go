@@ -33,6 +33,10 @@ type ConversationMetadata struct {
 	CreatedAt         time.Time
 }
 
+type ConversationModel struct {
+	DB *sql.DB
+}
+
 func InitDB(dsn string) (*sql.DB, error) {
 	dbConfig := db.Config{
 		Dsn:          dsn,
@@ -49,7 +53,7 @@ func InitDB(dsn string) (*sql.DB, error) {
 	return conversationDb, nil
 }
 
-func New() (*Conversation, error) {
+func NewConversation() (*Conversation, error) {
 	id, err := uuid.NewRandom()
 	if err != nil {
 		return nil, err
@@ -62,7 +66,7 @@ func New() (*Conversation, error) {
 	}, nil
 }
 
-func (c *Conversation) Append(msg MessageParam) {
+func (cm ConversationModel) Append(c *Conversation, msg MessageParam) {
 	now := time.Now()
 	sequence := len(c.Messages)
 
@@ -72,9 +76,9 @@ func (c *Conversation) Append(msg MessageParam) {
 	c.Messages = append(c.Messages, &msg)
 }
 
-func (c *Conversation) SaveTo(db *sql.DB) error {
+func (cm ConversationModel) SaveTo(c *Conversation) error {
 	// Begin a transaction
-	tx, err := db.Begin()
+	tx, err := cm.DB.Begin()
 	if err != nil {
 		return err
 	}
@@ -131,7 +135,7 @@ func (c *Conversation) SaveTo(db *sql.DB) error {
 	return tx.Commit()
 }
 
-func List(db *sql.DB) ([]ConversationMetadata, error) {
+func (cm ConversationModel) List() ([]ConversationMetadata, error) {
 	query := `
 		SELECT
 			c.id,
@@ -148,11 +152,11 @@ func List(db *sql.DB) ([]ConversationMetadata, error) {
 			latest_message_at DESC;
 	`
 
-	rows, err := db.Query(query)
+	rows, err := cm.DB.Query(query)
 	if err != nil {
 		// Check for missing tables
 		var tableCheck string
-		errTable := db.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='conversations'").Scan(&tableCheck)
+		errTable := cm.DB.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='conversations'").Scan(&tableCheck)
 		if errTable == sql.ErrNoRows {
 			return []ConversationMetadata{}, nil // No 'conversations' table, so no conversations
 		}
@@ -190,13 +194,13 @@ func List(db *sql.DB) ([]ConversationMetadata, error) {
 
 }
 
-func LatestID(db *sql.DB) (string, error) {
+func (cm ConversationModel) LatestID() (string, error) {
 	query := `
 		SELECT id FROM conversations ORDER BY created_at DESC LIMIT 1
 	`
 
 	var id string
-	err := db.QueryRow(query).Scan(&id)
+	err := cm.DB.QueryRow(query).Scan(&id)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return "", ErrConversationNotFound // Return custom error
@@ -207,14 +211,14 @@ func LatestID(db *sql.DB) (string, error) {
 	return id, nil
 }
 
-func Load(id string, db *sql.DB) (*Conversation, error) {
+func (cm ConversationModel) Load(id string) (*Conversation, error) {
 	query := `
 		SELECT created_at FROM conversations WHERE id = ?
 	`
 
 	conv := &Conversation{ID: id, Messages: make([]*MessageParam, 0)}
 
-	err := db.QueryRow(query, id).Scan(&conv.CreatedAt)
+	err := cm.DB.QueryRow(query, id).Scan(&conv.CreatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ErrConversationNotFound
@@ -233,7 +237,7 @@ func Load(id string, db *sql.DB) (*Conversation, error) {
 			sequence_number ASC
 	`
 
-	rows, err := db.Query(query, id)
+	rows, err := cm.DB.Query(query, id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query messages for conversation ID '%s': %w", id, err)
 	}
@@ -273,14 +277,14 @@ func Load(id string, db *sql.DB) (*Conversation, error) {
 
 		msg := &MessageParam{
 			Role:      fullMsg.Role,
-			Content:   make([]ContentBlock, 0, len(fullMsg.Content)),
+			Content:   make([]ContentBlockJSON, 0, len(fullMsg.Content)),
 			CreatedAt: createdAt,
 			Sequence:  seq,
 		}
 
 		// Unmarshal each content block based on its type
 		for i, rawContent := range fullMsg.Content {
-			var contentBlock ContentBlock
+			var contentBlockJSON ContentBlockJSON
 
 			switch tempMsg.Content[i].Type {
 			case TextType:
@@ -288,27 +292,27 @@ func Load(id string, db *sql.DB) (*Conversation, error) {
 				if err := json.Unmarshal(rawContent, &textBlock); err != nil {
 					return nil, fmt.Errorf("failed to unmarshal text content block for conversation ID '%s': %w", id, err)
 				}
-				contentBlock = textBlock
+				contentBlockJSON = ToContentBlockJSON(textBlock)
 
 			case ToolUseType:
 				var toolUseBlock ToolUseContentBlock
 				if err := json.Unmarshal(rawContent, &toolUseBlock); err != nil {
 					return nil, fmt.Errorf("failed to unmarshal tool use content block for conversation ID '%s': %w", id, err)
 				}
-				contentBlock = toolUseBlock
+				contentBlockJSON = ToContentBlockJSON(toolUseBlock)
 
 			case ToolResultType:
 				var toolResultBlock ToolResultContentBlock
 				if err := json.Unmarshal(rawContent, &toolResultBlock); err != nil {
 					return nil, fmt.Errorf("failed to unmarshal tool result content block for conversation ID '%s': %w", id, err)
 				}
-				contentBlock = toolResultBlock
+				contentBlockJSON = ToContentBlockJSON(toolResultBlock)
 
 			default:
 				return nil, fmt.Errorf("unknown content block type '%s' for conversation ID '%s'", tempMsg.Content[i].Type, id)
 			}
 
-			msg.Content = append(msg.Content, contentBlock)
+			msg.Content = append(msg.Content, contentBlockJSON)
 		}
 		msgs = append(msgs, msg)
 	}

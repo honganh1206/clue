@@ -6,13 +6,11 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"os"
-	"path/filepath"
 	"time"
 
+	"github.com/honganh1206/clue/api"
 	"github.com/honganh1206/clue/inference"
 	"github.com/honganh1206/clue/server"
-	"github.com/honganh1206/clue/server/conversation"
 	"github.com/honganh1206/clue/utils"
 	"github.com/spf13/cobra"
 )
@@ -37,16 +35,6 @@ func HelpHandler(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func initConversationDsn() string {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		log.Fatal("Failed to get home directory:", err)
-	}
-
-	dsn := filepath.Join(homeDir, ".local", ".clue", "conversation.db")
-	return dsn
-}
-
 func ChatHandler(cmd *cobra.Command, args []string) error {
 	new, err := cmd.Flags().GetBool("new-conversation")
 	if err != nil {
@@ -58,12 +46,7 @@ func ChatHandler(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	dsn := initConversationDsn()
-	db, err := conversation.InitDB(dsn)
-	if err != nil {
-		log.Fatalf("Failed to initialize database: %s", err.Error())
-	}
-	defer db.Close()
+	client := api.NewClient("")
 
 	provider := inference.ProviderName(modelConfig.Provider)
 	if modelConfig.Model == "" {
@@ -81,14 +64,14 @@ func ChatHandler(cmd *cobra.Command, args []string) error {
 		if id != "" {
 			convID = id
 		} else {
-			convID, err = conversation.LatestID(db)
+			convID, err = client.GetLatestConversationID()
 			if err != nil {
 				return err
 			}
 		}
 	}
 
-	err = interactive(cmd.Context(), convID, modelConfig, db)
+	err = interactive(cmd.Context(), convID, modelConfig, client)
 	if err != nil {
 		fmt.Printf("Error: %s\n", err.Error())
 	}
@@ -128,20 +111,12 @@ func ConversationHandler(cmd *cobra.Command, args []string) error {
 		return errors.New("only one of '--list'")
 	}
 
-	dsn := initConversationDsn()
-	db, err := conversation.InitDB(dsn)
-
-	if err != nil {
-		log.Fatalf("Failed to initialize database: %s", err.Error())
-		return err
-	}
-
-	defer db.Close()
+	client := api.NewClient("")
 
 	if flagsSet == 1 {
 		switch showType {
 		case "list":
-			conversations, err := conversation.List(db)
+			conversations, err := client.ListConversations()
 			if err != nil {
 				log.Fatalf("Error listing conversations: %v", err)
 			}
