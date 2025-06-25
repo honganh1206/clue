@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/honganh1206/clue/message"
 	"github.com/honganh1206/clue/server/db"
 	"github.com/honganh1206/clue/utils"
 )
@@ -22,7 +23,7 @@ var (
 
 type Conversation struct {
 	ID        string
-	Messages  []*MessageParam
+	Messages  []*message.Message
 	CreatedAt time.Time
 }
 
@@ -61,12 +62,12 @@ func NewConversation() (*Conversation, error) {
 
 	return &Conversation{
 		ID:        id.String(),
-		Messages:  make([]*MessageParam, 0),
+		Messages:  make([]*message.Message, 0),
 		CreatedAt: time.Now(),
 	}, nil
 }
 
-func (cm ConversationModel) Append(c *Conversation, msg MessageParam) {
+func (cm ConversationModel) Append(c *Conversation, msg message.Message) {
 	now := time.Now()
 	sequence := len(c.Messages)
 
@@ -216,7 +217,7 @@ func (cm ConversationModel) Load(id string) (*Conversation, error) {
 		SELECT created_at FROM conversations WHERE id = ?
 	`
 
-	conv := &Conversation{ID: id, Messages: make([]*MessageParam, 0)}
+	conv := &Conversation{ID: id, Messages: make([]*message.Message, 0)}
 
 	err := cm.DB.QueryRow(query, id).Scan(&conv.CreatedAt)
 	if err != nil {
@@ -228,9 +229,7 @@ func (cm ConversationModel) Load(id string) (*Conversation, error) {
 
 	query = `
 		SELECT
-			sequence_number,
-			payload,
-			created_at
+			payload
 		FROM
 			messages WHERE conversation_id = ?
 		ORDER BY
@@ -243,78 +242,18 @@ func (cm ConversationModel) Load(id string) (*Conversation, error) {
 	}
 	defer rows.Close()
 
-	var msgs []*MessageParam
+	var msgs []*message.Message
 
 	for rows.Next() {
-		var seq int
 		var payload []byte
-		var createdAt time.Time
 
-		if err := rows.Scan(&seq, &payload, &createdAt); err != nil {
+		if err := rows.Scan(&payload); err != nil {
 			return nil, fmt.Errorf("failed to scan message for conversation ID '%s': %w", id, err)
 		}
 
-		// Temp struct to access the content block type
-		var tempMsg struct {
-			Content []struct {
-				Type string `json:"type"`
-			} `json:"content"`
-		}
-
-		if err := json.Unmarshal(payload, &tempMsg); err != nil {
+		if err := json.Unmarshal(payload, &msgs); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal temp message payload for conversation ID '%s': %w", id, err)
 		}
-
-		// Complete message struct with proper content blocks
-		var fullMsg struct {
-			Role    string            `json:"role"`
-			Content []json.RawMessage `json:"content"`
-		}
-
-		if err := json.Unmarshal(payload, &fullMsg); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal full message payload for conversation ID '%s': %w", id, err)
-		}
-
-		msg := &MessageParam{
-			Role:      fullMsg.Role,
-			Content:   make([]ContentBlockJSON, 0, len(fullMsg.Content)),
-			CreatedAt: createdAt,
-			Sequence:  seq,
-		}
-
-		// Unmarshal each content block based on its type
-		for i, rawContent := range fullMsg.Content {
-			var contentBlockJSON ContentBlockJSON
-
-			switch tempMsg.Content[i].Type {
-			case TextType:
-				var textBlock TextContentBlock
-				if err := json.Unmarshal(rawContent, &textBlock); err != nil {
-					return nil, fmt.Errorf("failed to unmarshal text content block for conversation ID '%s': %w", id, err)
-				}
-				contentBlockJSON = ToContentBlockJSON(textBlock)
-
-			case ToolUseType:
-				var toolUseBlock ToolUseContentBlock
-				if err := json.Unmarshal(rawContent, &toolUseBlock); err != nil {
-					return nil, fmt.Errorf("failed to unmarshal tool use content block for conversation ID '%s': %w", id, err)
-				}
-				contentBlockJSON = ToContentBlockJSON(toolUseBlock)
-
-			case ToolResultType:
-				var toolResultBlock ToolResultContentBlock
-				if err := json.Unmarshal(rawContent, &toolResultBlock); err != nil {
-					return nil, fmt.Errorf("failed to unmarshal tool result content block for conversation ID '%s': %w", id, err)
-				}
-				contentBlockJSON = ToContentBlockJSON(toolResultBlock)
-
-			default:
-				return nil, fmt.Errorf("unknown content block type '%s' for conversation ID '%s'", tempMsg.Content[i].Type, id)
-			}
-
-			msg.Content = append(msg.Content, contentBlockJSON)
-		}
-		msgs = append(msgs, msg)
 	}
 
 	if err = rows.Err(); err != nil {

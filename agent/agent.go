@@ -8,6 +8,7 @@ import (
 
 	"github.com/honganh1206/clue/api"
 	"github.com/honganh1206/clue/inference"
+	"github.com/honganh1206/clue/message"
 	"github.com/honganh1206/clue/server/conversation"
 	"github.com/honganh1206/clue/tools"
 )
@@ -68,13 +69,12 @@ func (a *Agent) Run(ctx context.Context) error {
 				break
 			}
 
-			userMsg := conversation.MessageRequest{
-				MessageParam: conversation.MessageParam{
-					Role:    conversation.UserRole,
-					Content: []conversation.ContentBlockJSON{conversation.ToContentBlockJSON(conversation.NewTextContentBlock(userInput))},
-				},
+			userMsg := message.Message{
+				Role:    message.UserRole,
+				Content: []message.ContentBlockUnion{message.NewTextContentBlock(userInput)},
 			}
-			a.conversation.Messages = append(a.conversation.Messages, &userMsg.MessageParam)
+
+			a.conversation.Messages = append(a.conversation.Messages, &userMsg)
 			a.saveConversation()
 		}
 
@@ -83,17 +83,16 @@ func (a *Agent) Run(ctx context.Context) error {
 			return err
 		}
 
-		a.conversation.Messages = append(a.conversation.Messages, &agentMsg.MessageParam)
+		a.conversation.Messages = append(a.conversation.Messages, agentMsg)
 		a.saveConversation()
 
-		toolResults := []conversation.ContentBlockJSON{}
+		toolResults := []message.ContentBlockUnion{}
 
-		for _, content := range agentMsg.Content {
-			cb := conversation.FromContentBlockJSON(content)
-			switch c := cb.(type) {
-			case conversation.ToolUseContentBlock:
-				result := a.executeTool(c.ID, c.Name, c.Input)
-				toolResults = append(toolResults, conversation.ToContentBlockJSON(result))
+		for _, c := range agentMsg.Content {
+			switch c.Type {
+			case message.ToolUseType:
+				result := a.executeTool(c.OfToolUseBlock.ID, c.OfToolUseBlock.Name, c.OfToolUseBlock.Input)
+				toolResults = append(toolResults, result)
 			}
 		}
 
@@ -104,24 +103,21 @@ func (a *Agent) Run(ctx context.Context) error {
 
 		readUserInput = false
 
-		toolResultMsg := conversation.MessageRequest{
-			MessageParam: conversation.MessageParam{
-				Role:    conversation.UserRole,
-				Content: toolResults,
-			},
+		toolResultMsg := &message.Message{
+			Role:    message.UserRole,
+			Content: toolResults,
 		}
 
-		a.conversation.Messages = append(a.conversation.Messages, &toolResultMsg.MessageParam)
+		a.conversation.Messages = append(a.conversation.Messages, toolResultMsg)
 		a.saveConversation()
 	}
 
 	return nil
 }
 
-func (a *Agent) executeTool(id, name string, input json.RawMessage) conversation.ContentBlock {
+func (a *Agent) executeTool(id, name string, input json.RawMessage) message.ContentBlockUnion {
 	var toolDef tools.ToolDefinition
 	var found bool
-
 	for _, tool := range a.tools {
 		if tool.Name == name {
 			toolDef = tool
@@ -133,7 +129,9 @@ func (a *Agent) executeTool(id, name string, input json.RawMessage) conversation
 	if !found {
 		// TODO: Return proper error type
 		errorMsg := "tool not found"
-		return conversation.NewToolResultContentBlock(id, errorMsg, true)
+		return message.ContentBlockUnion{
+			Type:              message.ToolResultType,
+			OfToolResultBlock: &message.ToolResultContentBlock{ToolUseID: id, Content: errorMsg, IsError: true}}
 	}
 
 	fmt.Printf("\u001b[92mtool\u001b[0m: %s(%s)\n", name, input)
@@ -141,10 +139,14 @@ func (a *Agent) executeTool(id, name string, input json.RawMessage) conversation
 	response, err := toolDef.Function(input)
 
 	if err != nil {
-		return conversation.NewToolResultContentBlock(id, err.Error(), true)
+		return message.ContentBlockUnion{
+			Type:              message.ToolResultType,
+			OfToolResultBlock: &message.ToolResultContentBlock{ToolUseID: id, Content: err.Error(), IsError: true}}
 	}
 
-	return conversation.NewToolResultContentBlock(id, response, true)
+	return message.ContentBlockUnion{
+		Type:              message.ToolResultType,
+		OfToolResultBlock: &message.ToolResultContentBlock{ToolUseID: id, Content: response, IsError: false}}
 }
 
 func (a *Agent) saveConversation() error {

@@ -6,14 +6,14 @@ import (
 	"strings"
 
 	"github.com/anthropics/anthropic-sdk-go"
-	"github.com/honganh1206/clue/server/conversation"
+	"github.com/honganh1206/clue/message"
 	"github.com/honganh1206/clue/tools"
 )
 
 type Model interface {
 	// FIXME: VERY RESOURCE-CONSUMING since we are invoking this in every loop
 	// What to do? Maintain a parallel flattened view/Flatten incrementally with new messages/Modify the engine
-	CompleteStream(ctx context.Context, msgs []*conversation.MessageParam, tools []tools.ToolDefinition) (*conversation.MessageResponse, error)
+	CompleteStream(ctx context.Context, msgs []*message.Message, tools []tools.ToolDefinition) (*message.Message, error)
 	Name() string
 }
 

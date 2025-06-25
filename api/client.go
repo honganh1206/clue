@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/honganh1206/clue/message"
 	"github.com/honganh1206/clue/server/conversation"
 )
 
@@ -44,7 +45,7 @@ func (c *Client) CreateConversation() (*conversation.Conversation, error) {
 
 	return &conversation.Conversation{
 		ID:       result["id"],
-		Messages: make([]*conversation.MessageParam, 0),
+		Messages: make([]*message.Message, 0),
 	}, nil
 }
 

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/honganh1206/clue/message"
 	"github.com/honganh1206/clue/server/conversation"
 )
 
@@ -26,7 +27,7 @@ func NewConversation() (*conversation.Conversation, error) {
 
 	return &conversation.Conversation{
 		ID:        id.String(),
-		Messages:  make([]*conversation.MessageParam, 0),
+		Messages:  make([]*message.Message, 0),
 		CreatedAt: time.Now(),
 	}, nil
 }
