@@ -129,9 +129,7 @@ func (a *Agent) executeTool(id, name string, input json.RawMessage) message.Cont
 	if !found {
 		// TODO: Return proper error type
 		errorMsg := "tool not found"
-		return message.ContentBlockUnion{
-			Type:              message.ToolResultType,
-			OfToolResultBlock: &message.ToolResultContentBlock{ToolUseID: id, Content: errorMsg, IsError: true}}
+		return message.NewToolResultContentBlock(id, errorMsg, true)
 	}
 
 	fmt.Printf("\u001b[92mtool\u001b[0m: %s(%s)\n", name, input)
@@ -139,14 +137,10 @@ func (a *Agent) executeTool(id, name string, input json.RawMessage) message.Cont
 	response, err := toolDef.Function(input)
 
 	if err != nil {
-		return message.ContentBlockUnion{
-			Type:              message.ToolResultType,
-			OfToolResultBlock: &message.ToolResultContentBlock{ToolUseID: id, Content: err.Error(), IsError: true}}
+		return message.NewToolResultContentBlock(id, err.Error(), true)
 	}
 
-	return message.ContentBlockUnion{
-		Type:              message.ToolResultType,
-		OfToolResultBlock: &message.ToolResultContentBlock{ToolUseID: id, Content: response, IsError: false}}
+	return message.NewToolResultContentBlock(id, response, false)
 }
 
 func (a *Agent) saveConversation() error {

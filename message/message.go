@@ -35,7 +35,6 @@ func NewTextContentBlock(text string) ContentBlockUnion {
 	return ContentBlockUnion{
 		Type: TextType,
 		OfTextBlock: &TextContentBlock{
-			// Type: TextType,
 			Text: text,
 		}}
 }
@@ -54,7 +53,6 @@ func NewToolUseContentBlock(id, name string, input json.RawMessage) ContentBlock
 	return ContentBlockUnion{
 		Type: ToolUseType,
 		OfToolUseBlock: &ToolUseContentBlock{
-			// Type:  ToolUseType,
 			ID:    id,
 			Name:  name,
 			Input: input,
@@ -72,7 +70,6 @@ func NewToolResultContentBlock(toolUseID string, content any, isError bool) Cont
 	return ContentBlockUnion{
 		Type: ToolResultType,
 		OfToolResultBlock: &ToolResultContentBlock{
-			// Type:      ToolResultType,
 			ToolUseID: toolUseID,
 			Content:   content,
 			IsError:   isError,
@@ -86,14 +83,3 @@ type ContentBlockUnion struct {
 	OfToolUseBlock    *ToolUseContentBlock    `json:",omitzero,inline"`
 	OfToolResultBlock *ToolResultContentBlock `json:",omitzero,inline"`
 }
-
-// func (u *ContentBlockUnion) UnmarshalJSON(data []byte) error {
-// 	if err := json.Unmarshal(data, &u); err != nil {
-// 		return err
-// 	}
-// 	return nil
-// }
-
-// func (u ContentBlockUnion) MarshalJSON() ([]byte, error) {
-// 	return json.Marshal(u)
-// }
