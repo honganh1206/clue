@@ -163,7 +163,6 @@ func streamAnthropicResponse(stream *ssestream.Stream[anthropic.MessageStreamEve
 		}
 
 		switch event := event.AsAny().(type) {
-		// Incremental updates sent during text generation
 		case anthropic.ContentBlockDeltaEvent:
 			print(event.Delta.Text)
 		case anthropic.ContentBlockStartEvent:
@@ -198,19 +197,18 @@ func convertFromAnthropicMessage(anthropicMsg anthropic.Message) (*message.Messa
 		Content: make([]message.ContentBlockUnion, 0)}
 
 	for _, block := range anthropicMsg.Content {
+		var v message.ContentBlockUnion
 		switch variant := block.AsAny().(type) {
 		case anthropic.TextBlock:
-			msg.Content = append(msg.Content, message.ContentBlockUnion{
-				Type:        message.TextType,
-				OfTextBlock: &message.TextContentBlock{Text: block.Text}})
+			v = message.NewTextContentBlock(block.Text)
+			msg.Content = append(msg.Content, v)
 		case anthropic.ToolUseBlock:
 			err := json.Unmarshal([]byte(variant.JSON.Input.Raw()), &block.Input)
 			if err != nil {
 				return nil, err
 			}
-			msg.Content = append(msg.Content, message.ContentBlockUnion{
-				Type:           message.ToolUseType,
-				OfToolUseBlock: &message.ToolUseContentBlock{ID: block.ID, Name: block.Name, Input: block.Input}})
+			v = message.NewToolUseContentBlock(block.ID, block.Name, block.Input)
+			msg.Content = append(msg.Content, v)
 		}
 	}
 

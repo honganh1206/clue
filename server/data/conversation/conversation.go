@@ -216,7 +216,6 @@ func (cm ConversationModel) Load(id string) (*Conversation, error) {
 	query := `
 		SELECT created_at FROM conversations WHERE id = ?
 	`
-
 	conv := &Conversation{ID: id, Messages: make([]*message.Message, 0)}
 
 	err := cm.DB.QueryRow(query, id).Scan(&conv.CreatedAt)
@@ -251,9 +250,12 @@ func (cm ConversationModel) Load(id string) (*Conversation, error) {
 			return nil, fmt.Errorf("failed to scan message for conversation ID '%s': %w", id, err)
 		}
 
-		if err := json.Unmarshal(payload, &msgs); err != nil {
+		var msg *message.Message
+		if err := json.Unmarshal(payload, &msg); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal temp message payload for conversation ID '%s': %w", id, err)
 		}
+
+		msgs = append(msgs, msg)
 	}
 
 	if err = rows.Err(); err != nil {

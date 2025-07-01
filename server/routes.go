@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/honganh1206/clue/server/conversation"
+	"github.com/honganh1206/clue/server/data/conversation"
 	_ "github.com/mattn/go-sqlite3"
 )
 

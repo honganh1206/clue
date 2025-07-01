@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/honganh1206/clue/message"
-	"github.com/honganh1206/clue/server/conversation"
+	"github.com/honganh1206/clue/server/data/conversation"
 )
 
 type Models struct {

@@ -10,7 +10,7 @@ import (
 	"github.com/honganh1206/clue/api"
 	"github.com/honganh1206/clue/inference"
 	"github.com/honganh1206/clue/prompts"
-	"github.com/honganh1206/clue/server/conversation"
+	"github.com/honganh1206/clue/server/data/conversation"
 	"github.com/honganh1206/clue/tools"
 )
 
@@ -25,6 +25,7 @@ func interactive(ctx context.Context, convID string, modelConfig inference.Model
 		if !scanner.Scan() {
 			return "", false
 		}
+		println() // Spacing for the UI
 		return scanner.Text(), true
 	}
 

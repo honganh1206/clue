@@ -8,7 +8,7 @@ import (
 	"net/http"
 
 	"github.com/honganh1206/clue/message"
-	"github.com/honganh1206/clue/server/conversation"
+	"github.com/honganh1206/clue/server/data/conversation"
 )
 
 type Client struct {
@@ -134,5 +134,5 @@ func (c *Client) GetLatestConversationID() (string, error) {
 		return "", conversation.ErrConversationNotFound
 	}
 
-	return conversations[0].ID, nil
+	return conversations[len(conversations)-1].ID, nil
 }

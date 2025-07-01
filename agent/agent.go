@@ -9,7 +9,7 @@ import (
 	"github.com/honganh1206/clue/api"
 	"github.com/honganh1206/clue/inference"
 	"github.com/honganh1206/clue/message"
-	"github.com/honganh1206/clue/server/conversation"
+	"github.com/honganh1206/clue/server/data/conversation"
 	"github.com/honganh1206/clue/tools"
 )
 
@@ -133,6 +133,7 @@ func (a *Agent) executeTool(id, name string, input json.RawMessage) message.Cont
 	}
 
 	fmt.Printf("\u001b[92mtool\u001b[0m: %s(%s)\n", name, input)
+	println()
 
 	response, err := toolDef.Function(input)
 
