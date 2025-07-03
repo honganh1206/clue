@@ -8,7 +8,7 @@ import (
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/packages/ssestream"
-	"github.com/honganh1206/clue/conversation"
+	"github.com/honganh1206/clue/message"
 	"github.com/honganh1206/clue/prompts"
 	"github.com/honganh1206/clue/tools"
 )
@@ -20,7 +20,7 @@ type AnthropicModel struct {
 	cache     anthropic.CacheControlEphemeralParam
 }
 
-func NewAnthropicModel(client *anthropic.Client, promptPath string, model ModelVersion, maxTokens int64) *AnthropicModel {
+func NewAnthropicModel(client *anthropic.Client, model ModelVersion, maxTokens int64) *AnthropicModel {
 	if model == "" {
 		model = ModelVersion(anthropic.ModelClaudeSonnet4_0)
 	}
@@ -65,7 +65,7 @@ func getAnthropicModel(model ModelVersion) anthropic.Model {
 	}
 }
 
-func (m *AnthropicModel) RunInference(ctx context.Context, msgs []*conversation.MessageParam, tools []tools.ToolDefinition) (*conversation.MessageResponse, error) {
+func (m *AnthropicModel) CompleteStream(ctx context.Context, msgs []*message.Message, tools []tools.ToolDefinition) (*message.Message, error) {
 	anthropicMsgs := convertToAnthropicMsgs(msgs)
 
 	anthropicTools, err := m.convertToAnthropicTools(tools)
@@ -94,7 +94,7 @@ func (m *AnthropicModel) RunInference(ctx context.Context, msgs []*conversation.
 }
 
 // Convert generic messages to Anthropic ones
-func convertToAnthropicMsgs(msgs []*conversation.MessageParam) []anthropic.MessageParam {
+func convertToAnthropicMsgs(msgs []*message.Message) []anthropic.MessageParam {
 	anthropicMsgs := make([]anthropic.MessageParam, 0, len(msgs))
 
 	for _, msg := range msgs {
@@ -103,9 +103,9 @@ func convertToAnthropicMsgs(msgs []*conversation.MessageParam) []anthropic.Messa
 
 		blocks := convertToAnthropicBlocks(msg.Content)
 
-		if msg.Role == conversation.UserRole {
+		if msg.Role == message.UserRole {
 			anthropicMsg = anthropic.NewUserMessage(blocks...)
-		} else if msg.Role == conversation.AssistantRole {
+		} else if msg.Role == message.AssistantRole {
 			anthropicMsg = anthropic.NewAssistantMessage(blocks...)
 		}
 
@@ -118,26 +118,26 @@ func convertToAnthropicMsgs(msgs []*conversation.MessageParam) []anthropic.Messa
 	return anthropicMsgs
 }
 
-func convertToAnthropicBlocks(genericBlocks []conversation.ContentBlock) []anthropic.ContentBlockParamUnion {
+func convertToAnthropicBlocks(blocksUnion []message.ContentBlockUnion) []anthropic.ContentBlockParamUnion {
 	// Unified inteface for different request types i.e. text, image, document, thinking
-	blocks := make([]anthropic.ContentBlockParamUnion, 0, len(genericBlocks))
+	blocks := make([]anthropic.ContentBlockParamUnion, 0, len(blocksUnion))
 
-	for _, block := range genericBlocks {
-		switch b := block.(type) {
-		case conversation.ToolResultContentBlock:
-			content, ok := b.Content.(string)
+	for _, b := range blocksUnion {
+		switch b.Type {
+		case message.ToolResultType:
+			content, ok := b.OfToolResultBlock.Content.(string)
 			if !ok {
 				continue
 			}
-			toolResultBlock := anthropic.NewToolResultBlock(b.ToolUseID, content, b.IsError)
+			toolResultBlock := anthropic.NewToolResultBlock(b.OfToolResultBlock.ToolUseID, content, b.OfToolResultBlock.IsError)
 			blocks = append(blocks, toolResultBlock)
-		case conversation.TextContentBlock:
-			blocks = append(blocks, anthropic.NewTextBlock(b.Text))
-		case conversation.ToolUseContentBlock:
+		case message.TextType:
+			blocks = append(blocks, anthropic.NewTextBlock(b.OfTextBlock.Text))
+		case message.ToolUseType:
 			toolUseParam := anthropic.ToolUseBlockParam{
-				ID:    b.ID,
-				Name:  b.Name,
-				Input: b.Input,
+				ID:    b.OfToolUseBlock.ID,
+				Name:  b.OfToolUseBlock.Name,
+				Input: b.OfToolUseBlock.Input,
 				// Maximum of 4 blocks with cache_control
 				// CacheControl: anthropic.NewCacheControlEphemeralParam(),
 			}
@@ -152,7 +152,7 @@ func convertToAnthropicBlocks(genericBlocks []conversation.ContentBlock) []anthr
 	return blocks
 }
 
-func streamAnthropicResponse(stream *ssestream.Stream[anthropic.MessageStreamEventUnion]) (*conversation.MessageResponse, error) {
+func streamAnthropicResponse(stream *ssestream.Stream[anthropic.MessageStreamEventUnion]) (*message.Message, error) {
 	anthropicMsg := anthropic.Message{}
 
 	for stream.Next() {
@@ -163,7 +163,6 @@ func streamAnthropicResponse(stream *ssestream.Stream[anthropic.MessageStreamEve
 		}
 
 		switch event := event.AsAny().(type) {
-		// Incremental updates sent during text generation
 		case anthropic.ContentBlockDeltaEvent:
 			print(event.Delta.Text)
 		case anthropic.ContentBlockStartEvent:
@@ -192,24 +191,24 @@ func streamAnthropicResponse(stream *ssestream.Stream[anthropic.MessageStreamEve
 	return convertFromAnthropicMessage(anthropicMsg)
 }
 
-func convertFromAnthropicMessage(anthropicMsg anthropic.Message) (*conversation.MessageResponse, error) {
-	msg := &conversation.MessageResponse{
-		MessageParam: conversation.MessageParam{
-			Role:    conversation.AssistantRole,
-			Content: make([]conversation.ContentBlock, 0),
-		},
-	}
+func convertFromAnthropicMessage(anthropicMsg anthropic.Message) (*message.Message, error) {
+	msg := &message.Message{
+		Role:    message.AssistantRole,
+		Content: make([]message.ContentBlockUnion, 0)}
 
 	for _, block := range anthropicMsg.Content {
+		var v message.ContentBlockUnion
 		switch variant := block.AsAny().(type) {
 		case anthropic.TextBlock:
-			msg.Content = append(msg.Content, conversation.NewTextContentBlock(block.Text))
+			v = message.NewTextContentBlock(block.Text)
+			msg.Content = append(msg.Content, v)
 		case anthropic.ToolUseBlock:
 			err := json.Unmarshal([]byte(variant.JSON.Input.Raw()), &block.Input)
 			if err != nil {
 				return nil, err
 			}
-			msg.Content = append(msg.Content, conversation.NewToolUseContentBlock(block.ID, block.Name, block.Input))
+			v = message.NewToolUseContentBlock(block.ID, block.Name, block.Input)
+			msg.Content = append(msg.Content, v)
 		}
 	}
 
