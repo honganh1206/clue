@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/honganh1206/clue/message"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -23,9 +24,6 @@ func createTestDB(t *testing.T) *sql.DB {
 	})
 
 	testDBPath := filepath.Join(tempDir, "test.db")
-
-	t.Cleanup(func() {
-	})
 
 	db, err := InitDB(testDBPath)
 	if err != nil {
@@ -45,10 +43,10 @@ func TestConversation_Append(t *testing.T) {
 		t.Fatalf("New() failed: %v", err)
 	}
 
-	msg := MessagePartRequest{
-		Role: UserRole,
-		Content: []ContentBlock{
-			NewTextContentBlock("Hello, world!"),
+	msg := &message.Message{
+		Role: message.UserRole,
+		Content: []message.ContentBlockUnion{
+			message.NewTextContentBlock("Hello, world!"),
 		},
 	}
 
@@ -59,8 +57,8 @@ func TestConversation_Append(t *testing.T) {
 	}
 
 	appended := conv.Messages[0]
-	if appended.Role != UserRole {
-		t.Errorf("Expected role %s, got %s", UserRole, appended.Role)
+	if appended.Role != message.UserRole {
+		t.Errorf("Expected role %s, got %s", message.UserRole, appended.Role)
 	}
 	if appended.Sequence != 0 {
 		t.Errorf("Expected sequence 0, got %d", appended.Sequence)
@@ -69,10 +67,10 @@ func TestConversation_Append(t *testing.T) {
 		t.Error("CreatedAt was not set")
 	}
 
-	msg2 := MessagePartRequest{
-		Role: AssistantRole,
-		Content: []ContentBlock{
-			NewTextContentBlock("Hello back!"),
+	msg2 := &message.Message{
+		Role: message.AssistantRole,
+		Content: []message.ContentBlockUnion{
+			message.NewTextContentBlock("Hello back!"),
 		},
 	}
 
@@ -93,27 +91,28 @@ func TestConversation_Append(t *testing.T) {
 
 func TestConversation_SaveTo(t *testing.T) {
 	db := createTestDB(t)
+	cm := ConversationModel{DB: db}
 
 	conv, err := New()
 	if err != nil {
 		t.Fatalf("New() failed: %v", err)
 	}
 
-	conv.Append(MessagePartRequest{
-		Role: UserRole,
-		Content: []ContentBlock{
-			NewTextContentBlock("First message"),
+	conv.Append(&message.Message{
+		Role: message.UserRole,
+		Content: []message.ContentBlockUnion{
+			message.NewTextContentBlock("First message"),
 		},
 	})
 
-	conv.Append(MessagePartRequest{
-		Role: AssistantRole,
-		Content: []ContentBlock{
-			NewTextContentBlock("Second message"),
+	conv.Append(&message.Message{
+		Role: message.AssistantRole,
+		Content: []message.ContentBlockUnion{
+			message.NewTextContentBlock("Second message"),
 		},
 	})
 
-	if err := conv.SaveTo(db); err != nil {
+	if err := cm.SaveTo(conv); err != nil {
 		t.Fatalf("SaveTo() failed: %v", err)
 	}
 
@@ -157,33 +156,34 @@ func TestConversation_SaveTo(t *testing.T) {
 
 func TestConversation_SaveTo_DuplicateConversation(t *testing.T) {
 	db := createTestDB(t)
+	cm := ConversationModel{DB: db}
 
 	conv, err := New()
 	if err != nil {
 		t.Fatalf("New() failed: %v", err)
 	}
 
-	conv.Append(MessagePartRequest{
-		Role: UserRole,
-		Content: []ContentBlock{
-			NewTextContentBlock("Test message"),
+	conv.Append(&message.Message{
+		Role: message.UserRole,
+		Content: []message.ContentBlockUnion{
+			message.NewTextContentBlock("Test message"),
 		},
 	})
 
 	// Save conversation first time
-	if err := conv.SaveTo(db); err != nil {
+	if err := cm.SaveTo(conv); err != nil {
 		t.Fatalf("First SaveTo() failed: %v", err)
 	}
 
 	// Add another message and save again
-	conv.Append(MessagePartRequest{
-		Role: AssistantRole,
-		Content: []ContentBlock{
-			NewTextContentBlock("Response message"),
+	conv.Append(&message.Message{
+		Role: message.AssistantRole,
+		Content: []message.ContentBlockUnion{
+			message.NewTextContentBlock("Response message"),
 		},
 	})
 
-	if err := conv.SaveTo(db); err != nil {
+	if err := cm.SaveTo(conv); err != nil {
 		t.Fatalf("Second SaveTo() failed: %v", err)
 	}
 
@@ -209,9 +209,10 @@ func TestConversation_SaveTo_DuplicateConversation(t *testing.T) {
 
 func TestList(t *testing.T) {
 	db := createTestDB(t)
+	cm := ConversationModel{DB: db}
 
 	// Test empty database
-	metadataList, err := List(db)
+	metadataList, err := cm.List()
 	if err != nil {
 		t.Fatalf("List() failed on empty database: %v", err)
 	}
@@ -224,10 +225,10 @@ func TestList(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() failed: %v", err)
 	}
-	conv1.Append(MessagePartRequest{
-		Role: UserRole,
-		Content: []ContentBlock{
-			NewTextContentBlock("First conversation message"),
+	conv1.Append(&message.Message{
+		Role: message.UserRole,
+		Content: []message.ContentBlockUnion{
+			message.NewTextContentBlock("First conversation message"),
 		},
 	})
 
@@ -235,33 +236,33 @@ func TestList(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() failed: %v", err)
 	}
-	conv2.Append(MessagePartRequest{
-		Role: UserRole,
-		Content: []ContentBlock{
-			NewTextContentBlock("Second conversation message"),
+	conv2.Append(&message.Message{
+		Role: message.UserRole,
+		Content: []message.ContentBlockUnion{
+			message.NewTextContentBlock("Second conversation message"),
 		},
 	})
-	conv2.Append(MessagePartRequest{
-		Role: AssistantRole,
-		Content: []ContentBlock{
-			NewTextContentBlock("Response to second conversation"),
+	conv2.Append(&message.Message{
+		Role: message.AssistantRole,
+		Content: []message.ContentBlockUnion{
+			message.NewTextContentBlock("Response to second conversation"),
 		},
 	})
 
 	// Save conversations
-	if err := conv1.SaveTo(db); err != nil {
+	if err := cm.SaveTo(conv1); err != nil {
 		t.Fatalf("SaveTo() failed for conv1: %v", err)
 	}
 
 	// Add a small delay to ensure different timestamps
 	time.Sleep(1 * time.Millisecond)
 
-	if err := conv2.SaveTo(db); err != nil {
+	if err := cm.SaveTo(conv2); err != nil {
 		t.Fatalf("SaveTo() failed for conv2: %v", err)
 	}
 
 	// Test List function
-	metadataList, err = List(db)
+	metadataList, err = cm.List()
 	if err != nil {
 		t.Fatalf("List() failed: %v", err)
 	}
@@ -299,6 +300,7 @@ func TestList(t *testing.T) {
 
 func TestList_EmptyConversation(t *testing.T) {
 	db := createTestDB(t)
+	cm := ConversationModel{DB: db}
 
 	// Create conversation without messages
 	conv, err := New()
@@ -312,7 +314,7 @@ func TestList_EmptyConversation(t *testing.T) {
 		t.Fatalf("Failed to insert empty conversation: %v", err)
 	}
 
-	metadataList, err := List(db)
+	metadataList, err := cm.List()
 	if err != nil {
 		t.Fatalf("List() failed: %v", err)
 	}
@@ -334,9 +336,10 @@ func TestList_EmptyConversation(t *testing.T) {
 
 func TestLatestID(t *testing.T) {
 	db := createTestDB(t)
+	cm := ConversationModel{DB: db}
 
 	// Test empty database
-	_, err := LatestID(db)
+	_, err := cm.LatestID()
 	if err != ErrConversationNotFound {
 		t.Errorf("Expected ErrConversationNotFound, got %v", err)
 	}
@@ -357,15 +360,15 @@ func TestLatestID(t *testing.T) {
 	conv2.CreatedAt = time.Now()
 
 	// Save conversations
-	if err := conv1.SaveTo(db); err != nil {
+	if err := cm.SaveTo(conv1); err != nil {
 		t.Fatalf("SaveTo() failed for conv1: %v", err)
 	}
-	if err := conv2.SaveTo(db); err != nil {
+	if err := cm.SaveTo(conv2); err != nil {
 		t.Fatalf("SaveTo() failed for conv2: %v", err)
 	}
 
 	// Test LatestID function
-	latestID, err := LatestID(db)
+	latestID, err := cm.LatestID()
 	if err != nil {
 		t.Fatalf("LatestID() failed: %v", err)
 	}
@@ -377,9 +380,10 @@ func TestLatestID(t *testing.T) {
 
 func TestLoad(t *testing.T) {
 	db := createTestDB(t)
+	cm := ConversationModel{DB: db}
 
 	// Test loading non-existent conversation
-	_, err := Load("non-existent-id", db)
+	_, err := cm.Load("non-existent-id")
 	if err != ErrConversationNotFound {
 		t.Errorf("Expected ErrConversationNotFound, got %v", err)
 	}
@@ -391,37 +395,37 @@ func TestLoad(t *testing.T) {
 	}
 
 	// Add text message
-	conv.Append(MessagePartRequest{
-		Role: UserRole,
-		Content: []ContentBlock{
-			NewTextContentBlock("Hello, this is a test message"),
+	conv.Append(&message.Message{
+		Role: message.UserRole,
+		Content: []message.ContentBlockUnion{
+			message.NewTextContentBlock("Hello, this is a test message"),
 		},
 	})
 
 	// Add tool use message
 	toolInput := []byte(`{"query": "test"}`)
-	conv.Append(MessagePartRequest{
-		Role: AssistantRole,
-		Content: []ContentBlock{
-			NewToolUseContentBlock("tool-123", "search", toolInput),
+	conv.Append(&message.Message{
+		Role: message.AssistantRole,
+		Content: []message.ContentBlockUnion{
+			message.NewToolUseContentBlock("tool-123", "search", toolInput),
 		},
 	})
 
 	// Add tool result message
-	conv.Append(MessagePartRequest{
-		Role: UserRole,
-		Content: []ContentBlock{
-			NewToolResultContentBlock("tool-123", "Search results here", false),
+	conv.Append(&message.Message{
+		Role: message.UserRole,
+		Content: []message.ContentBlockUnion{
+			message.NewToolResultContentBlock("tool-123", "Search results here", false),
 		},
 	})
 
 	// Save conversation
-	if err := conv.SaveTo(db); err != nil {
+	if err := cm.SaveTo(conv); err != nil {
 		t.Fatalf("SaveTo() failed: %v", err)
 	}
 
 	// Load conversation
-	loadedConv, err := Load(conv.ID, db)
+	loadedConv, err := cm.Load(conv.ID)
 	if err != nil {
 		t.Fatalf("Load() failed: %v", err)
 	}
@@ -455,41 +459,42 @@ func TestLoad(t *testing.T) {
 		for j, originalContent := range originalMsg.Content {
 			loadedContent := loadedMsg.Content[j]
 
-			switch original := originalContent.(type) {
-			case TextContentBlock:
-				loaded, ok := loadedContent.(TextContentBlock)
-				if !ok {
-					t.Errorf("Message %d, Content %d: Expected TextContentBlock, got %T", i, j, loadedContent)
+			if originalContent.Type != loadedContent.Type {
+				t.Errorf("Message %d, Content %d: Expected type %s, got %s", i, j, originalContent.Type, loadedContent.Type)
+			}
+
+			switch originalContent.Type {
+			case message.TextType:
+				if originalContent.OfTextBlock == nil || loadedContent.OfTextBlock == nil {
+					t.Errorf("Message %d, Content %d: TextBlock is nil", i, j)
 					continue
 				}
-				if loaded.Text != original.Text {
-					t.Errorf("Message %d, Content %d: Expected text %s, got %s", i, j, original.Text, loaded.Text)
+				if loadedContent.OfTextBlock.Text != originalContent.OfTextBlock.Text {
+					t.Errorf("Message %d, Content %d: Expected text %s, got %s", i, j, originalContent.OfTextBlock.Text, loadedContent.OfTextBlock.Text)
 				}
 
-			case ToolUseContentBlock:
-				loaded, ok := loadedContent.(ToolUseContentBlock)
-				if !ok {
-					t.Errorf("Message %d, Content %d: Expected ToolUseContentBlock, got %T", i, j, loadedContent)
+			case message.ToolUseType:
+				if originalContent.OfToolUseBlock == nil || loadedContent.OfToolUseBlock == nil {
+					t.Errorf("Message %d, Content %d: ToolUseBlock is nil", i, j)
 					continue
 				}
-				if loaded.ID != original.ID {
-					t.Errorf("Message %d, Content %d: Expected tool ID %s, got %s", i, j, original.ID, loaded.ID)
+				if loadedContent.OfToolUseBlock.ID != originalContent.OfToolUseBlock.ID {
+					t.Errorf("Message %d, Content %d: Expected tool ID %s, got %s", i, j, originalContent.OfToolUseBlock.ID, loadedContent.OfToolUseBlock.ID)
 				}
-				if loaded.Name != original.Name {
-					t.Errorf("Message %d, Content %d: Expected tool name %s, got %s", i, j, original.Name, loaded.Name)
+				if loadedContent.OfToolUseBlock.Name != originalContent.OfToolUseBlock.Name {
+					t.Errorf("Message %d, Content %d: Expected tool name %s, got %s", i, j, originalContent.OfToolUseBlock.Name, loadedContent.OfToolUseBlock.Name)
 				}
 
-			case ToolResultContentBlock:
-				loaded, ok := loadedContent.(ToolResultContentBlock)
-				if !ok {
-					t.Errorf("Message %d, Content %d: Expected ToolResultContentBlock, got %T", i, j, loadedContent)
+			case message.ToolResultType:
+				if originalContent.OfToolResultBlock == nil || loadedContent.OfToolResultBlock == nil {
+					t.Errorf("Message %d, Content %d: ToolResultBlock is nil", i, j)
 					continue
 				}
-				if loaded.ToolUseID != original.ToolUseID {
-					t.Errorf("Message %d, Content %d: Expected tool use ID %s, got %s", i, j, original.ToolUseID, loaded.ToolUseID)
+				if loadedContent.OfToolResultBlock.ToolUseID != originalContent.OfToolResultBlock.ToolUseID {
+					t.Errorf("Message %d, Content %d: Expected tool use ID %s, got %s", i, j, originalContent.OfToolResultBlock.ToolUseID, loadedContent.OfToolResultBlock.ToolUseID)
 				}
-				if loaded.IsError != original.IsError {
-					t.Errorf("Message %d, Content %d: Expected is_error %v, got %v", i, j, original.IsError, loaded.IsError)
+				if loadedContent.OfToolResultBlock.IsError != originalContent.OfToolResultBlock.IsError {
+					t.Errorf("Message %d, Content %d: Expected is_error %v, got %v", i, j, originalContent.OfToolResultBlock.IsError, loadedContent.OfToolResultBlock.IsError)
 				}
 			}
 		}
@@ -498,6 +503,7 @@ func TestLoad(t *testing.T) {
 
 func TestLoad_EmptyConversation(t *testing.T) {
 	db := createTestDB(t)
+	cm := ConversationModel{DB: db}
 
 	// Create conversation without messages
 	conv, err := New()
@@ -506,12 +512,12 @@ func TestLoad_EmptyConversation(t *testing.T) {
 	}
 
 	// Save empty conversation
-	if err := conv.SaveTo(db); err != nil {
+	if err := cm.SaveTo(conv); err != nil {
 		t.Fatalf("SaveTo() failed: %v", err)
 	}
 
 	// Load conversation
-	loadedConv, err := Load(conv.ID, db)
+	loadedConv, err := cm.Load(conv.ID)
 	if err != nil {
 		t.Fatalf("Load() failed: %v", err)
 	}

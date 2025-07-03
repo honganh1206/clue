@@ -1,6 +1,7 @@
 package server
 
 import (
+	"database/sql"
 	"encoding/json"
 	"log"
 	"net"
@@ -13,8 +14,10 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-type Server struct {
-	addr net.Addr
+type server struct {
+	addr   net.Addr
+	db     *sql.DB
+	models *Models
 }
 
 func initConversationDsn() string {
@@ -35,8 +38,10 @@ func Serve(ln net.Listener) error {
 	}
 	defer db.Close()
 
-	srv := &Server{
-		addr: ln.Addr(),
+	srv := &server{
+		addr:   ln.Addr(),
+		db:     db,
+		models: NewModels(db),
 	}
 
 	mux := http.NewServeMux()
@@ -47,62 +52,61 @@ func Serve(ln net.Listener) error {
 	})
 
 	// Register conversation handlers
-	mux.HandleFunc("/conversations", srv.handleConversations)
-	mux.HandleFunc("/conversations/", srv.handleConversationByID)
+	mux.HandleFunc("/conversations", srv.conversationHandler)
+	mux.HandleFunc("/conversations/", srv.conversationHandler)
 
 	server := &http.Server{Handler: mux, Addr: ":11435"}
 	return server.Serve(ln)
 }
 
-func (s *Server) handleConversations(w http.ResponseWriter, r *http.Request) {
+func (s *server) conversationHandler(w http.ResponseWriter, r *http.Request) {
+	convID, hasID := parseConvID(r.URL.Path)
+
 	switch r.Method {
 	case http.MethodPost:
 		s.createConversation(w, r)
 	case http.MethodGet:
-		s.listConversations(w, r)
-	default:
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-	}
-}
-
-func (s *Server) handleConversationByID(w http.ResponseWriter, r *http.Request) {
-	// Extract ID from path
-	path := strings.TrimPrefix(r.URL.Path, "/conversations/")
-	parts := strings.Split(path, "/")
-	if len(parts) == 0 || parts[0] == "" {
-		http.Error(w, "Invalid conversation ID", http.StatusBadRequest)
-		return
-	}
-
-	conversationID := parts[0]
-
-	switch r.Method {
-	case http.MethodGet:
-		s.getConversation(w, r, conversationID)
+		if hasID {
+			s.getConversation(w, r, convID)
+		} else {
+			s.listConversations(w, r)
+		}
 	case http.MethodPut:
-		s.saveConversation(w, r, conversationID)
+		s.saveConversation(w, r, convID)
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
 }
 
-func (s *Server) createConversation(w http.ResponseWriter, r *http.Request) {
-	dsn := initConversationDsn()
-	db, err := conversation.InitDB(dsn)
-	if err != nil {
-		http.Error(w, "Failed to initialize database", http.StatusInternalServerError)
-		return
-	}
-	defer db.Close()
+func parseConvID(path string) (string, bool) {
+	path = strings.TrimSuffix(path, "/")
 
-	models := NewModels(db)
-	conv, err := NewConversation()
+	if path == "/conversations" {
+		return "", false
+	}
+
+	if !strings.HasPrefix(path, "/conversations/") {
+		return "", false
+	}
+
+	id := strings.TrimPrefix(path, "/conversations/")
+
+	// Ensure no path segment?
+	if strings.Contains(id, "/") {
+		return "", false
+	}
+
+	return id, true
+}
+
+func (s *server) createConversation(w http.ResponseWriter, r *http.Request) {
+	conv, err := conversation.New()
 	if err != nil {
 		http.Error(w, "Failed to create conversation", http.StatusInternalServerError)
 		return
 	}
 
-	if err := models.Conversations.SaveTo(conv); err != nil {
+	if err := s.models.Conversations.SaveTo(conv); err != nil {
 		http.Error(w, "Failed to save conversation", http.StatusInternalServerError)
 		return
 	}
@@ -111,17 +115,8 @@ func (s *Server) createConversation(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"id": conv.ID})
 }
 
-func (s *Server) listConversations(w http.ResponseWriter, r *http.Request) {
-	dsn := initConversationDsn()
-	db, err := conversation.InitDB(dsn)
-	if err != nil {
-		http.Error(w, "Failed to initialize database", http.StatusInternalServerError)
-		return
-	}
-	defer db.Close()
-
-	models := NewModels(db)
-	conversations, err := models.Conversations.List()
+func (s *server) listConversations(w http.ResponseWriter, r *http.Request) {
+	conversations, err := s.models.Conversations.List()
 	if err != nil {
 		http.Error(w, "Failed to list conversations", http.StatusInternalServerError)
 		return
@@ -131,17 +126,8 @@ func (s *Server) listConversations(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(conversations)
 }
 
-func (s *Server) getConversation(w http.ResponseWriter, r *http.Request, id string) {
-	dsn := initConversationDsn()
-	db, err := conversation.InitDB(dsn)
-	if err != nil {
-		http.Error(w, "Failed to initialize database", http.StatusInternalServerError)
-		return
-	}
-	defer db.Close()
-
-	models := NewModels(db)
-	conv, err := models.Conversations.Load(id)
+func (s *server) getConversation(w http.ResponseWriter, r *http.Request, id string) {
+	conv, err := s.models.Conversations.Load(id)
 	if err != nil {
 		if err == conversation.ErrConversationNotFound {
 			http.Error(w, "Conversation not found", http.StatusNotFound)
@@ -155,16 +141,7 @@ func (s *Server) getConversation(w http.ResponseWriter, r *http.Request, id stri
 	json.NewEncoder(w).Encode(conv)
 }
 
-func (s *Server) saveConversation(w http.ResponseWriter, r *http.Request, conversationID string) {
-	dsn := initConversationDsn()
-	db, err := conversation.InitDB(dsn)
-	if err != nil {
-		http.Error(w, "Failed to initialize database", http.StatusInternalServerError)
-		return
-	}
-	defer db.Close()
-
-	models := NewModels(db)
+func (s *server) saveConversation(w http.ResponseWriter, r *http.Request, conversationID string) {
 	var conv conversation.Conversation
 	if err := json.NewDecoder(r.Body).Decode(&conv); err != nil {
 		http.Error(w, "Invalid conversation format", http.StatusBadRequest)
@@ -178,7 +155,7 @@ func (s *Server) saveConversation(w http.ResponseWriter, r *http.Request, conver
 	}
 
 	// Save the entire conversation
-	if err := models.Conversations.SaveTo(&conv); err != nil {
+	if err := s.models.Conversations.SaveTo(&conv); err != nil {
 		http.Error(w, "Failed to save conversation", http.StatusInternalServerError)
 		return
 	}

@@ -27,13 +27,6 @@ type Conversation struct {
 	CreatedAt time.Time
 }
 
-type ConversationMetadata struct {
-	ID                string
-	LatestMessageTime time.Time
-	MessageCount      int
-	CreatedAt         time.Time
-}
-
 type ConversationModel struct {
 	DB *sql.DB
 }
@@ -54,7 +47,7 @@ func InitDB(dsn string) (*sql.DB, error) {
 	return conversationDb, nil
 }
 
-func NewConversation() (*Conversation, error) {
+func New() (*Conversation, error) {
 	id, err := uuid.NewRandom()
 	if err != nil {
 		return nil, err
@@ -67,16 +60,17 @@ func NewConversation() (*Conversation, error) {
 	}, nil
 }
 
-func (cm ConversationModel) Append(c *Conversation, msg message.Message) {
+func (c *Conversation) Append(msg *message.Message) {
 	now := time.Now()
 	sequence := len(c.Messages)
 
 	msg.CreatedAt = now
 	msg.Sequence = sequence
 
-	c.Messages = append(c.Messages, &msg)
+	c.Messages = append(c.Messages, msg)
 }
 
+// TODO: Should this be a model method?
 func (cm ConversationModel) SaveTo(c *Conversation) error {
 	// Begin a transaction
 	tx, err := cm.DB.Begin()

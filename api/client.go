@@ -43,6 +43,7 @@ func (c *Client) CreateConversation() (*conversation.Conversation, error) {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
+	// TODO: Use NewConversation method?
 	return &conversation.Conversation{
 		ID:       result["id"],
 		Messages: make([]*message.Message, 0),
@@ -134,5 +135,5 @@ func (c *Client) GetLatestConversationID() (string, error) {
 		return "", conversation.ErrConversationNotFound
 	}
 
-	return conversations[len(conversations)-1].ID, nil
+	return conversations[0].ID, nil
 }

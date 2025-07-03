@@ -69,12 +69,12 @@ func (a *Agent) Run(ctx context.Context) error {
 				break
 			}
 
-			userMsg := message.Message{
+			userMsg := &message.Message{
 				Role:    message.UserRole,
 				Content: []message.ContentBlockUnion{message.NewTextContentBlock(userInput)},
 			}
 
-			a.conversation.Messages = append(a.conversation.Messages, &userMsg)
+			a.conversation.Append(userMsg)
 			a.saveConversation()
 		}
 
@@ -83,7 +83,7 @@ func (a *Agent) Run(ctx context.Context) error {
 			return err
 		}
 
-		a.conversation.Messages = append(a.conversation.Messages, agentMsg)
+		a.conversation.Append(agentMsg)
 		a.saveConversation()
 
 		toolResults := []message.ContentBlockUnion{}
@@ -108,7 +108,7 @@ func (a *Agent) Run(ctx context.Context) error {
 			Content: toolResults,
 		}
 
-		a.conversation.Messages = append(a.conversation.Messages, toolResultMsg)
+		a.conversation.Append(toolResultMsg)
 		a.saveConversation()
 	}
 

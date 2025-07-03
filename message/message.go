@@ -5,6 +5,8 @@ import (
 	"time"
 )
 
+// TODO: Rename this struct to Payload?
+// and create Message struct in conversation package?
 type Message struct {
 	Role string `json:"role"`
 	// Cannot unmarshal interface as not concrete type, so we use tagged union
