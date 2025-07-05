@@ -9,8 +9,8 @@ import (
 	"github.com/honganh1206/clue/schema"
 )
 
-var RipGrepDefinition = ToolDefinition{
-	Name: "ripgrep",
+var GrepSearchDefinition = ToolDefinition{
+	Name: "grep_search",
 	Description: `Search for exact text patterns in files using ripgrep, a fast keyword search tool.
 
 WHEN TO USE THIS TOOL:
@@ -23,19 +23,19 @@ WHEN NOT TO USE THIS TOOL:
 - For semantic or conceptual searches (e.g., "how does authentication work")
 - For finding code that implements a certain functionality without knowing the exact terms
 - When you already have read the entire file`,
-	InputSchema: RipGrepInputSchema,
-	Function:    RipGrep,
+	InputSchema: GrepSearchInputSchema,
+	Function:    GrepSearch,
 }
 
-type RipGrepInput struct {
+type GrepSearchInput struct {
 	Pattern   string `json:"pattern" jsonschema_description:"The regexp pattern to search for."`
 	Directory string `json:"directory,omitempty" jsonschema_description:"Optional directory to scope the search."`
 }
 
-var RipGrepInputSchema = schema.Generate[RipGrepInput]()
+var GrepSearchInputSchema = schema.Generate[GrepSearchInput]()
 
-func RipGrep(input json.RawMessage) (string, error) {
-	searchInput := RipGrepInput{}
+func GrepSearch(input json.RawMessage) (string, error) {
+	searchInput := GrepSearchInput{}
 	err := json.Unmarshal(input, &searchInput)
 	if err != nil {
 		return "", err

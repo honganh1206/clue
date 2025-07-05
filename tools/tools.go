@@ -7,9 +7,8 @@ import (
 )
 
 type ToolDefinition struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	// TODO: Are we caching tool definition?
+	Name        string             `json:"name"`
+	Description string             `json:"description"`
 	InputSchema *jsonschema.Schema `json:"input_schema"`
 	Function    func(input json.RawMessage) (string, error)
 }

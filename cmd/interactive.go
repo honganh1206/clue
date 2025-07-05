@@ -33,7 +33,7 @@ func interactive(ctx context.Context, convID string, modelConfig inference.Model
 		tools.ReadFileDefinition,
 		tools.ListFilesDefinition,
 		tools.EditFileDefinition,
-		tools.RipGrepDefinition,
+		tools.GrepSearchDefinition,
 	}
 
 	var conv *conversation.Conversation

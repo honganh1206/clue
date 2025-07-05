@@ -35,19 +35,18 @@ func New(model inference.Model, getUserMsg func() (string, bool), conversation *
 
 // Returns the appropriate ANSI color code for the given model name
 func getModelColor(modelName string) string {
-	modelLower := strings.ToLower(modelName)
-
-	if strings.Contains(modelLower, inference.AnthropicModelName) {
+	switch {
+	case strings.Contains(modelName, inference.AnthropicModelName):
 		return "\u001b[38;5;208m" // Orange
-	} else if strings.Contains(modelLower, inference.GoogleModelName) {
+	case strings.Contains(modelName, inference.GoogleModelName):
 		return "\u001b[94m" // Blue
-	} else if strings.Contains(modelLower, inference.OpenAIModelName) {
+	case strings.Contains(modelName, inference.OpenAIModelName):
 		return "\u001b[92m" // Green
-	} else if strings.Contains(modelLower, inference.MetaModelName) {
+	case strings.Contains(modelName, inference.MetaModelName):
 		return "\u001b[95m" // Purple/Magenta
-	} else if strings.Contains(modelLower, inference.MistralModelName) {
+	case strings.Contains(modelName, inference.MistralModelName):
 		return "\u001b[96m" // Cyan
-	} else {
+	default:
 		return "\u001b[97m" // White (default)
 	}
 }
