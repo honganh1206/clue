@@ -33,7 +33,8 @@ func NewAnthropicModel(client *anthropic.Client, model ModelVersion, maxTokens i
 		client:    client,
 		model:     model,
 		maxTokens: maxTokens,
-		cache:     anthropic.NewCacheControlEphemeralParam(),
+		// TODO: Separate the caches for tools and system prompt?
+		// cache:     anthropic.NewCacheControlEphemeralParam(),
 	}
 }
 
