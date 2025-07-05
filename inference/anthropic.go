@@ -33,7 +33,8 @@ func NewAnthropicModel(client *anthropic.Client, model ModelVersion, maxTokens i
 		client:    client,
 		model:     model,
 		maxTokens: maxTokens,
-		cache:     anthropic.NewCacheControlEphemeralParam(),
+		// Maximum of 4 blocks ~ 256 bytes?
+		cache: anthropic.NewCacheControlEphemeralParam(),
 	}
 }
 
@@ -138,8 +139,6 @@ func convertToAnthropicBlocks(blocksUnion []message.ContentBlockUnion) []anthrop
 				ID:    b.OfToolUseBlock.ID,
 				Name:  b.OfToolUseBlock.Name,
 				Input: b.OfToolUseBlock.Input,
-				// Maximum of 4 blocks with cache_control
-				// CacheControl: anthropic.NewCacheControlEphemeralParam(),
 			}
 
 			toolUseBlock := anthropic.ContentBlockParamUnion{
@@ -232,22 +231,22 @@ func (m *AnthropicModel) convertToAnthropicTools(tools []tools.ToolDefinition) (
 
 // Convert generic schema to Anthropic schema
 func (m *AnthropicModel) convertToAnthropicTool(tool tools.ToolDefinition) (*anthropic.ToolUnionParam, error) {
-	schemaBytes, err := json.Marshal(tool.InputSchema)
+	schema, err := json.Marshal(tool.InputSchema)
 	if err != nil {
 		return nil, err
 	}
 
 	var anthropicSchema anthropic.ToolInputSchemaParam
-	json.Unmarshal(schemaBytes, &anthropicSchema)
+	json.Unmarshal(schema, &anthropicSchema)
 
 	// Grouping tools together in an unified interface for code, bash and text editor?
 	// No need to know the internal details
 	return &anthropic.ToolUnionParam{
 		OfTool: &anthropic.ToolParam{
-			Name:         tool.Name,
-			Description:  anthropic.String(tool.Description),
-			InputSchema:  anthropicSchema,
-			CacheControl: m.cache,
+			Name:        tool.Name,
+			Description: anthropic.String(tool.Description),
+			InputSchema: anthropicSchema,
+			// CacheControl: m.cache,
 		},
 	}, nil
 }
