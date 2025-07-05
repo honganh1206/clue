@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/honganh1206/clue/api"
 	"github.com/honganh1206/clue/inference"
@@ -35,16 +34,16 @@ func New(model inference.Model, getUserMsg func() (string, bool), conversation *
 
 // Returns the appropriate ANSI color code for the given model name
 func getModelColor(modelName string) string {
-	switch {
-	case strings.Contains(modelName, inference.AnthropicModelName):
+	switch modelName {
+	case inference.AnthropicModelName:
 		return "\u001b[38;5;208m" // Orange
-	case strings.Contains(modelName, inference.GoogleModelName):
+	case inference.GoogleModelName:
 		return "\u001b[94m" // Blue
-	case strings.Contains(modelName, inference.OpenAIModelName):
+	case inference.OpenAIModelName:
 		return "\u001b[92m" // Green
-	case strings.Contains(modelName, inference.MetaModelName):
+	case inference.MetaModelName:
 		return "\u001b[95m" // Purple/Magenta
-	case strings.Contains(modelName, inference.MistralModelName):
+	case inference.MistralModelName:
 		return "\u001b[96m" // Cyan
 	default:
 		return "\u001b[97m" // White (default)
