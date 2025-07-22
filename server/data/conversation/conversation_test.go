@@ -415,7 +415,7 @@ func TestLoad(t *testing.T) {
 	conv.Append(&message.Message{
 		Role: message.UserRole,
 		Content: []message.ContentBlockUnion{
-			message.NewToolResultContentBlock("tool-123", "Search results here", false),
+			message.NewToolResultContentBlock("tool-123", "tool-name", "Search results here", false),
 		},
 	})
 

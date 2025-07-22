@@ -21,14 +21,6 @@ type AnthropicModel struct {
 }
 
 func NewAnthropicModel(client *anthropic.Client, model ModelVersion, maxTokens int64) *AnthropicModel {
-	if model == "" {
-		model = ModelVersion(anthropic.ModelClaudeSonnet4_0)
-	}
-
-	if maxTokens == 0 {
-		maxTokens = 1024
-	}
-
 	return &AnthropicModel{
 		client:    client,
 		model:     model,
@@ -104,9 +96,10 @@ func convertToAnthropicMsgs(msgs []*message.Message) []anthropic.MessageParam {
 
 		blocks := convertToAnthropicBlocks(msg.Content)
 
-		if msg.Role == message.UserRole {
+		switch msg.Role {
+		case message.UserRole:
 			anthropicMsg = anthropic.NewUserMessage(blocks...)
-		} else if msg.Role == message.AssistantRole {
+		case message.AssistantRole:
 			anthropicMsg = anthropic.NewAssistantMessage(blocks...)
 		}
 
@@ -222,6 +215,10 @@ func convertFromAnthropicMessage(anthropicMsg anthropic.Message) (*message.Messa
 }
 
 func convertToAnthropicTools(tools []tools.ToolDefinition) ([]anthropic.ToolUnionParam, error) {
+	if len(tools) == 0 {
+		return nil, nil
+	}
+
 	anthropicTools := make([]anthropic.ToolUnionParam, 0, len(tools))
 
 	for _, tool := range tools {
@@ -244,7 +241,9 @@ func convertToAnthropicTool(tool tools.ToolDefinition) (*anthropic.ToolUnionPara
 	}
 
 	var anthropicSchema anthropic.ToolInputSchemaParam
-	json.Unmarshal(schema, &anthropicSchema)
+	if err := json.Unmarshal(schema, &anthropicSchema); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal to Anthropic schema: %w", err)
+	}
 
 	// Grouping tools together in an unified interface for code, bash and text editor?
 	// No need to know the internal details

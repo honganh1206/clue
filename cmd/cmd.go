@@ -57,6 +57,11 @@ func ChatHandler(cmd *cobra.Command, args []string) error {
 		modelConfig.Model = string(defaultModel)
 	}
 
+	// Default number of max tokens
+	if modelConfig.MaxTokens == 0 {
+		modelConfig.MaxTokens = 8192
+	}
+
 	var convID string
 	if new {
 		convID = ""
@@ -206,7 +211,7 @@ func NewCLI() *cobra.Command {
 		RunE:  ChatHandler,
 	}
 
-	rootCmd.PersistentFlags().StringVar(&modelConfig.Provider, "provider", string(inference.GoogleProvider), "Provider (anthropic, openai, gemini, ollama, deepseek)")
+	rootCmd.PersistentFlags().StringVar(&modelConfig.Provider, "provider", string(inference.AnthropicProvider), "Provider (anthropic, openai, gemini, ollama, deepseek)")
 	rootCmd.PersistentFlags().StringVar(&modelConfig.Model, "model", "", "Model to use (depends on selected model)")
 	rootCmd.PersistentFlags().Int64Var(&modelConfig.MaxTokens, "max-tokens", 4096, "Maximum number of tokens in response")
 	rootCmd.PersistentFlags().BoolVar(&verbose, "verbose", false, "Enable verbose output")

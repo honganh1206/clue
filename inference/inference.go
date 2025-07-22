@@ -74,7 +74,7 @@ func ListAvailableModels(provider ProviderName) []ModelVersion {
 func GetDefaultModel(provider ProviderName) ModelVersion {
 	switch provider {
 	case AnthropicProvider:
-		return ModelVersion(anthropic.ModelClaude4Sonnet20250514)
+		return ModelVersion(anthropic.ModelClaudeSonnet4_0)
 	case GoogleProvider:
 		return ModelVersion(Gemini25Pro)
 	default:

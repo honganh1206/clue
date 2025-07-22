@@ -88,6 +88,8 @@ func (a *Agent) Run(ctx context.Context) error {
 
 		for _, c := range agentMsg.Content {
 			switch c.Type {
+			// TODO: Switch case for text type should be here
+			// and we need to stream the response here, not inside the model integrations
 			case message.ToolUseType:
 				result := a.executeTool(c.OfToolUseBlock.ID, c.OfToolUseBlock.Name, c.OfToolUseBlock.Input)
 				toolResults = append(toolResults, result)
@@ -127,7 +129,7 @@ func (a *Agent) executeTool(id, name string, input json.RawMessage) message.Cont
 	if !found {
 		// TODO: Return proper error type
 		errorMsg := "tool not found"
-		return message.NewToolResultContentBlock(id, errorMsg, true)
+		return message.NewToolResultContentBlock(id, name, errorMsg, true)
 	}
 
 	fmt.Printf("\u001b[92mtool\u001b[0m: %s(%s)\n", name, input)
@@ -136,10 +138,10 @@ func (a *Agent) executeTool(id, name string, input json.RawMessage) message.Cont
 	response, err := toolDef.Function(input)
 
 	if err != nil {
-		return message.NewToolResultContentBlock(id, err.Error(), true)
+		return message.NewToolResultContentBlock(id, name, err.Error(), true)
 	}
 
-	return message.NewToolResultContentBlock(id, response, false)
+	return message.NewToolResultContentBlock(id, name, response, false)
 }
 
 func (a *Agent) saveConversation() error {
