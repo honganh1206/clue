@@ -1,25 +1,15 @@
-[Delta vs snapshot streaming](https://docs.anthropic.com/en/docs/build-with-claude/streaming#delta-vs-snapshot-streaming)
+(This should have been done a month ago but I was lazy lol)
 
-Maybe a buffer is enoug? Get the stream, push the data from the stream to the buffer, then send the data from the buffer to a channel of CustomResponse? -> Go for this, dont overthink
+- I learn a lot about [Delta vs snapshot streaming](https://docs.anthropic.com/en/docs/build-with-claude/streaming#delta-vs-snapshot-streaming) when intergrating Claude and Gemini into the agent
 
-content_block_start events for tool use blocks
-content_block_delta events with accumulated partial JSON
+- At some point I was wondering about handling the streaming response from the model. Maybe a buffer is enough? Get the stream, push the data from the stream to the buffer, then send the data from the buffer to a channel of CustomResponse? I will try to keep it simple first. Maybe using an iterator is a better idea.
 
-`ContentBlock` as a unified interface for different content block types
+- `ContentBlockUnion` as a unified struct for different content block types. Stole this idea from "anthropic-sdk-go" although the implementation is kinda meh
 
-sqlite3 as a lightweight option to store conversations
+- I have always been thinking of implementing a server to handle all the CRUD-related stuff, just like what Ollama did with the models. And if there will be a server, there should be a database, and sqlite3 is perfect as a lightweight option to store conversations
 
-Two modes: Snapshot and streaming
+- A good piece of advice: Too many tools and the agent would get stuck and not know which one to use. A curated set of tools is the most important thing.
 
-Too many tools and the agent would stuck and not know which one to use. A curated set of tools is important
+- The tokens must flow. The agent should retry the operation instead of halting it
 
-The tokens must flow. The agent should retry the operation instead of halting it
-
-Next tools:
-
-Structural Search Interface (full‑text, regex, and language-aware structural code search)?
-Commit Diff Lookup
-
-Server to handle CRUD for conversations, lifecycle for server
-
-No need for store, that's for local model state
+- Ideas for the next tool(s): Commit Diff Lookup
