@@ -21,14 +21,6 @@ type AnthropicModel struct {
 }
 
 func NewAnthropicModel(client *anthropic.Client, model ModelVersion, maxTokens int64) *AnthropicModel {
-	if model == "" {
-		model = ModelVersion(anthropic.ModelClaudeSonnet4_0)
-	}
-
-	if maxTokens == 0 {
-		maxTokens = 1024
-	}
-
 	return &AnthropicModel{
 		client:    client,
 		model:     model,
@@ -69,7 +61,7 @@ func getAnthropicModel(model ModelVersion) anthropic.Model {
 func (m *AnthropicModel) CompleteStream(ctx context.Context, msgs []*message.Message, tools []tools.ToolDefinition) (*message.Message, error) {
 	anthropicMsgs := convertToAnthropicMsgs(msgs)
 
-	anthropicTools, err := m.convertToAnthropicTools(tools)
+	anthropicTools, err := convertToAnthropicTools(tools)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert tools: %w", err)
 	}
@@ -104,9 +96,10 @@ func convertToAnthropicMsgs(msgs []*message.Message) []anthropic.MessageParam {
 
 		blocks := convertToAnthropicBlocks(msg.Content)
 
-		if msg.Role == message.UserRole {
+		switch msg.Role {
+		case message.UserRole:
 			anthropicMsg = anthropic.NewUserMessage(blocks...)
-		} else if msg.Role == message.AssistantRole {
+		case message.AssistantRole:
 			anthropicMsg = anthropic.NewAssistantMessage(blocks...)
 		}
 
@@ -123,28 +116,35 @@ func convertToAnthropicBlocks(blocksUnion []message.ContentBlockUnion) []anthrop
 	// Unified inteface for different request types i.e. text, image, document, thinking
 	blocks := make([]anthropic.ContentBlockParamUnion, 0, len(blocksUnion))
 
-	for _, b := range blocksUnion {
-		switch b.Type {
+	for _, block := range blocksUnion {
+		switch block.Type {
 		case message.ToolResultType:
-			content, ok := b.OfToolResultBlock.Content.(string)
-			if !ok {
-				continue
+			if block.OfToolResultBlock != nil {
+				content, ok := block.OfToolResultBlock.Content.(string)
+				if !ok {
+					// Not sure this is the right way to handle things?
+					continue
+				}
+				toolResultBlock := anthropic.NewToolResultBlock(block.OfToolResultBlock.ToolUseID, content, block.OfToolResultBlock.IsError)
+				blocks = append(blocks, toolResultBlock)
 			}
-			toolResultBlock := anthropic.NewToolResultBlock(b.OfToolResultBlock.ToolUseID, content, b.OfToolResultBlock.IsError)
-			blocks = append(blocks, toolResultBlock)
 		case message.TextType:
-			blocks = append(blocks, anthropic.NewTextBlock(b.OfTextBlock.Text))
+			if block.OfTextBlock != nil {
+				blocks = append(blocks, anthropic.NewTextBlock(block.OfTextBlock.Text))
+			}
 		case message.ToolUseType:
-			toolUseParam := anthropic.ToolUseBlockParam{
-				ID:    b.OfToolUseBlock.ID,
-				Name:  b.OfToolUseBlock.Name,
-				Input: b.OfToolUseBlock.Input,
-			}
+			if block.OfToolUseBlock != nil {
+				toolUseParam := anthropic.ToolUseBlockParam{
+					ID:    block.OfToolUseBlock.ID,
+					Name:  block.OfToolUseBlock.Name,
+					Input: block.OfToolUseBlock.Input,
+				}
 
-			toolUseBlock := anthropic.ContentBlockParamUnion{
-				OfToolUse: &toolUseParam,
+				toolUseBlock := anthropic.ContentBlockParamUnion{
+					OfToolUse: &toolUseParam,
+				}
+				blocks = append(blocks, toolUseBlock)
 			}
-			blocks = append(blocks, toolUseBlock)
 		}
 	}
 
@@ -214,11 +214,15 @@ func convertFromAnthropicMessage(anthropicMsg anthropic.Message) (*message.Messa
 	return msg, nil
 }
 
-func (m *AnthropicModel) convertToAnthropicTools(tools []tools.ToolDefinition) ([]anthropic.ToolUnionParam, error) {
+func convertToAnthropicTools(tools []tools.ToolDefinition) ([]anthropic.ToolUnionParam, error) {
+	if len(tools) == 0 {
+		return nil, nil
+	}
+
 	anthropicTools := make([]anthropic.ToolUnionParam, 0, len(tools))
 
 	for _, tool := range tools {
-		anthropicTool, err := m.convertToAnthropicTool(tool)
+		anthropicTool, err := convertToAnthropicTool(tool)
 		if err != nil {
 			return nil, err
 		}
@@ -230,14 +234,16 @@ func (m *AnthropicModel) convertToAnthropicTools(tools []tools.ToolDefinition) (
 }
 
 // Convert generic schema to Anthropic schema
-func (m *AnthropicModel) convertToAnthropicTool(tool tools.ToolDefinition) (*anthropic.ToolUnionParam, error) {
+func convertToAnthropicTool(tool tools.ToolDefinition) (*anthropic.ToolUnionParam, error) {
 	schema, err := json.Marshal(tool.InputSchema)
 	if err != nil {
 		return nil, err
 	}
 
 	var anthropicSchema anthropic.ToolInputSchemaParam
-	json.Unmarshal(schema, &anthropicSchema)
+	if err := json.Unmarshal(schema, &anthropicSchema); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal to Anthropic schema: %w", err)
+	}
 
 	// Grouping tools together in an unified interface for code, bash and text editor?
 	// No need to know the internal details

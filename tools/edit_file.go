@@ -51,7 +51,7 @@ func EditFile(input json.RawMessage) (string, error) {
 
 	oldContent := string(content)
 	// Replace all occurences
-	newContent := strings.Replace(oldContent, editFileInput.OldStr, editFileInput.NewStr, -1)
+	newContent := strings.ReplaceAll(oldContent, editFileInput.OldStr, editFileInput.NewStr)
 
 	if oldContent == newContent && editFileInput.OldStr != "" {
 		return "", fmt.Errorf("old_str not found in file")

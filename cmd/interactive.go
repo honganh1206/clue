@@ -15,7 +15,7 @@ import (
 )
 
 func interactive(ctx context.Context, convID string, modelConfig inference.ModelConfig, client *api.Client) error {
-	model, err := inference.Init(modelConfig)
+	model, err := inference.Init(ctx, modelConfig)
 	if err != nil {
 		log.Fatalf("Failed to initialize model: %s", err.Error())
 	}

@@ -57,6 +57,11 @@ func ChatHandler(cmd *cobra.Command, args []string) error {
 		modelConfig.Model = string(defaultModel)
 	}
 
+	// Default number of max tokens
+	if modelConfig.MaxTokens == 0 {
+		modelConfig.MaxTokens = 8192
+	}
+
 	var convID string
 	if new {
 		convID = ""

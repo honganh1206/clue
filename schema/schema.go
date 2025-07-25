@@ -18,3 +18,13 @@ func Generate[T any]() *jsonschema.Schema {
 
 	return rawSchema
 }
+
+// Ensure compatibility with genai.Schema's custom UnmarshalJSON method
+// func DeserializeToolSchema(jsonBytes []byte) (*genai.Schema, error) {
+// 	if len(jsonBytes) == 0 || string(jsonBytes) == "null" {
+// 		return &genai.Schema{Type: genai.TypeObject, Properties: map[string]*genai.Schema{}}, nil
+// 	}
+
+// }
+
+// func convertNumericString

@@ -3,11 +3,13 @@ package inference
 import (
 	"context"
 	"fmt"
-	"strings"
+	"log"
+	"os"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/honganh1206/clue/message"
 	"github.com/honganh1206/clue/tools"
+	"google.golang.org/genai"
 )
 
 type Model interface {
@@ -23,11 +25,20 @@ type ModelConfig struct {
 	MaxTokens int64
 }
 
-func Init(config ModelConfig) (Model, error) {
+func Init(ctx context.Context, config ModelConfig) (Model, error) {
 	switch config.Provider {
 	case AnthropicProvider:
 		client := anthropic.NewClient() // Default to look up ANTHROPIC_API_KEY
 		return NewAnthropicModel(&client, ModelVersion(config.Model), config.MaxTokens), nil
+	case GoogleProvider:
+		client, err := genai.NewClient(ctx, &genai.ClientConfig{
+			APIKey:  os.Getenv("GEMINI_API_KEY"),
+			Backend: genai.BackendGeminiAPI,
+		})
+		if err != nil {
+			log.Fatal(err)
+		}
+		return NewGeminiModel(client, ModelVersion(config.Model), config.MaxTokens), nil
 	default:
 		return nil, fmt.Errorf("unknown model provider: %s", config.Provider)
 	}
@@ -46,6 +57,15 @@ func ListAvailableModels(provider ProviderName) []ModelVersion {
 			Claude3Sonnet, // FIXME: Deprecated soon
 			Claude3Haiku,
 		}
+	case GoogleProvider:
+		return []ModelVersion{
+			Gemini25Pro,
+			Gemini25Flash,
+			Gemini20Flash,
+			Gemini20FlashLite,
+			Gemini15Pro,
+			Gemini15Flash,
+		}
 	default:
 		return []ModelVersion{}
 	}
@@ -54,21 +74,10 @@ func ListAvailableModels(provider ProviderName) []ModelVersion {
 func GetDefaultModel(provider ProviderName) ModelVersion {
 	switch provider {
 	case AnthropicProvider:
-		return ModelVersion(anthropic.ModelClaude4Sonnet20250514)
+		return ModelVersion(anthropic.ModelClaudeSonnet4_0)
+	case GoogleProvider:
+		return ModelVersion(Gemini25Pro)
 	default:
 		return ""
 	}
-}
-
-// formatModelsForHelp formats a list of models for help text
-func FormatModelsForHelp(models []ModelVersion) string {
-	if len(models) == 0 {
-		return ""
-	}
-
-	modelStrings := make([]string, len(models))
-	for i, model := range models {
-		modelStrings[i] = string(model)
-	}
-	return strings.Join(modelStrings, ", ")
 }

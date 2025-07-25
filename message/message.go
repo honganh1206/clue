@@ -14,12 +14,15 @@ type Message struct {
 	// Optional as metadata
 	ID        string    `json:"id,omitempty" db:"id"`
 	CreatedAt time.Time `json:"created_at" db:"created_at"`
-	Sequence  int       `json:"sequence,omitempty" db:"sequence_number"`
+	Sequence  int       `json:"-" db:"sequence_number"`
 }
 
 const (
 	UserRole      = "user"
 	AssistantRole = "assistant"
+	// Gemini uses model instead of assistant
+	// TODO: 2-way conversion from and to assistant
+	ModelRole = "model"
 )
 
 const (
@@ -61,15 +64,17 @@ func NewToolUseContentBlock(id, name string, input json.RawMessage) ContentBlock
 type ToolResultContentBlock struct {
 	Type      string `json:"type"`
 	ToolUseID string `json:"tool_use_id"`
+	ToolName  string `json:"tool_name"`
 	Content   any    `json:"content"`
 	IsError   bool   `json:"is_error,omitempty"`
 }
 
-func NewToolResultContentBlock(toolUseID string, content any, isError bool) ContentBlockUnion {
+func NewToolResultContentBlock(toolUseID, toolName string, content any, isError bool) ContentBlockUnion {
 	return ContentBlockUnion{
 		Type: ToolResultType,
 		OfToolResultBlock: &ToolResultContentBlock{
 			ToolUseID: toolUseID,
+			ToolName:  toolName,
 			Content:   content,
 			IsError:   isError,
 		}}
