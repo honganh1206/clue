@@ -14,7 +14,7 @@ type Message struct {
 	// Optional as metadata
 	ID        string    `json:"id,omitempty" db:"id"`
 	CreatedAt time.Time `json:"created_at" db:"created_at"`
-	Sequence  int       `json:"sequence,omitempty" db:"sequence_number"`
+	Sequence  int       `json:"-" db:"sequence_number"`
 }
 
 const (

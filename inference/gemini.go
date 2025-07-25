@@ -91,19 +91,12 @@ func streamGeminiResponse(response iter.Seq2[*genai.GenerateContentResponse, err
 		// so we only record the first candidate's content as the best one
 		bestContent := chunk.Candidates[0].Content
 		for _, p := range bestContent.Parts {
-			// TODO: Is there a way to switch case type checking fields of Part?
 			if p.Text != "" {
 				fmt.Print(p.Text)
 				fullText += p.Text
 			}
 			if p.FunctionCall != nil {
 				fc := p.FunctionCall
-				// FIXME: The agent cannot detect the cwd i.e., this agent
-				// Problem is that the agent is reading from the directory of the gemini.md prompt
-				// so we need to tell it to read from the root of the project
-				// But when asked to create a new file, it adds to the root dir?
-				// Probably problems with the genai.Schema
-				// since Anthropic and Gemini intergrations share the same tool input data
 				inputBytes, err := json.Marshal(fc.Args)
 				if err != nil {
 					return nil, fmt.Errorf("failed to marshal function args: %w", err)
@@ -127,7 +120,7 @@ func streamGeminiResponse(response iter.Seq2[*genai.GenerateContentResponse, err
 
 	msg.Content = append(msg.Content, toolCalls...)
 
-	// Hack to break line after the model responds
+	// FIXME: Hack to break line
 	println()
 
 	return msg, nil
@@ -157,7 +150,6 @@ func convertToGeminiParts(blocks []message.ContentBlockUnion) []*genai.Part {
 	parts := make([]*genai.Part, 0, len(blocks))
 
 	for _, b := range blocks {
-
 		switch b.Type {
 		case message.TextType:
 			if b.OfTextBlock != nil {
