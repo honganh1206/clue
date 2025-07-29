@@ -120,9 +120,6 @@ func streamGeminiResponse(response iter.Seq2[*genai.GenerateContentResponse, err
 
 	msg.Content = append(msg.Content, toolCalls...)
 
-	// FIXME: Hack to break line
-	println()
-
 	return msg, nil
 }
 
