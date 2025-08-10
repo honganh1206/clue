@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -27,13 +28,10 @@ type Request struct {
 	ID     any    `json:"id,omitempty"`
 }
 
-func NewRequest(method string, params, id any) *Request {
-	return &Request{
-		JSONRPC: jsonrpcver,
-		Method:  method,
-		Params:  params,
-		ID:      id,
-	}
+type RequestArgs struct {
+	Method string
+	Params any
+	ID     any
 }
 
 // Either Result or Error not null
@@ -44,10 +42,10 @@ func NewRequest(method string, params, id any) *Request {
 //	  "id": 1
 //	}
 type Response struct {
-	JSONRPC string          `json:"jsonrpc"`
-	Result  json.RawMessage `json:"result,omitempty"`
-	Error   *Error          `json:"error,omitempty"`
-	ID      any             `json:"id"`
+	JSONRPC string           `json:"jsonrpc"`
+	Result  *json.RawMessage `json:"result,omitempty"`
+	Error   *Error           `json:"error,omitempty"`
+	ID      any              `json:"id"`
 }
 
 type Error struct {
@@ -67,32 +65,17 @@ type Notification struct {
 	Params json.RawMessage `json:"params,omitempty"`
 }
 
-type Connection struct {
-	// Prevent concurrent writes to encoder
-	encodeMu  sync.Mutex
-	reader    io.Reader
-	writer    io.Writer
-	closer    io.Closer
-	encoder   *json.Encoder
-	decoder   *json.Decoder
-	pendingMu sync.Mutex
-	// Map request ID to response channel
-	pending map[string]chan *Response
-	nextID  uint64
-	// Signal the start of graceful shutdown process
-	closing chan struct{}
-	// Signal the end of graceful shutdown process
-	shutdown     chan struct{}
-	notification chan *Notification
-	errMu        sync.Mutex
-	connErr      error
+// Transport interface for different communication mechanisms
+// e.g., HTTP, WebSocket, net.Conn?
+type Transport interface {
+	Send(ctx context.Context, payload []byte) error
+	Receive(ctx context.Context) ([]byte, error)
+	Close() error
 }
 
 // Handle sending and receiving of byte payloads
 // over stdin/stdout
-// TODO: Transport interface for different communication mechanisms
-// e.g., HTTP, WebSocket, net.Conn
-type Transport struct {
+type StdioTransport struct {
 	// TODO: Use io.Writer as low-level interface for raw byte streams.
 	// since we might be dealing with formats other than JSON
 	// when convert Go data structures,
@@ -102,12 +85,44 @@ type Transport struct {
 	closer  io.Closer
 }
 
-// Transport for stdio communication
-func NewTransport(rwc io.ReadWriteCloser) *Transport {
-	// Assume messages are newline-separated JSON?
-	return &Transport{
-		encoder: json.NewEncoder(rwc),
-		decoder: json.NewDecoder(rwc),
-		closer:  rwc,
-	}
+type Client struct {
+	transport StdioTransport
+	nextID    uint64
+	// Thread-safe request ID generation
+	idMu sync.Mutex
+
+	notiHandlers map[string]func(params *json.RawMessage) error
+	notiMu       sync.Mutex
+
+	// Map responses to calls from client
+	pendingCalls   map[any]chan *Response
+	pendingCallsMu sync.Mutex
+
+	// Lifecycle management for listener goroutine
+	ctx    context.Context
+	cancel context.CancelFunc
+	wg     sync.WaitGroup
+}
+
+// Encapsulate the arguments for the Client.Call method
+type ClientCallArgs struct {
+	Method string
+	Params any
+}
+
+// Encapsulate the arguments for the Client.Notify method
+type ClientNotifyArgs struct {
+	Method string
+	Params any
+}
+
+// Used to unmarshal any incoming JSON-RPC message,
+// this will then go through type-assertion
+type IncomingMessage struct {
+	JSONRPC string           `json:"jsonrpc"`
+	Method  string           `json:"method,omitempty"` // Present in requests/notifications
+	Params  *json.RawMessage `json:"params,omitempty"` // Present in requests/notifications
+	ID      interface{}      `json:"id,omitempty"`     // Present in requests and responses (even if null for some responses)
+	Result  *json.RawMessage `json:"result,omitempty"` // Present in successful responses
+	Error   *Error           `json:"error,omitempty"`  // Present in error responses
 }

@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-func (t *Transport) Send(ctx context.Context, payload []byte) error {
+func (t *StdioTransport) Send(ctx context.Context, payload []byte) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -24,7 +24,7 @@ func (t *Transport) Send(ctx context.Context, payload []byte) error {
 	}
 }
 
-func (t *Transport) Receive(ctx context.Context) ([]byte, error) {
+func (t *StdioTransport) Receive(ctx context.Context) ([]byte, error) {
 	errChan := make(chan error, 1)
 	byteChan := make(chan []byte, 1)
 
@@ -32,8 +32,7 @@ func (t *Transport) Receive(ctx context.Context) ([]byte, error) {
 		var raw json.RawMessage
 		if err := t.decoder.Decode(&raw); err != nil {
 			errChan <- err
-			// Break out of goroutine immediately?
-			// Do we have to wait for it?
+			// Break out of goroutine immediately
 			return
 		}
 		// Cleaner way to convert to []byte?
@@ -53,10 +52,9 @@ func (t *Transport) Receive(ctx context.Context) ([]byte, error) {
 	}
 }
 
-func (t *Transport) Close() error {
+func (t *StdioTransport) Close() error {
 	if t.closer != nil {
 		err := t.closer.Close()
-		// Specifically check for os.ErrClosed? Why?
 		if strings.Contains(err.Error(), "file already closed") || err == os.ErrClosed {
 			return nil
 		}
