@@ -86,7 +86,7 @@ type StdioTransport struct {
 }
 
 type Client struct {
-	transport StdioTransport
+	transport Transport
 	nextID    uint64
 	// Thread-safe request ID generation
 	idMu sync.Mutex

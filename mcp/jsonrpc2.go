@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 )
 
-func NewClient(transport StdioTransport) *Client {
+func NewClient(transport Transport) *Client {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &Client{
@@ -155,12 +156,12 @@ func (c *Client) Listen() error {
 			// TODO: Need string comparison ordinal case for final condition?
 			if c.ctx.Err() != nil && (err == context.Canceled || err == context.DeadlineExceeded || err.Error() == "context canceled") {
 				// Expected shutdown
-				c.cleanupPendingCalls(c.ctx.Err())
+				c.cleanupPendingCalls()
 				return c.ctx.Err()
 			}
 			// Unexpected transport error
 			fmt.Printf("jsonrpc: error receiving message from transport: %v\n", err)
-			c.cleanupPendingCalls(err)
+			c.cleanupPendingCalls()
 			return fmt.Errorf("jsonrpc: transport receive error:: %w", err)
 		}
 
@@ -248,9 +249,42 @@ func (c *Client) Listen() error {
 	}
 }
 
+// Shutdown the client's listener goroutine and clean up resources
+// by closing the clients main context, which signals the listener to stop.
+func (c *Client) Close() error {
+	c.cancel()  // Sinal listener goroutine to stop via context cancellation
+	c.wg.Wait() // Wait for listener goroutine to finish
+
+	// At this point, the loop in Listen() has exited and cleanupPendingCalls() has been invoked due to context cancellation,
+	// cleanupPendingCalls() will have closed pendingCalls map (request ID and response channel)
+	// but we still clear the map just to make sure
+	c.pendingCallsMu.Lock()
+	for id, ch := range c.pendingCalls {
+		if ch != nil {
+			close(ch)
+		}
+		delete(c.pendingCalls, id)
+	}
+	// Re-initialize just to be safe?
+	// The client might be re-used after closing,
+	// and it's a good practice to reset resouces after cleanup?
+	c.pendingCalls = make(map[any]chan *Response)
+	c.pendingCallsMu.Unlock()
+
+	// Close transport
+	if closer, ok := c.transport.(io.Closer); ok {
+		if err := closer.Close(); err != nil {
+			// This does not prevent other cleanup or shadow client context errors.
+			fmt.Printf("jsonrpc: error closing transport: %v\n", err)
+			return fmt.Errorf("jsonrpc: error closing transport: %w", err)
+		}
+	}
+	return nil
+}
+
 // Unblock any pending Call,
 // allowing them to exit gracefully instead of timing out
-func (c *Client) cleanupPendingCalls(err error) {
+func (c *Client) cleanupPendingCalls() {
 	c.pendingCallsMu.Lock()
 	defer c.pendingCallsMu.Unlock()
 	for id, ch := range c.pendingCalls {
@@ -284,7 +318,7 @@ func FormatRequest(args *RequestArgs) ([]byte, error) {
 }
 
 // ParseResponse unmarshals a JSON response and separates the id, result (as json.RawMessage), and error fields.
-func ParseResponse(jsonResponse []byte) (id interface{}, result *json.RawMessage, errResp *Error, parseErr error) {
+func ParseResponse(jsonResponse []byte) (id any, result *json.RawMessage, errResp *Error, parseErr error) {
 	var resp Response
 	parseErr = json.Unmarshal(jsonResponse, &resp)
 	if parseErr != nil {
