@@ -8,6 +8,7 @@ import (
 	"strings"
 )
 
+// Send pre-formatted JSON-RPC payload with a newline delimiter
 func (t *StdioTransport) Send(ctx context.Context, payload []byte) error {
 	select {
 	case <-ctx.Done():

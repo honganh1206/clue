@@ -294,7 +294,8 @@ func (c *Client) cleanupPendingCalls() {
 			select {
 			case ch <- nil:
 			// Channel is ready, the send will happen immediately
-			// Unblock any goroutine that might be stuck waiting to receive from ch
+			// Unblock any goroutine that might be stuck waiting to receive from ch by sending a nil
+			// (receive goroutine will stuck if there is no send operation on the same channel - this works for unbuffered channels as they are synchronous)
 			default:
 				// Channel is not ready, the send is skipped
 				// This means no goroutine is waiting we can move on with the cleaning process

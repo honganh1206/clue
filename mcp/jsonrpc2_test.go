@@ -3,6 +3,8 @@ package mcp
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
 	"io"
 	"testing"
 	"time"
@@ -121,8 +123,9 @@ func TestCallSuccess(t *testing.T) {
 
 	err := c.Call(callCtx, &ClientCallArgs{Method: "testMethod", Params: map[string]any{"param1": "value1"}}, &result)
 
-	// Why is this here?
-	// Assume to signal that the server is done and shutting down?
+	// Prevent test from premature exit,
+	// since the test function could return before the goroutine finishes its work,
+	// or Call() might return but the goroutine could still be in the middle of cleanup operations
 	<-serverDone
 
 	assert.NoError(t, err, "c.Call should succeed without error")
@@ -130,4 +133,82 @@ func TestCallSuccess(t *testing.T) {
 		assert.NotNil(t, result, "Result map should not be nil after successful call")
 		assert.Equal(t, "success", result["result"], "Result field did not match")
 	}
+}
+
+func TestClientHandlesNotification(t *testing.T) {
+	clientReadFromServer := new(bytes.Buffer)
+	clientWriteToServer := new(bytes.Buffer)
+
+	transport := &mockTransport{
+		writeBuf: clientWriteToServer,
+		readBuf:  clientReadFromServer,
+		closed:   make(chan struct{}),
+	}
+
+	c := NewClient(transport)
+
+	notificationMethod := "test/notificationEvent"
+	type NotificationParams struct {
+		Message string `json:"message"`
+		Value   int    `json:"value"`
+	}
+	expectedParams := NotificationParams{Message: "hello", Value: 123}
+
+	notificationHandled := make(chan bool, 1)
+
+	c.OnNotification(notificationMethod, func(params *json.RawMessage) error {
+		if params == nil {
+			t.Errorf("Notification handler received nil params for method %s", notificationMethod)
+			notificationHandled <- false
+			return errors.New("nil params")
+		}
+		var receivedParams NotificationParams
+		if err := json.Unmarshal(*params, &receivedParams); err != nil {
+			t.Errorf("Failed to unmarshal notification params: %v", err)
+			notificationHandled <- false
+			return err
+		}
+
+		if assert.Equal(t, expectedParams, receivedParams, "Notification params did not match expected") {
+			notificationHandled <- true
+		} else {
+			notificationHandled <- false
+		}
+		return nil
+	})
+
+	go func() {
+		err := c.Listen()
+		if err != nil && err != context.Canceled && err != io.ErrClosedPipe && err.Error() != "context canceled" {
+			t.Logf("Client Listen error: %v", err)
+		}
+	}()
+	defer func() {
+		c.Close()
+	}()
+
+	serverDone := make(chan struct{})
+	go func() {
+		defer close(serverDone)
+		paramsBytes, err := json.Marshal(expectedParams)
+		if err != nil {
+			t.Logf("Server: Failed to marshal notification params: %v", err)
+			return
+		}
+		notificationJSON := `{"jsonrpc": "2.0", "method": "` + notificationMethod + `", "params": ` + string(paramsBytes) + `}` + "\n"
+
+		_, err = clientReadFromServer.Write([]byte(notificationJSON))
+		if err != nil {
+			t.Logf("Server: Failed to write notification: %v", err)
+			return
+		}
+	}()
+
+	select {
+	case success := <-notificationHandled:
+		assert.True(t, success, "Notification handler reported failure or did not match params")
+	case <-time.After(5 * time.Second):
+		t.Fatal("Timed out waiting for notification to be handled")
+	}
+	<-serverDone
 }

@@ -122,7 +122,7 @@ type IncomingMessage struct {
 	JSONRPC string           `json:"jsonrpc"`
 	Method  string           `json:"method,omitempty"` // Present in requests/notifications
 	Params  *json.RawMessage `json:"params,omitempty"` // Present in requests/notifications
-	ID      interface{}      `json:"id,omitempty"`     // Present in requests and responses (even if null for some responses)
+	ID      any              `json:"id,omitempty"`     // Present in requests and responses (even if null for some responses)
 	Result  *json.RawMessage `json:"result,omitempty"` // Present in successful responses
 	Error   *Error           `json:"error,omitempty"`  // Present in error responses
 }
