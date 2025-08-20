@@ -5,7 +5,27 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"sync"
 )
+
+type Client struct {
+	transport Transport
+	nextID    uint64
+	// Thread-safe request ID generation
+	idMu sync.Mutex
+
+	notiHandlers map[string]func(params *json.RawMessage) error
+	notiMu       sync.Mutex
+
+	// Map responses to calls from client
+	pendingCalls   map[any]chan *Response
+	pendingCallsMu sync.Mutex
+
+	// Lifecycle management for listener goroutine
+	ctx    context.Context
+	cancel context.CancelFunc
+	wg     sync.WaitGroup
+}
 
 func NewClient(transport Transport) *Client {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -19,6 +39,29 @@ func NewClient(transport Transport) *Client {
 		ctx:          ctx,
 		cancel:       cancel,
 	}
+}
+
+// Encapsulate the arguments for the Client.Call method
+type ClientCallArgs struct {
+	Method string
+	Params any
+}
+
+// Encapsulate the arguments for the Client.Notify method
+type ClientNotifyArgs struct {
+	Method string
+	Params any
+}
+
+// Used to unmarshal any incoming JSON-RPC message,
+// this will then go through type-assertion
+type IncomingMessage struct {
+	JSONRPC string           `json:"jsonrpc"`
+	Method  string           `json:"method,omitempty"` // Present in requests/notifications
+	Params  *json.RawMessage `json:"params,omitempty"` // Present in requests/notifications
+	ID      any              `json:"id,omitempty"`     // Present in requests and responses (even if null for some responses)
+	Result  *json.RawMessage `json:"result,omitempty"` // Present in successful responses
+	Error   *Error           `json:"error,omitempty"`  // Present in error responses
 }
 
 // Make RPC calls and handle responses
@@ -130,10 +173,11 @@ func (c *Client) Notify(ctx context.Context, args *ClientNotifyArgs) error {
 	return nil
 }
 
-// Start the client's listening goroutine.
+// Start the client's message processing loop.
 // This method will block until the client's context is canceled (e.g., by calling Close)
 // or an unrecoverable error occurs in the transport's Receive method.
 // All server-to-client notifications and responses to client calls are processed here.
+// This method should typically be called in a separate goroutine to avoid blocking the caller.
 func (c *Client) Listen() error {
 	c.wg.Add(1)
 	defer c.wg.Done()
@@ -149,8 +193,10 @@ func (c *Client) Listen() error {
 		}
 
 		// A blocking function call.
-		// This call is blocking since it waits for a message from the transport
+		// This call to Receive() is blocking on I/O since it waits for a message from the transport
 		// and only returns once a message is received or an error occurs.
+		// This continues until the client is closed
+		// or the subprocess terminates
 		payload, err := c.transport.Receive(c.ctx)
 		if err != nil {
 			// TODO: Need string comparison ordinal case for final condition?

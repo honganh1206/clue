@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"sync"
 )
 
 const jsonrpcver = "2.0"
@@ -32,6 +30,23 @@ type RequestArgs struct {
 	Method string
 	Params any
 	ID     any
+}
+
+// Defines the parameters for the "initialize" request.
+type InitializeParams struct {
+	ProtocolVersion string         `json:"protocolVersion"`
+	Capabilities    map[string]any `json:"capabilities"`
+	ClientInfo      struct {
+		Name    string `json:"name"`
+		Version string `json:"version"`
+	} `json:"clientInfo"`
+}
+
+// Defines the result for the "initialize" response.
+// Based on typical JSON-RPC, but mcp/docs.md doesn't specify its structure.
+// Assuming it might be an empty object or contain server capabilities.
+type InitializeResult struct {
+	Capabilities map[string]any `json:"capabilities,omitempty"`
 }
 
 // Either Result or Error not null
@@ -71,58 +86,4 @@ type Transport interface {
 	Send(ctx context.Context, payload []byte) error
 	Receive(ctx context.Context) ([]byte, error)
 	Close() error
-}
-
-// Handle sending and receiving of byte payloads
-// over stdin/stdout
-type StdioTransport struct {
-	// TODO: Use io.Writer as low-level interface for raw byte streams.
-	// since we might be dealing with formats other than JSON
-	// when convert Go data structures,
-	// and we are able to check error when writing?
-	encoder *json.Encoder
-	decoder *json.Decoder
-	closer  io.Closer
-}
-
-type Client struct {
-	transport Transport
-	nextID    uint64
-	// Thread-safe request ID generation
-	idMu sync.Mutex
-
-	notiHandlers map[string]func(params *json.RawMessage) error
-	notiMu       sync.Mutex
-
-	// Map responses to calls from client
-	pendingCalls   map[any]chan *Response
-	pendingCallsMu sync.Mutex
-
-	// Lifecycle management for listener goroutine
-	ctx    context.Context
-	cancel context.CancelFunc
-	wg     sync.WaitGroup
-}
-
-// Encapsulate the arguments for the Client.Call method
-type ClientCallArgs struct {
-	Method string
-	Params any
-}
-
-// Encapsulate the arguments for the Client.Notify method
-type ClientNotifyArgs struct {
-	Method string
-	Params any
-}
-
-// Used to unmarshal any incoming JSON-RPC message,
-// this will then go through type-assertion
-type IncomingMessage struct {
-	JSONRPC string           `json:"jsonrpc"`
-	Method  string           `json:"method,omitempty"` // Present in requests/notifications
-	Params  *json.RawMessage `json:"params,omitempty"` // Present in requests/notifications
-	ID      any              `json:"id,omitempty"`     // Present in requests and responses (even if null for some responses)
-	Result  *json.RawMessage `json:"result,omitempty"` // Present in successful responses
-	Error   *Error           `json:"error,omitempty"`  // Present in error responses
 }
