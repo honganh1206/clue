@@ -125,12 +125,12 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 
 	var initResult InitializeResult
-	callArgs := ClientCallArgs{
+	callArgs := &ClientCallArgs{
 		Method: "initialize",
 		Params: initParams,
 	}
 
-	if err := s.rpcClient.Call(ctx, &callArgs, &initResult); err != nil {
+	if err := s.rpcClient.Call(ctx, callArgs, &initResult); err != nil {
 		// Clean up immediately if handshake fails
 		// TODO: error is ignored here
 		_ = s.Close()

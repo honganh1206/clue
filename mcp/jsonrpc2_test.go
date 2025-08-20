@@ -90,7 +90,7 @@ func TestCallSuccess(t *testing.T) {
 	go func() {
 		err := c.Listen()
 		if err != nil && err != context.Canceled && err != io.ErrClosedPipe && err.Error() != "context canceled" {
-			t.Logf("Client Listen error: %v", err)
+			t.Logf("Client listen error: %v", err)
 		}
 	}()
 	defer func() {

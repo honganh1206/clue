@@ -12,18 +12,17 @@ import (
 // Handle sending and receiving of byte payloads
 // over stdin/stdout
 type stdioTransport struct {
-	// TODO: Use io.Writer as low-level interface for raw byte streams.
-	// since we might be dealing with formats other than JSON
-	// when convert Go data structures,
-	// and we are able to check error when writing?
-	encoder *json.Encoder
+	// We use io.Writer to write directly to the underlying stream.
+	// Using the encoder may cause the data to sit in an internal buffer
+	// instead of being sent immediately
+	writer  io.Writer
 	decoder *json.Decoder
 	closer  io.Closer
 }
 
 func NewStdioTransport(rwc io.ReadWriteCloser) *stdioTransport {
 	return &stdioTransport{
-		encoder: json.NewEncoder(rwc),
+		writer:  rwc,
 		decoder: json.NewDecoder(rwc),
 		closer:  rwc,
 	}
@@ -35,10 +34,10 @@ func (t *stdioTransport) Send(ctx context.Context, payload []byte) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	default:
-		if err := t.encoder.Encode(payload); err != nil {
+		if _, err := t.writer.Write(payload); err != nil {
 			return fmt.Errorf("failed to write payload: %w", err)
 		}
-		if err := t.encoder.Encode([]byte{'\n'}); err != nil {
+		if _, err := t.writer.Write([]byte{'\n'}); err != nil {
 			return fmt.Errorf("failed to write newline: %w", err)
 		}
 

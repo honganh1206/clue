@@ -47,7 +47,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to start mcp.Server or complete handshake: %v", err)
 	}
-	log.Println("MCP server started and initialized successfully.")
+	log.Println("[SUCCESS] MCP server started and initialized successfully.")
 
 	// Defer server.Close() to ensure it's called
 	defer func() {
@@ -66,9 +66,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to list tools: %v", err)
 	}
-	log.Printf("Successfully listed %d tools:", len(tools))
+	log.Printf("[RESULT] Successfully listed %d tools:", len(tools))
 	for i, tool := range tools {
-		log.Printf("  Tool %d: Name: %s, Description: %s", i+1, tool.Name, tool.Description)
+		log.Printf("[RESULT_ITEM]   Tool %d: Name: %s, Description: %s", i+1, tool.Name, tool.Description)
 		// log.Printf("    Schema: %s", string(tool.RawInputSchema)) // Can be verbose
 	}
 
@@ -78,7 +78,7 @@ func main() {
 	if !found {
 		log.Printf("Tool '%s' not found in the list. Skipping tool call.", fetchToolName)
 	} else {
-		log.Printf("Tool '%s' found. Description: %s", tool.Name, tool.Description)
+		log.Printf("[INFO] Tool '%s' found. Description: %s", tool.Name, tool.Description)
 		// log.Printf("Input schema for '%s': %s", tool.Name, string(tool.RawInputSchema))
 
 		// 5. Call server.Call(ctx, "fetch", ...)
@@ -93,13 +93,13 @@ func main() {
 			log.Fatalf("Failed to call tool '%s': %v", fetchToolName, err)
 		}
 
-		log.Printf("Successfully called tool '%s'. Results:", fetchToolName)
+		log.Printf("[RESULT] Successfully called tool '%s'. Results:", fetchToolName)
 		for i, res := range results {
-			log.Printf("  Result %d: Type: %s", i+1, res.Type)
+			log.Printf("[RESULT_ITEM]   Result %d: Type: %s", i+1, res.Type)
 			if res.Type == "text" {
-				log.Printf("    Text: %s", res.Text)
+				log.Printf("[RESULT_DATA]     Text: %s", res.Text)
 			} else if res.Type == "image" {
-				log.Printf("    MimeType: %s, Data: <base64_data_len:%d>", res.MimeType, len(res.Data))
+				log.Printf("[RESULT_DATA]     MimeType: %s, Data: <base64_data_len:%d>", res.MimeType, len(res.Data))
 			}
 		}
 	}
@@ -112,10 +112,10 @@ func main() {
 	_, err = server.Call(callCtxNonExistent, nonExistentToolName, nonExistentParams)
 	callCancelNonExistent()
 	if err != nil {
-		log.Printf("Correctly received error for non-existent tool '%s': %v", nonExistentToolName, err)
+		log.Printf("[EXPECTED_ERROR] Correctly received error for non-existent tool '%s': %v", nonExistentToolName, err)
 	} else {
-		log.Printf("Warning: Calling non-existent tool '%s' did NOT return an error as expected.", nonExistentToolName)
+		log.Printf("[UNEXPECTED_SUCCESS] Warning: Calling non-existent tool '%s' did NOT return an error as expected.", nonExistentToolName)
 	}
 
-	log.Println("MCP tester with mcp.Server API finished successfully.")
+	log.Println("[SUCCESS] MCP tester with mcp.Server API finished successfully.")
 }
