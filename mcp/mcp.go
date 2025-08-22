@@ -203,13 +203,13 @@ func (s *Server) Close() error {
 }
 
 // Send a "tools/call" request to the server for the specified tool
-func (s *Server) Call(ctx context.Context, toolName string, args map[string]any) ([]MCPToolResultContent, error) {
-	callParams := &MCPToolsCallParams{
+func (s *Server) Call(ctx context.Context, toolName string, args map[string]any) ([]ToolResultContent, error) {
+	callParams := &ToolsCallParams{
 		Name:      toolName,
 		Arguments: args,
 	}
 
-	var callResult MCPToolsCallResult
+	var callResult ToolsCallResult
 
 	callArgs := &ClientCallArgs{
 		Method: "tools/call",
@@ -233,9 +233,9 @@ func (s *Server) Call(ctx context.Context, toolName string, args map[string]any)
 	return callResult.Content, nil
 }
 
-func (s *Server) ListTools(ctx context.Context) (MCPTools, error) {
-	listParams := &MCPToolsListParams{}
-	var listResult MCPToolsListResult
+func (s *Server) ListTools(ctx context.Context) (Tools, error) {
+	listParams := &ToolsListParams{}
+	var listResult ToolsListResult
 
 	callArgs := ClientCallArgs{
 		Method: "tools/list",
@@ -248,4 +248,8 @@ func (s *Server) ListTools(ctx context.Context) (MCPTools, error) {
 
 	// TODO: Handle pagination using NextCursor
 	return listResult.Tools, nil
+}
+
+func (s *Server) ID() string {
+	return s.id
 }

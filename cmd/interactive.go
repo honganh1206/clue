@@ -14,7 +14,7 @@ import (
 	"github.com/honganh1206/clue/tools"
 )
 
-func interactive(ctx context.Context, convID string, modelConfig inference.ModelConfig, client *api.Client) error {
+func interactive(ctx context.Context, convID string, modelConfig inference.ModelConfig, client *api.Client, mcpConfigs []inference.MCPServerConfig) error {
 	model, err := inference.Init(ctx, modelConfig)
 	if err != nil {
 		log.Fatalf("Failed to initialize model: %s", err.Error())
@@ -49,7 +49,7 @@ func interactive(ctx context.Context, convID string, modelConfig inference.Model
 			return err
 		}
 	}
-	a := agent.New(model, getUserMsg, conv, toolDefs, prompts.ClaudeSystemPrompt(), client)
+	a := agent.New(model, getUserMsg, conv, toolDefs, prompts.ClaudeSystemPrompt(), client, mcpConfigs)
 
 	// In production, use Background() as the final root context()
 	// For dev env, TODO for temporary scaffolding

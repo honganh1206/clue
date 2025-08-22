@@ -4,24 +4,36 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 
 	"github.com/honganh1206/clue/api"
 	"github.com/honganh1206/clue/inference"
+	"github.com/honganh1206/clue/mcp"
 	"github.com/honganh1206/clue/message"
 	"github.com/honganh1206/clue/server/data/conversation"
 	"github.com/honganh1206/clue/tools"
 )
 
 type Agent struct {
-	model          inference.Model
-	getUserMessage func() (string, bool)
-	tools          []tools.ToolDefinition
-	promptPath     string
-	conversation   *conversation.Conversation
-	client         *api.Client
+	model               inference.Model
+	getUserMessage      func() (string, bool)
+	tools               []tools.ToolDefinition
+	promptPath          string
+	conversation        *conversation.Conversation
+	client              *api.Client
+	mcpConfigs          []inference.MCPServerConfig
+	mcpActiveServers    []*mcp.Server
+	mcpTools            []mcp.Tools
+	mcpToolExecutionMap map[string]mcpToolDetails
 }
 
-func New(model inference.Model, getUserMsg func() (string, bool), conversation *conversation.Conversation, tools []tools.ToolDefinition, promptPath string, client *api.Client) *Agent {
+type mcpToolDetails struct {
+	Server *mcp.Server
+	// Original name for what?
+	OriginalName string
+}
+
+func New(model inference.Model, getUserMsg func() (string, bool), conversation *conversation.Conversation, tools []tools.ToolDefinition, promptPath string, client *api.Client, mcpConfigs []inference.MCPServerConfig) *Agent {
 	return &Agent{
 		model:          model,
 		getUserMessage: getUserMsg,
@@ -29,6 +41,7 @@ func New(model inference.Model, getUserMsg func() (string, bool), conversation *
 		promptPath:     promptPath,
 		conversation:   conversation,
 		client:         client,
+		mcpConfigs:     mcpConfigs,
 	}
 }
 
@@ -51,6 +64,7 @@ func getModelColor(modelName string) string {
 }
 
 func (a *Agent) Run(ctx context.Context) error {
+	defer a.shutdownMCPServers()
 	modelName := a.model.Name()
 	colorCode := getModelColor(modelName)
 	resetCode := "\u001b[0m"
@@ -116,6 +130,42 @@ func (a *Agent) Run(ctx context.Context) error {
 }
 
 func (a *Agent) executeTool(id, name string, input json.RawMessage) message.ContentBlockUnion {
+	if execDetails, isMCPTool := a.mcpToolExecutionMap[name]; isMCPTool {
+		return a.executeMCPTool(name, input, execDetails)
+	}
+	return a.executeLocalTool(id, name, input)
+}
+
+func (a *Agent) executeMCPTool(toolName string, input json.RawMessage, execDetails mcpToolDetails) message.ContentBlockUnion {
+	fmt.Printf("executing MCP tool %s (original: %s) via server %s", toolName, execDetails.OriginalName, execDetails.Server.ID())
+
+	// TODO: Copy from local tool execution
+	// might need more rework
+	fmt.Printf("\u001b[92mtool\u001b[0m: %s(%s)\n", toolName, input)
+	println()
+
+	var args map[string]any
+
+	err := json.Unmarshal(input, &args)
+	if err != nil {
+		// TODO: No error handling here
+	}
+	if args == nil {
+		// This is kinda dumb?
+		args = make(map[string]any)
+	}
+
+	result, err := execDetails.Server.Call(context.Background(), toolName, args)
+
+	if err != nil {
+		return message.NewToolResultContentBlock("nil", toolName,
+			fmt.Sprintf("MCP tool %s execution error: %v", toolName, err), true)
+	}
+
+	return message.NewToolResultContentBlock("null", toolName, result, false)
+}
+
+func (a *Agent) executeLocalTool(id, name string, input json.RawMessage) message.ContentBlockUnion {
 	var toolDef tools.ToolDefinition
 	var found bool
 	for _, tool := range a.tools {
@@ -154,4 +204,16 @@ func (a *Agent) saveConversation() error {
 	}
 
 	return nil
+}
+
+func (a *Agent) shutdownMCPServers() {
+	fmt.Println("shutting down MCP servers...")
+	for _, s := range a.mcpActiveServers {
+		fmt.Printf("closing MCP server: %s\n", s.ID())
+		if err := s.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "error closing MCP server %s: %v\n", s.ID(), err)
+		} else {
+			fmt.Printf("MCP server %s closed successfully\n", s.ID())
+		}
+	}
 }

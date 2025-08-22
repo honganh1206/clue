@@ -25,6 +25,11 @@ type ModelConfig struct {
 	MaxTokens int64
 }
 
+type MCPServerConfig struct {
+	ID      string
+	Command string
+}
+
 func Init(ctx context.Context, config ModelConfig) (Model, error) {
 	switch config.Provider {
 	case AnthropicProvider:
