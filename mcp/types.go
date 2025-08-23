@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 )
 
 const jsonrpcver = "2.0"
@@ -86,4 +88,55 @@ type Transport interface {
 	Send(ctx context.Context, payload []byte) error
 	Receive(ctx context.Context) ([]byte, error)
 	Close() error
+}
+
+const mcpConfigFile = "mcp_servers.json"
+
+type ServerConfig struct {
+	ID      string
+	Command string
+}
+
+func SaveConfigs(configs []ServerConfig) error {
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		return err
+	}
+
+	clueDir := filepath.Join(configDir, "clue")
+	if err := os.MkdirAll(clueDir, 0755); err != nil {
+		return err
+	}
+
+	configPath := filepath.Join(clueDir, mcpConfigFile)
+	data, err := json.MarshalIndent(configs, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(configPath, data, 0644)
+}
+
+func LoadConfigs() ([]ServerConfig, error) {
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		return nil, err
+	}
+
+	configPath := filepath.Join(configDir, "clue", mcpConfigFile)
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		return []ServerConfig{}, nil
+	}
+
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return nil, err
+	}
+
+	var configs []ServerConfig
+	if err := json.Unmarshal(data, &configs); err != nil {
+		return nil, err
+	}
+
+	return configs, nil
 }

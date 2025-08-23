@@ -9,12 +9,13 @@ import (
 	"github.com/honganh1206/clue/agent"
 	"github.com/honganh1206/clue/api"
 	"github.com/honganh1206/clue/inference"
+	"github.com/honganh1206/clue/mcp"
 	"github.com/honganh1206/clue/prompts"
 	"github.com/honganh1206/clue/server/data/conversation"
 	"github.com/honganh1206/clue/tools"
 )
 
-func interactive(ctx context.Context, convID string, modelConfig inference.ModelConfig, client *api.Client, mcpConfigs []inference.MCPServerConfig) error {
+func interactive(ctx context.Context, convID string, modelConfig inference.ModelConfig, client *api.Client, mcpConfigs []mcp.ServerConfig) error {
 	model, err := inference.Init(ctx, modelConfig)
 	if err != nil {
 		log.Fatalf("Failed to initialize model: %s", err.Error())

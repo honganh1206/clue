@@ -48,9 +48,6 @@ func getAnthropicModel(model ModelVersion) anthropic.Model {
 		return anthropic.ModelClaude3_5HaikuLatest
 	case Claude3Opus:
 		return anthropic.ModelClaude3OpusLatest
-	case Claude3Sonnet:
-		// FIXME: Deprecated soon
-		return anthropic.ModelClaude_3_Sonnet_20240229
 	case Claude3Haiku:
 		return anthropic.ModelClaude_3_Haiku_20240307
 	default:
@@ -181,7 +178,6 @@ func streamAnthropicResponse(stream *ssestream.Stream[anthropic.MessageStreamEve
 		// The tokens must flow
 		var apierr *anthropic.Error
 		if errors.As(err, &apierr) {
-			println(string(apierr.DumpRequest(true)))  // Prints the serialized HTTP request
 			println(string(apierr.DumpResponse(true))) // Prints the serialized HTTP response
 		}
 		panic(err)

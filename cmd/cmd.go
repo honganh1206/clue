@@ -11,6 +11,7 @@ import (
 
 	"github.com/honganh1206/clue/api"
 	"github.com/honganh1206/clue/inference"
+	"github.com/honganh1206/clue/mcp"
 	"github.com/honganh1206/clue/server"
 	"github.com/honganh1206/clue/utils"
 	"github.com/spf13/cobra"
@@ -22,7 +23,7 @@ var (
 	continueConv     bool
 	convID           string
 	mcpServerCmd     string
-	mcpServerConfigs []inference.MCPServerConfig
+	mcpServerConfigs []mcp.ServerConfig
 )
 var (
 	Version   = "0.1.0"
@@ -178,7 +179,7 @@ func MCPHandler(cmd *cobra.Command, args []string) error {
 			id := strings.TrimSpace(parts[0])
 			command := strings.TrimSpace(parts[1])
 			if id != "" && command != "" {
-				config := inference.MCPServerConfig{
+				config := mcp.ServerConfig{
 					ID:      id,
 					Command: command,
 				}
@@ -198,6 +199,14 @@ func MCPHandler(cmd *cobra.Command, args []string) error {
 		return errors.New("no server configurations provided (use --server-cmd flag or provide id:command arguments)")
 	}
 
+	if err := mcp.SaveConfigs(mcpServerConfigs); err != nil {
+		if verbose {
+			fmt.Printf("Warning: Could not save configurations: %v\n", err)
+		}
+	} else if verbose {
+		fmt.Printf("Saved %d server configurations to file\n", len(mcpServerConfigs))
+	}
+
 	if verbose {
 		fmt.Printf("Total server configurations: %d\n", len(mcpServerConfigs))
 		for _, config := range mcpServerConfigs {
@@ -206,7 +215,6 @@ func MCPHandler(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
-
 }
 
 func NewCLI() *cobra.Command {
@@ -267,7 +275,16 @@ Examples:
 	rootCmd := &cobra.Command{
 		Use:   "clue",
 		Short: "An AI agent for code editing and assistance",
-		RunE:  ChatHandler,
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			if configs, err := mcp.LoadConfigs(); err == nil {
+				mcpServerConfigs = configs
+				if verbose && len(configs) > 0 {
+					fmt.Printf("Loaded %d MCP server configurations\n", len(configs))
+				}
+			}
+			// TODO: Check if serve process is running, if not run here?
+		},
+		RunE: ChatHandler,
 	}
 
 	rootCmd.PersistentFlags().StringVar(&modelConfig.Provider, "provider", string(inference.AnthropicProvider), "Provider (anthropic, openai, gemini, ollama, deepseek)")
