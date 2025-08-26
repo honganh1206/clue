@@ -12,7 +12,6 @@ import (
 	"github.com/honganh1206/clue/message"
 	"github.com/honganh1206/clue/server/data/conversation"
 	"github.com/honganh1206/clue/tools"
-	"github.com/invopop/jsonschema"
 )
 
 type Agent struct {
@@ -87,24 +86,12 @@ func New(model inference.Model, getUserMsg func() (string, bool), conversation *
 		for _, mcpT := range toolsFromServer {
 			toolName := fmt.Sprintf("%s_%s", server.ID(), mcpT.Name)
 
-			// This should be a separate function/method
-			var paramSchema *jsonschema.Schema
-
-			if len(mcpT.RawInputSchema) > 0 && string(mcpT.RawInputSchema) != "null" {
-				schemaErr := json.Unmarshal(mcpT.RawInputSchema, &paramSchema)
-
-				if schemaErr != nil {
-					fmt.Fprintf(os.Stderr, "Error unmarshalling schema for MCP tool %s from server %s: %v\n", mcpT.Name, server.ID(), schemaErr)
-					continue // Skip this tool if schema is invalid
-				}
-			} else {
-				// Empty schema case
-			}
+			// TODO: This should be a separate function/method
 
 			decl := tools.ToolDefinition{
 				Name:        toolName,
 				Description: mcpT.Description,
-				InputSchema: paramSchema,
+				InputSchema: mcpT.InputSchema,
 			}
 
 			agent.tools = append(agent.tools, decl)
@@ -217,7 +204,7 @@ func (a *Agent) executeMCPTool(id, name string, input json.RawMessage, execDetai
 	// TODO: Copy from local tool execution
 	// might need more rework
 	fmt.Printf("\u001b[92mtool\u001b[0m: %s(%s)\n", name, input)
-	println()
+	fmt.Println()
 
 	var args map[string]any
 
@@ -270,7 +257,7 @@ func (a *Agent) executeLocalTool(id, name string, input json.RawMessage) message
 	}
 
 	fmt.Printf("\u001b[92mtool\u001b[0m: %s(%s)\n", name, input)
-	println()
+	fmt.Println()
 
 	response, err := toolDef.Function(input)
 

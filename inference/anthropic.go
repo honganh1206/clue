@@ -163,9 +163,9 @@ func streamAnthropicResponse(stream *ssestream.Stream[anthropic.MessageStreamEve
 			print(event.Delta.Text)
 		case anthropic.ContentBlockStartEvent:
 		case anthropic.ContentBlockStopEvent:
-			println()
+			fmt.Println()
 		case anthropic.MessageStopEvent:
-			println()
+			fmt.Println()
 		case anthropic.MessageStartEvent:
 		case anthropic.MessageDeltaEvent:
 		default:

@@ -1,6 +1,6 @@
 package mcp
 
-import "encoding/json"
+import "github.com/invopop/jsonschema"
 
 // ToolResultContent defines the structure for content returned by a tool call.
 type ToolResultContent struct {
@@ -12,9 +12,9 @@ type ToolResultContent struct {
 
 // Tool defines the structure for a tool's metadata.
 type Tool struct {
-	Name           string          `json:"name"`
-	Description    string          `json:"description"`
-	RawInputSchema json.RawMessage `json:"inputSchema"` // raw json bytes of the input schema
+	Name        string             `json:"name"`
+	Description string             `json:"description"`
+	InputSchema *jsonschema.Schema `json:"inputSchema"`
 }
 
 // Tools is a collection of Tool.

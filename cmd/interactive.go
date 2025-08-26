@@ -3,6 +3,7 @@ package cmd
 import (
 	"bufio"
 	"context"
+	"fmt"
 	"log"
 	"os"
 
@@ -26,7 +27,7 @@ func interactive(ctx context.Context, convID string, modelConfig inference.Model
 		if !scanner.Scan() {
 			return "", false
 		}
-		println() // Spacing for the UI
+		fmt.Println()
 		return scanner.Text(), true
 	}
 
