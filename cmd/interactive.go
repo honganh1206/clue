@@ -1,41 +1,31 @@
 package cmd
 
 import (
-	"bufio"
 	"context"
 	"log"
-	"os"
 
 	"github.com/honganh1206/clue/agent"
 	"github.com/honganh1206/clue/api"
 	"github.com/honganh1206/clue/inference"
-	"github.com/honganh1206/clue/prompts"
+	"github.com/honganh1206/clue/mcp"
 	"github.com/honganh1206/clue/server/data/conversation"
 	"github.com/honganh1206/clue/tools"
 )
 
-func interactive(ctx context.Context, convID string, modelConfig inference.ModelConfig, client *api.Client) error {
+func interactive(ctx context.Context, convID string, modelConfig inference.ModelConfig, client *api.Client, mcpConfigs []mcp.ServerConfig) error {
 	model, err := inference.Init(ctx, modelConfig)
 	if err != nil {
 		log.Fatalf("Failed to initialize model: %s", err.Error())
 	}
 
-	scanner := bufio.NewScanner(os.Stdin)
-	getUserMsg := func() (string, bool) {
-		if !scanner.Scan() {
-			return "", false
-		}
-		println() // Spacing for the UI
-		return scanner.Text(), true
+	toolBox := &tools.ToolBox{
+		Tools: []tools.ToolDefinition{
+			tools.ReadFileDefinition,
+			tools.ListFilesDefinition,
+			tools.EditFileDefinition,
+			tools.GrepSearchDefinition,
+		},
 	}
-
-	toolDefs := []tools.ToolDefinition{
-		tools.ReadFileDefinition,
-		tools.ListFilesDefinition,
-		tools.EditFileDefinition,
-		tools.GrepSearchDefinition,
-	}
-
 	var conv *conversation.Conversation
 
 	if convID != "" {
@@ -49,7 +39,8 @@ func interactive(ctx context.Context, convID string, modelConfig inference.Model
 			return err
 		}
 	}
-	a := agent.New(model, getUserMsg, conv, toolDefs, prompts.ClaudeSystemPrompt(), client)
+
+	a := agent.New(model, conv, toolBox, client, mcpConfigs)
 
 	// In production, use Background() as the final root context()
 	// For dev env, TODO for temporary scaffolding

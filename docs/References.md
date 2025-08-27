@@ -24,3 +24,5 @@
 - [goose](https://github.com/block/goose) - Extensible AI agent, working with any LLM
 - [ai-wrapper](https://github.com/obutora/ai-wrapper) - Unified interface for LLM, really cool project
 - [web-crawler](https://github.com/afazio1/web-crawler) - Web search tool
+- [ai-training (ollama integration)](https://github.com/ardanlabs/ai-training)
+- [opencode - really good agent built in Go and TypeScript](https://github.com/sst/opencode)

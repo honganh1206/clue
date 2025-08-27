@@ -6,20 +6,24 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/honganh1206/clue/api"
 	"github.com/honganh1206/clue/inference"
+	"github.com/honganh1206/clue/mcp"
 	"github.com/honganh1206/clue/server"
 	"github.com/honganh1206/clue/utils"
 	"github.com/spf13/cobra"
 )
 
 var (
-	modelConfig  inference.ModelConfig
-	verbose      bool
-	continueConv bool
-	convID       string
+	modelConfig      inference.ModelConfig
+	verbose          bool
+	continueConv     bool
+	convID           string
+	mcpServerCmd     string
+	mcpServerConfigs []mcp.ServerConfig
 )
 var (
 	Version   = "0.1.0"
@@ -76,7 +80,7 @@ func ChatHandler(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	err = interactive(cmd.Context(), convID, modelConfig, client)
+	err = interactive(cmd.Context(), convID, modelConfig, client, mcpServerConfigs)
 	if err != nil {
 		fmt.Printf("Error: %s\n", err.Error())
 	}
@@ -89,7 +93,7 @@ func RunServer(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-
+	fmt.Printf("Running background server on %s\n", ln.Addr().String())
 	err = server.Serve(ln)
 	if errors.Is(err, http.ErrServerClosed) {
 		return nil
@@ -168,6 +172,51 @@ func ModelHandler(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+func MCPHandler(cmd *cobra.Command, args []string) error {
+	if mcpServerCmd != "" {
+		parts := strings.SplitN(mcpServerCmd, ":", 2)
+		if len(parts) == 2 {
+			id := strings.TrimSpace(parts[0])
+			command := strings.TrimSpace(parts[1])
+			if id != "" && command != "" {
+				config := mcp.ServerConfig{
+					ID:      id,
+					Command: command,
+				}
+				mcpServerConfigs = append(mcpServerConfigs, config)
+				if verbose {
+					fmt.Printf("Added server configuration from flag: %s -> %s\n", id, command)
+				}
+			} else {
+				return fmt.Errorf("invalid server configuration format in flag: %s (expected id:command)", mcpServerCmd)
+			}
+		} else {
+			return fmt.Errorf("invalid server configuration format in flag: %s (expected id:command)", mcpServerCmd)
+		}
+	}
+
+	if len(mcpServerConfigs) == 0 {
+		return errors.New("no server configurations provided (use --server-cmd flag or provide id:command arguments)")
+	}
+
+	if err := mcp.SaveConfigs(mcpServerConfigs); err != nil {
+		if verbose {
+			fmt.Printf("Warning: Could not save configurations: %v\n", err)
+		}
+	} else if verbose {
+		fmt.Printf("Saved %d server configurations to file\n", len(mcpServerConfigs))
+	}
+
+	if verbose {
+		fmt.Printf("Total server configurations: %d\n", len(mcpServerConfigs))
+		for _, config := range mcpServerConfigs {
+			fmt.Printf("  - %s: %s\n", config.ID, config.Command)
+		}
+	}
+
+	return nil
+}
+
 func NewCLI() *cobra.Command {
 	modelCmd := &cobra.Command{
 		Use:   "model",
@@ -205,10 +254,37 @@ func NewCLI() *cobra.Command {
 		RunE:  RunServer,
 	}
 
+	mcpCmd := &cobra.Command{
+		Use:   "mcp",
+		Short: "Start MCP server",
+		Long: `Start an MCP (Model Context Protocol) server with the specified configuration.
+
+Server configurations must be in the format id:command.
+
+Examples:
+  clue mcp --server-cmd "my-server:uvx mcp-server-fetch"
+  clue mcp "fetch-server:uvx mcp-server-fetch"
+  clue mcp "python-server:python my_mcp_server.py --port 8080"
+  clue mcp --verbose "node-server:node mcp-server.js"
+  clue mcp "server1:uvx mcp-server-fetch" "server2:python other_server.py"`,
+		RunE: MCPHandler,
+	}
+
+	mcpCmd.Flags().StringVar(&mcpServerCmd, "server-cmd", "", "Server configuration in format id:command (e.g., 'my-server:uvx mcp-server-fetch')")
+
 	rootCmd := &cobra.Command{
 		Use:   "clue",
 		Short: "An AI agent for code editing and assistance",
-		RunE:  ChatHandler,
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			if configs, err := mcp.LoadConfigs(); err == nil {
+				mcpServerConfigs = configs
+				if verbose && len(configs) > 0 {
+					fmt.Printf("Loaded %d MCP server configurations\n", len(configs))
+				}
+			}
+			// TODO: Check if serve process is running, if not run here?
+		},
+		RunE: ChatHandler,
 	}
 
 	rootCmd.PersistentFlags().StringVar(&modelConfig.Provider, "provider", string(inference.AnthropicProvider), "Provider (anthropic, openai, gemini, ollama, deepseek)")
@@ -218,7 +294,7 @@ func NewCLI() *cobra.Command {
 	rootCmd.Flags().BoolVarP(&continueConv, "new-conversation", "n", true, "Continue from the latest conversation")
 	rootCmd.Flags().StringVarP(&convID, "id", "i", "", "Conversation ID to ")
 
-	rootCmd.AddCommand(versionCmd, modelCmd, conversationCmd, helpCmd, serveCmd)
+	rootCmd.AddCommand(versionCmd, modelCmd, conversationCmd, helpCmd, serveCmd, mcpCmd)
 
 	return rootCmd
 }
