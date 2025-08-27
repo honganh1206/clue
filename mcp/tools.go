@@ -1,6 +1,8 @@
 package mcp
 
-import "github.com/invopop/jsonschema"
+import (
+	"github.com/invopop/jsonschema"
+)
 
 // ToolResultContent defines the structure for content returned by a tool call.
 type ToolResultContent struct {
@@ -53,4 +55,9 @@ func (t Tools) ByName(name string) (Tool, bool) {
 		}
 	}
 	return Tool{}, false
+}
+
+type ToolDetails struct {
+	Server *Server
+	Name   string
 }

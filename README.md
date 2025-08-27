@@ -1,8 +1,10 @@
-# clue
+<div class="title-block" style="text-align: center;" align="center">
+
+# Clue - AI Coding Agent in Go
 
 Simple CLI-based AI coding agent
 
-![Clue](./assets/clue.png)
+<p><img title="clue logo" src="assets/images/clue-logo.svg" width="320" height="320"></p>
 
 If this proves to be helpful to anyone, consider it my thanks to the open-source community :)
 
@@ -21,6 +23,14 @@ If this proves to be helpful to anyone, consider it my thanks to the open-source
 curl -fsSL https://raw.githubusercontent.com/honganh1206/clue/main/scripts/install.sh | sudo -E bash
 ```
 
+## MCP
+
+To add MCP servers to clue:
+
+```sh
+clue mcp --server-cmd "my-server:npx @modelcontextprotocol/server-everything"
+```
+
 ## Development
 
 ```bash
@@ -29,3 +39,5 @@ make # Run the agent
 ```
 
 [References](./docs/References.md)
+
+</div>

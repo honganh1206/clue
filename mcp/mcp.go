@@ -10,6 +10,13 @@ import (
 	"sync"
 )
 
+type Config struct {
+	ServerConfigs []ServerConfig
+	ActiveServers []*Server
+	Tools         []Tools
+	ToolMap       map[string]ToolDetails
+}
+
 // Create a Server instance to manage server subprocesses and communication
 
 // Bundle io.Reader, io.Writer and io.Closer(s) for stdio pipes
