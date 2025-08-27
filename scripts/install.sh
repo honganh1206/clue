@@ -31,7 +31,7 @@ else
     exit 1
 fi
 
-version="0.1.3"
+version="0.1.4"
 base_url="https://github.com/honganh1206/clue/releases/download"
 download_url="${base_url}/${version}/clue_${version}_${os}_${arch}"
 
