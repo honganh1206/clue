@@ -13,60 +13,129 @@ print_message() {
     echo -e "\e[${color}m${message}\e[0m"
 }
 
-if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    os="linux"
-elif [[ "$OSTYPE" == "darwin"* ]]; then
-    os="darwin"
-else
-    error "Unsupported operating system. Only Linux and macOS are currently supported."
-    exit 1
-fi
+available() { command -v $1 >/dev/null; }
 
-if [[ "$(uname -m)" == "x86_64" ]]; then
-    arch="amd64"
-elif [[ "$(uname -m)" == "aarch64" || "$(uname -m)" == "arm64" ]]; then
-    arch="arm64"
-else
-    error "Unsupported architecture. clue requires a 64-bit system (x86_64 or arm64)."
-    exit 1
-fi
+require() {
+    local MISSING=''
+    for TOOL in $*; do
+        if ! available $TOOL; then
+            MISSING="$MISSING $TOOL"
+        fi
+    done
 
-version="0.1.4"
-base_url="https://github.com/honganh1206/clue/releases/download"
-download_url="${base_url}/${version}/clue_${version}_${os}_${arch}"
+    echo $MISSING
+}
 
+OS=$OSTYPE
+case "$OS" in
+    "linux-gnu") OS="linux" ;;
+    *) "Unsupported operating system: $OS" ;;
+esac
 
-status "Downloading clue version ${version} for ${os}/${arch}..."
-if ! curl -fsSL -o clue ${download_url}; then
-    error "Download failed. Please check your internet connection and try again."
-    exit 1
-fi
+ARCH=$(uname -m)
+case "$ARCH" in
+    x86_64) ARCH="amd64" ;;
+    aarch64|arm64) ARCH="arm64" ;;
+    *) error "Unsupported architecture: $ARCH" ;;
+esac
 
-chmod +x clue
-
-status "Installing clue..."
+VERSION="0.1.4"
+BASE_URL="https://github.com/honganh1206/clue/releases/download"
+DOWNLOAD_URL="${BASE_URL}/${VERSION}/clue_${VERSION}_${OS}_${ARCH}"
 
 SUDO=
 if [ "$(id -u)" -ne 0 ]; then
     # Running as root, no need for sudo
     if ! available sudo; then
         error "This script requires superuser permissions. Please re-run as root."
-        exit 1
     fi
 
     SUDO="sudo"
 fi
 
-$SUDO mv clue /usr/local/bin/
+NEEDS=$(require curl grep tee)
+if [ -n "$NEEDS" ]; then
+    status "ERROR: The following tools are required but missing:"
+    for NEED in $NEEDS; do
+        echo "  - $NEED"
+    done
+    exit 1
+fi
 
-# TODO: Uncomment this when working with 1st time config
-#  if ! tlm config set shell auto &>/dev/null; then
-#     error "tlm config set shell <auto> failed."
-#     exit 1
-# fi
 
-# TODO: Uncomment this after done config file for app
-# $SUDO chown $SUDO_USER ~/.clue.yaml
+for BINDIR in /usr/local/bin /usr/bin /bin; do
+    echo $PATH | grep -q $BINDIR && break || continue
+done
 
-status "Type 'clue' to get started."
-exit 0
+CLUE_INSTALL_DIR=$(dirname ${BINDIR})
+
+status "Downloading clue version ${VERSION} for ${OS}/${ARCH}..."
+
+if ! curl -fsSL -o clue ${DOWNLOAD_URL}; then
+    error "Download failed. Please check your internet connection and try again."
+    exit 1
+fi
+
+chmod +x clue
+
+if [ -d "$CLUE_INSTALL_DIR/clue" ] ; then
+    status "Cleaning up old version at $OLLAMA_INSTALL_DIR/ollama"
+    $SUDO rm -rf "$OLLAMA_INSTALL_DIR/ollama"
+fi
+
+# Allow clue.service to connect to local sqlite3
+# since when we run clue.service with systemd, the current user is root,
+# and thus cannot connect to local DBs.
+# So we pre-fetch the current local user.
+# TODO: Make sqlite3 DB system-wide?
+CURRENT_USER="$(whoami)"
+
+status "Installing clue to ${CLUE_INSTALL_DIR}..."
+
+$SUDO mv clue $BINDIR
+
+install_success() {
+    status 'The Clue API is now available at 127.0.0.1:11435.'
+    status 'Install complete. Run "clue" from the command line.'
+}
+trap install_success EXIT
+
+configure_systemd() {
+    # TODO: set HOME=/usr/share/clue for clue user
+    # and set write access to ./local/.clue for clue user
+    # and might be moving the DBs to shared user space?
+    # if ! id clue >/dev/null 2>$1; then
+    #     status "Creating clue user..."
+    #     $SUDO useradd -r -s /bin/false -U -m -d /usr/share/clue clue
+    # fi
+
+    # status "Adding current user to clue group..."
+    # $SUDO usermod -a -G clue $(whoami)
+    status "Creating clue systemd service..."
+    cat <<EOF | $SUDO tee /etc/systemd/system/clue.service >/dev/null
+[Unit]
+Description=Clue AI Coding Agent Server
+After=network-online.target
+
+[Service]
+ExecStart=$BINDIR/clue serve
+User=$CURRENT_USER
+Group=$(id -gn)
+Restart=always
+RestartSec=3
+Environment="PATH=$PATH"
+Environment="HOME=$HOME"
+
+[Install]
+WantedBy=default.target
+EOF
+
+    status "Enabling and starting clue service..."
+    $SUDO systemctl daemon-reload
+    $SUDO systemctl enable clue.service
+    $SUDO systemctl start clue.service
+}
+
+if available systemctl; then
+    configure_systemd
+fi
