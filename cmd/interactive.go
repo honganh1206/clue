@@ -24,6 +24,7 @@ func interactive(ctx context.Context, convID string, modelConfig inference.Model
 			tools.ListFilesDefinition,
 			tools.EditFileDefinition,
 			tools.GrepSearchDefinition,
+			tools.CodeJudgeDefinition,
 		},
 	}
 	var conv *conversation.Conversation
