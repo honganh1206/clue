@@ -55,7 +55,7 @@ func getAnthropicModel(model ModelVersion) anthropic.Model {
 	}
 }
 
-func (m *AnthropicModel) CompleteStream(ctx context.Context, msgs []*message.Message, tools []tools.ToolDefinition) (*message.Message, error) {
+func (m *AnthropicModel) RunInference(ctx context.Context, msgs []*message.Message, tools []*tools.ToolDefinition) (*message.Message, error) {
 	anthropicMsgs := convertToAnthropicMsgs(msgs)
 
 	anthropicTools, err := convertToAnthropicTools(tools)
@@ -109,43 +109,15 @@ func convertToAnthropicMsgs(msgs []*message.Message) []anthropic.MessageParam {
 	return anthropicMsgs
 }
 
-func convertToAnthropicBlocks(blocksUnion []message.ContentBlockUnion) []anthropic.ContentBlockParamUnion {
-	// Unified inteface for different request types i.e. text, image, document, thinking
-	blocks := make([]anthropic.ContentBlockParamUnion, 0, len(blocksUnion))
+func convertToAnthropicBlocks(blocks []message.ContentBlock) []anthropic.ContentBlockParamUnion {
+	// Unified interface for different request types i.e. text, image, document, thinking
+	anthropicBlocks := make([]anthropic.ContentBlockParamUnion, 0, len(blocks))
 
-	for _, block := range blocksUnion {
-		switch block.Type {
-		case message.ToolResultType:
-			if block.OfToolResultBlock != nil {
-				content, ok := block.OfToolResultBlock.Content.(string)
-				if !ok {
-					// Not sure this is the right way to handle things?
-					continue
-				}
-				toolResultBlock := anthropic.NewToolResultBlock(block.OfToolResultBlock.ToolUseID, content, block.OfToolResultBlock.IsError)
-				blocks = append(blocks, toolResultBlock)
-			}
-		case message.TextType:
-			if block.OfTextBlock != nil {
-				blocks = append(blocks, anthropic.NewTextBlock(block.OfTextBlock.Text))
-			}
-		case message.ToolUseType:
-			if block.OfToolUseBlock != nil {
-				toolUseParam := anthropic.ToolUseBlockParam{
-					ID:    block.OfToolUseBlock.ID,
-					Name:  block.OfToolUseBlock.Name,
-					Input: block.OfToolUseBlock.Input,
-				}
-
-				toolUseBlock := anthropic.ContentBlockParamUnion{
-					OfToolUse: &toolUseParam,
-				}
-				blocks = append(blocks, toolUseBlock)
-			}
-		}
+	for _, block := range blocks {
+		anthropicBlocks = append(anthropicBlocks, block.ToAnthropic())
 	}
 
-	return blocks
+	return anthropicBlocks
 }
 
 func streamAnthropicResponse(stream *ssestream.Stream[anthropic.MessageStreamEventUnion]) (*message.Message, error) {
@@ -189,28 +161,25 @@ func streamAnthropicResponse(stream *ssestream.Stream[anthropic.MessageStreamEve
 func convertFromAnthropicMessage(anthropicMsg anthropic.Message) (*message.Message, error) {
 	msg := &message.Message{
 		Role:    message.AssistantRole,
-		Content: make([]message.ContentBlockUnion, 0)}
+		Content: make([]message.ContentBlock, 0)}
 
 	for _, block := range anthropicMsg.Content {
-		var v message.ContentBlockUnion
 		switch variant := block.AsAny().(type) {
 		case anthropic.TextBlock:
-			v = message.NewTextContentBlock(block.Text)
-			msg.Content = append(msg.Content, v)
+			msg.Content = append(msg.Content, message.NewTextBlock(block.Text))
 		case anthropic.ToolUseBlock:
 			err := json.Unmarshal([]byte(variant.JSON.Input.Raw()), &block.Input)
 			if err != nil {
 				return nil, err
 			}
-			v = message.NewToolUseContentBlock(block.ID, block.Name, block.Input)
-			msg.Content = append(msg.Content, v)
+			msg.Content = append(msg.Content, message.NewToolUseBlock(block.ID, block.Name, block.Input))
 		}
 	}
 
 	return msg, nil
 }
 
-func convertToAnthropicTools(tools []tools.ToolDefinition) ([]anthropic.ToolUnionParam, error) {
+func convertToAnthropicTools(tools []*tools.ToolDefinition) ([]anthropic.ToolUnionParam, error) {
 	if len(tools) == 0 {
 		return nil, nil
 	}
@@ -230,7 +199,7 @@ func convertToAnthropicTools(tools []tools.ToolDefinition) ([]anthropic.ToolUnio
 }
 
 // Convert generic schema to Anthropic schema
-func convertToAnthropicTool(tool tools.ToolDefinition) (*anthropic.ToolUnionParam, error) {
+func convertToAnthropicTool(tool *tools.ToolDefinition) (*anthropic.ToolUnionParam, error) {
 	schema, err := json.Marshal(tool.InputSchema)
 	if err != nil {
 		return nil, err
@@ -248,7 +217,7 @@ func convertToAnthropicTool(tool tools.ToolDefinition) (*anthropic.ToolUnionPara
 			Name:        tool.Name,
 			Description: anthropic.String(tool.Description),
 			InputSchema: anthropicSchema,
-			// CacheControl: m.cache,
+			// CacheControl: anthropic.NewCacheControlEphemeralParam(),
 		},
 	}, nil
 }

@@ -60,14 +60,14 @@ func (a *Agent) Run(ctx context.Context) error {
 
 			userMsg := &message.Message{
 				Role:    message.UserRole,
-				Content: []message.ContentBlockUnion{message.NewTextContentBlock(userInput)},
+				Content: []message.ContentBlock{message.NewTextBlock(userInput)},
 			}
 
 			a.conversation.Append(userMsg)
 			a.saveConversation()
 		}
 
-		agentMsg, err := a.model.CompleteStream(ctx, a.conversation.Messages, a.toolBox.Tools)
+		agentMsg, err := a.model.RunInference(ctx, a.conversation.Messages, a.toolBox.Tools)
 		if err != nil {
 			return err
 		}
@@ -75,14 +75,14 @@ func (a *Agent) Run(ctx context.Context) error {
 		a.conversation.Append(agentMsg)
 		a.saveConversation()
 
-		toolResults := []message.ContentBlockUnion{}
+		toolResults := []message.ContentBlock{}
 
 		for _, c := range agentMsg.Content {
-			switch c.Type {
+			switch block := c.(type) {
 			// TODO: Switch case for text type should be here
 			// and we need to stream the response here, not inside the model integrations
-			case message.ToolUseType:
-				result := a.executeTool(c.OfToolUseBlock.ID, c.OfToolUseBlock.Name, c.OfToolUseBlock.Input)
+			case message.ToolUseBlock:
+				result := a.executeTool(block.ID, block.Name, block.Input)
 				toolResults = append(toolResults, result)
 			}
 		}
@@ -145,7 +145,7 @@ func (a *Agent) registerMCPServers() {
 		for _, t := range tool {
 			toolName := fmt.Sprintf("%s_%s", server.ID(), t.Name)
 
-			decl := tools.ToolDefinition{
+			decl := &tools.ToolDefinition{
 				Name:        toolName,
 				Description: t.Description,
 				InputSchema: t.InputSchema,
@@ -170,14 +170,14 @@ func (a *Agent) registerMCPServers() {
 	}
 }
 
-func (a *Agent) executeTool(id, name string, input json.RawMessage) message.ContentBlockUnion {
+func (a *Agent) executeTool(id, name string, input json.RawMessage) message.ContentBlock {
 	if execDetails, isMCPTool := a.mcp.ToolMap[name]; isMCPTool {
 		return a.executeMCPTool(id, name, input, execDetails)
 	}
 	return a.executeLocalTool(id, name, input)
 }
 
-func (a *Agent) executeMCPTool(id, name string, input json.RawMessage, toolDetails mcp.ToolDetails) message.ContentBlockUnion {
+func (a *Agent) executeMCPTool(id, name string, input json.RawMessage, toolDetails mcp.ToolDetails) message.ContentBlock {
 	// TODO: Copy from local tool execution
 	// might need more rework
 	fmt.Printf("\u001b[92mtool\u001b[0m: %s(%s)\n", name, input)
@@ -197,11 +197,11 @@ func (a *Agent) executeMCPTool(id, name string, input json.RawMessage, toolDetai
 	result, err := toolDetails.Server.Call(context.Background(), name, args)
 
 	if err != nil {
-		return message.NewToolResultContentBlock(id, name,
+		return message.NewToolResultBlock(id, name,
 			fmt.Sprintf("MCP tool %s execution error: %v", name, err), true)
 	}
 	if result == nil {
-		return message.NewToolResultContentBlock(id, name, "Tool executed successfully but returned no content", false)
+		return message.NewToolResultBlock(id, name, "Tool executed successfully but returned no content", false)
 	}
 
 	// We have to do this,
@@ -210,14 +210,14 @@ func (a *Agent) executeMCPTool(id, name string, input json.RawMessage, toolDetai
 	// even though we do have :)
 	content := fmt.Sprintf("%v", result)
 	if content == "" {
-		return message.NewToolResultContentBlock(id, name, "Tool executed successfully but returned empty content", false)
+		return message.NewToolResultBlock(id, name, "Tool executed successfully but returned empty content", false)
 	}
 
-	return message.NewToolResultContentBlock(id, name, content, false)
+	return message.NewToolResultBlock(id, name, content, false)
 }
 
-func (a *Agent) executeLocalTool(id, name string, input json.RawMessage) message.ContentBlockUnion {
-	var toolDef tools.ToolDefinition
+func (a *Agent) executeLocalTool(id, name string, input json.RawMessage) message.ContentBlock {
+	var toolDef *tools.ToolDefinition
 	var found bool
 	for _, tool := range a.toolBox.Tools {
 		if tool.Name == name {
@@ -230,7 +230,7 @@ func (a *Agent) executeLocalTool(id, name string, input json.RawMessage) message
 	if !found {
 		// TODO: Return proper error type
 		errorMsg := "tool not found"
-		return message.NewToolResultContentBlock(id, name, errorMsg, true)
+		return message.NewToolResultBlock(id, name, errorMsg, true)
 	}
 
 	fmt.Printf("\u001b[92mtool\u001b[0m: %s(%s)\n", name, input)
@@ -239,10 +239,10 @@ func (a *Agent) executeLocalTool(id, name string, input json.RawMessage) message
 	response, err := toolDef.Function(input)
 
 	if err != nil {
-		return message.NewToolResultContentBlock(id, name, err.Error(), true)
+		return message.NewToolResultBlock(id, name, err.Error(), true)
 	}
 
-	return message.NewToolResultContentBlock(id, name, response, false)
+	return message.NewToolResultBlock(id, name, response, false)
 }
 
 // TODO: Should this be in interactive.go?

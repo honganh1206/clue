@@ -37,7 +37,7 @@ func getGeminiModelName(model ModelVersion) string {
 	return string(model)
 }
 
-func (m *GeminiModel) CompleteStream(ctx context.Context, msgs []*message.Message, tools []tools.ToolDefinition) (*message.Message, error) {
+func (m *GeminiModel) RunInference(ctx context.Context, msgs []*message.Message, tools []tools.ToolDefinition) (*message.Message, error) {
 	contents := convertToGeminiContents(msgs)
 
 	geminiTools, err := convertToGeminiTools(tools)
@@ -67,12 +67,12 @@ func (m *GeminiModel) CompleteStream(ctx context.Context, msgs []*message.Messag
 
 func streamGeminiResponse(response iter.Seq2[*genai.GenerateContentResponse, error]) (*message.Message, error) {
 	var fullText string
-	var toolCalls []message.ContentBlockUnion
+	var toolCalls []message.ContentBlock
 	var outputContents []*genai.Content
 
 	msg := &message.Message{
 		Role:    message.ModelRole,
-		Content: make([]message.ContentBlockUnion, 0),
+		Content: make([]message.ContentBlock, 0),
 	}
 
 	for chunk, err := range response {
@@ -120,7 +120,7 @@ func streamGeminiResponse(response iter.Seq2[*genai.GenerateContentResponse, err
 					return nil, fmt.Errorf("failed to marshal function args: %w", err)
 				}
 
-				toolCall := message.NewToolUseContentBlock(
+				toolCall := message.NewToolUseBlock(
 					fc.ID,
 					fc.Name,
 					inputBytes,
@@ -133,7 +133,7 @@ func streamGeminiResponse(response iter.Seq2[*genai.GenerateContentResponse, err
 	}
 
 	if fullText != "" {
-		msg.Content = append(msg.Content, message.NewTextContentBlock(fullText))
+		msg.Content = append(msg.Content, message.NewTextBlock(fullText))
 	}
 
 	msg.Content = append(msg.Content, toolCalls...)
@@ -162,36 +162,32 @@ func convertToGeminiContents(msgs []*message.Message) []*genai.Content {
 	return contents
 }
 
-func convertToGeminiParts(blocks []message.ContentBlockUnion) []*genai.Part {
+func convertToGeminiParts(blocks []message.ContentBlock) []*genai.Part {
 	parts := make([]*genai.Part, 0, len(blocks))
 
 	for _, b := range blocks {
-		switch b.Type {
+		switch b.Type() {
 		case message.TextType:
-			if b.OfTextBlock != nil {
-				textContent := b.OfTextBlock.Text
-				parts = append(parts, genai.NewPartFromText(textContent))
+			if textBlock, ok := b.(message.TextBlock); ok {
+				parts = append(parts, genai.NewPartFromText(textBlock.Text))
 			}
 		case message.ToolUseType:
-			if b.OfToolUseBlock != nil {
-				toolName := b.OfToolUseBlock.Name
+			if toolUse, ok := b.(message.ToolUseBlock); ok {
 				var args map[string]any
 
-				err := json.Unmarshal(b.OfToolUseBlock.Input, &args)
+				err := json.Unmarshal(toolUse.Input, &args)
 				if err != nil {
 					continue
 				}
 
-				parts = append(parts, genai.NewPartFromFunctionCall(toolName, args))
+				parts = append(parts, genai.NewPartFromFunctionCall(toolUse.Name, args))
 			}
 		case message.ToolResultType:
-			if b.OfToolResultBlock != nil {
-				toolName := b.OfToolResultBlock.ToolName
-
+			if toolResult, ok := b.(message.ToolResultBlock); ok {
 				// Gemini NEEDS the content to be wrapped inside "result"
-				response := map[string]any{"result": b.OfToolResultBlock.Content}
+				response := map[string]any{"result": toolResult.Content}
 
-				parts = append(parts, genai.NewPartFromFunctionResponse(toolName, response))
+				parts = append(parts, genai.NewPartFromFunctionResponse(toolResult.ToolName, response))
 			}
 		}
 	}

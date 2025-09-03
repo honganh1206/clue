@@ -19,12 +19,12 @@ func interactive(ctx context.Context, convID string, modelConfig inference.Model
 	}
 
 	toolBox := &tools.ToolBox{
-		Tools: []tools.ToolDefinition{
-			tools.ReadFileDefinition,
-			tools.ListFilesDefinition,
-			tools.EditFileDefinition,
-			tools.GrepSearchDefinition,
-			tools.CodeJudgeDefinition,
+		Tools: []*tools.ToolDefinition{
+			&tools.ReadFileDefinition,
+			&tools.ListFilesDefinition,
+			&tools.EditFileDefinition,
+			&tools.GrepSearchDefinition,
+			&tools.CodeJudgeDefinition,
 		},
 	}
 	var conv *conversation.Conversation

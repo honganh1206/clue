@@ -1,6 +1,7 @@
 package tools
 
 import (
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"os/exec"
@@ -9,20 +10,12 @@ import (
 	"github.com/honganh1206/clue/schema"
 )
 
+//go:embed grep.md
+var grepSearchPrompt string
+
 var GrepSearchDefinition = ToolDefinition{
-	Name: "grep_search",
-	Description: `Search for exact text patterns in files using ripgrep, a fast keyword search tool.
-
-WHEN TO USE THIS TOOL:
-- When you need to find exact text matches like variable names, function calls, or specific strings
-- When you know the precise pattern you're looking for (including regex patterns)
-- When you want to quickly locate all occurrences of a specific term across multiple files
-- When you need to search for code patterns with exact syntax
-
-WHEN NOT TO USE THIS TOOL:
-- For semantic or conceptual searches (e.g., "how does authentication work")
-- For finding code that implements a certain functionality without knowing the exact terms
-- When you already have read the entire file`,
+	Name:        "grep_search",
+	Description: grepSearchPrompt,
 	InputSchema: GrepSearchInputSchema,
 	Function:    GrepSearch,
 }

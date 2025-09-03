@@ -3,19 +3,16 @@ package inference
 import (
 	"context"
 	"fmt"
-	"log"
-	"os"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/honganh1206/clue/message"
 	"github.com/honganh1206/clue/tools"
-	"google.golang.org/genai"
 )
 
 type Model interface {
 	// FIXME: VERY RESOURCE-CONSUMING since we are invoking this in every loop
 	// What to do? Maintain a parallel flattened view/Flatten incrementally with new messages/Modify the engine
-	CompleteStream(ctx context.Context, msgs []*message.Message, tools []tools.ToolDefinition) (*message.Message, error)
+	RunInference(ctx context.Context, msgs []*message.Message, tools []*tools.ToolDefinition) (*message.Message, error)
 	Name() string
 }
 
@@ -30,15 +27,15 @@ func Init(ctx context.Context, config ModelConfig) (Model, error) {
 	case AnthropicProvider:
 		client := anthropic.NewClient() // Default to look up ANTHROPIC_API_KEY
 		return NewAnthropicModel(&client, ModelVersion(config.Model), config.MaxTokens), nil
-	case GoogleProvider:
-		client, err := genai.NewClient(ctx, &genai.ClientConfig{
-			APIKey:  os.Getenv("GEMINI_API_KEY"),
-			Backend: genai.BackendGeminiAPI,
-		})
-		if err != nil {
-			log.Fatal(err)
-		}
-		return NewGeminiModel(client, ModelVersion(config.Model), config.MaxTokens), nil
+	// case GoogleProvider:
+	// 	client, err := genai.NewClient(ctx, &genai.ClientConfig{
+	// 		APIKey:  os.Getenv("GEMINI_API_KEY"),
+	// 		Backend: genai.BackendGeminiAPI,
+	// 	})
+	// 	if err != nil {
+	// 		log.Fatal(err)
+	// 	}
+	// 	return NewGeminiModel(client, ModelVersion(config.Model), config.MaxTokens), nil
 	default:
 		return nil, fmt.Errorf("unknown model provider: %s", config.Provider)
 	}
