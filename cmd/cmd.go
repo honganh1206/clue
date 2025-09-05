@@ -18,7 +18,7 @@ import (
 )
 
 var (
-	modelConfig      inference.ModelConfig
+	llm              inference.BaseLLMClient
 	verbose          bool
 	continueConv     bool
 	convID           string
@@ -52,18 +52,18 @@ func ChatHandler(cmd *cobra.Command, args []string) error {
 
 	client := api.NewClient("")
 
-	provider := inference.ProviderName(modelConfig.Provider)
-	if modelConfig.Model == "" {
+	provider := inference.ProviderName(llm.Provider)
+	if llm.Model == "" {
 		defaultModel := inference.GetDefaultModel(provider)
 		if verbose {
 			fmt.Printf("No model specified, using default: %s\n", defaultModel)
 		}
-		modelConfig.Model = string(defaultModel)
+		llm.Model = string(defaultModel)
 	}
 
 	// Default number of max tokens
-	if modelConfig.MaxTokens == 0 {
-		modelConfig.MaxTokens = 8192
+	if llm.TokenLimit == 0 {
+		llm.TokenLimit = 8192
 	}
 
 	var convID string
@@ -80,7 +80,7 @@ func ChatHandler(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	err = interactive(cmd.Context(), convID, modelConfig, client, mcpServerConfigs)
+	err = interactive(cmd.Context(), convID, llm, client, mcpServerConfigs)
 	if err != nil {
 		fmt.Printf("Error: %s\n", err.Error())
 	}
@@ -157,7 +157,7 @@ func ConversationHandler(cmd *cobra.Command, args []string) error {
 }
 
 func ModelHandler(cmd *cobra.Command, args []string) error {
-	provider := inference.ProviderName(modelConfig.Provider)
+	provider := inference.ProviderName(llm.Provider)
 	models := inference.ListAvailableModels(provider)
 
 	if len(models) > 0 {
@@ -287,9 +287,9 @@ Examples:
 		RunE: ChatHandler,
 	}
 
-	rootCmd.PersistentFlags().StringVar(&modelConfig.Provider, "provider", string(inference.AnthropicProvider), "Provider (anthropic, openai, gemini, ollama, deepseek)")
-	rootCmd.PersistentFlags().StringVar(&modelConfig.Model, "model", "", "Model to use (depends on selected model)")
-	rootCmd.PersistentFlags().Int64Var(&modelConfig.MaxTokens, "max-tokens", 4096, "Maximum number of tokens in response")
+	rootCmd.PersistentFlags().StringVar(&llm.Provider, "provider", string(inference.AnthropicProvider), "Provider (anthropic, openai, gemini, ollama, deepseek)")
+	rootCmd.PersistentFlags().StringVar(&llm.Model, "model", "", "Model to use (depends on selected model)")
+	rootCmd.PersistentFlags().Int64Var(&llm.TokenLimit, "max-tokens", 4096, "Maximum number of tokens in response")
 	rootCmd.PersistentFlags().BoolVar(&verbose, "verbose", false, "Enable verbose output")
 	rootCmd.Flags().BoolVarP(&continueConv, "new-conversation", "n", true, "Continue from the latest conversation")
 	rootCmd.Flags().StringVarP(&convID, "id", "i", "", "Conversation ID to ")

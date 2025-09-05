@@ -26,3 +26,4 @@
 - [web-crawler](https://github.com/afazio1/web-crawler) - Web search tool
 - [ai-training (ollama integration)](https://github.com/ardanlabs/ai-training)
 - [opencode - really good agent built in Go and TypeScript](https://github.com/sst/opencode)
+- [ai-commit](https://github.com/renatogalera/ai-commit)

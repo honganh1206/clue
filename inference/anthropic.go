@@ -13,25 +13,33 @@ import (
 	"github.com/honganh1206/clue/tools"
 )
 
-type AnthropicModel struct {
+type AnthropicClient struct {
+	BaseLLMClient
 	client    *anthropic.Client
 	model     ModelVersion
 	maxTokens int64
 	cache     anthropic.CacheControlEphemeralParam
 }
 
-func NewAnthropicModel(client *anthropic.Client, model ModelVersion, maxTokens int64) *AnthropicModel {
-	return &AnthropicModel{
+func NewAnthropicClient(client *anthropic.Client, model ModelVersion, maxTokens int64) *AnthropicClient {
+	return &AnthropicClient{
 		client:    client,
 		model:     model,
 		maxTokens: maxTokens,
-		// Maximum of 4 blocks ~ 256 bytes?
-		cache: anthropic.NewCacheControlEphemeralParam(),
+		cache:     anthropic.NewCacheControlEphemeralParam(),
 	}
 }
 
-func (m *AnthropicModel) Name() string {
-	return AnthropicModelName
+func (m *AnthropicClient) ProviderName() string {
+	return m.BaseLLMClient.Provider
+}
+
+func (m *AnthropicClient) SummarizeHistory(history []*message.Message, threshold int) []*message.Message {
+	return m.BaseLLMClient.BaseSummarizeHistory(history, threshold)
+}
+
+func (m *AnthropicClient) TruncateMessage(msg *message.Message, threshold int) *message.Message {
+	return m.BaseLLMClient.BaseTruncateMessage(msg, threshold)
 }
 
 func getAnthropicModel(model ModelVersion) anthropic.Model {
@@ -55,8 +63,8 @@ func getAnthropicModel(model ModelVersion) anthropic.Model {
 	}
 }
 
-func (m *AnthropicModel) RunInference(ctx context.Context, msgs []*message.Message, tools []*tools.ToolDefinition) (*message.Message, error) {
-	anthropicMsgs := convertToAnthropicMsgs(msgs)
+func (m *AnthropicClient) RunInferenceStream(ctx context.Context, history []*message.Message, tools []*tools.ToolDefinition) (*message.Message, error) {
+	anthropicMsgs := convertToAnthropicMsgs(history)
 
 	anthropicTools, err := convertToAnthropicTools(tools)
 	if err != nil {
@@ -64,6 +72,8 @@ func (m *AnthropicModel) RunInference(ctx context.Context, msgs []*message.Messa
 	}
 
 	systemPrompt := prompts.ClaudeSystemPrompt()
+
+	// Optimize system prompt for caching - split into cacheable and dynamic parts
 
 	anthropicStream := m.client.Messages.NewStreaming(ctx, anthropic.MessageNewParams{
 		Model:     getAnthropicModel(m.model),
@@ -80,7 +90,6 @@ func (m *AnthropicModel) RunInference(ctx context.Context, msgs []*message.Messa
 	}
 
 	return response, nil
-
 }
 
 // Convert generic messages to Anthropic ones

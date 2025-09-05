@@ -16,16 +16,16 @@ import (
 )
 
 type Agent struct {
-	model        inference.Model
+	llm          inference.LLMClient
 	toolBox      *tools.ToolBox
 	conversation *conversation.Conversation
 	client       *api.Client
 	mcp          mcp.Config
 }
 
-func New(model inference.Model, conversation *conversation.Conversation, toolBox *tools.ToolBox, client *api.Client, mcpConfigs []mcp.ServerConfig) *Agent {
+func New(llm inference.LLMClient, conversation *conversation.Conversation, toolBox *tools.ToolBox, client *api.Client, mcpConfigs []mcp.ServerConfig) *Agent {
 	agent := &Agent{
-		model:        model,
+		llm:          llm,
 		toolBox:      toolBox,
 		conversation: conversation,
 		client:       client,
@@ -42,7 +42,7 @@ func New(model inference.Model, conversation *conversation.Conversation, toolBox
 
 func (a *Agent) Run(ctx context.Context) error {
 	defer a.shutdownMCPServers()
-	modelName := a.model.Name()
+	modelName := a.llm.ProviderName()
 	colorCode := getModelColor(modelName)
 	resetCode := "\u001b[0m"
 
@@ -67,12 +67,14 @@ func (a *Agent) Run(ctx context.Context) error {
 			a.saveConversation()
 		}
 
-		agentMsg, err := a.model.RunInference(ctx, a.conversation.Messages, a.toolBox.Tools)
+		agentMsg, err := a.llm.RunInferenceStream(ctx, a.conversation.Messages, a.toolBox.Tools)
 		if err != nil {
 			return err
 		}
 
 		a.conversation.Append(agentMsg)
+		// Keep the last 5 messages
+		a.conversation.Messages = a.llm.SummarizeHistory(a.conversation.Messages, 20)
 		a.saveConversation()
 
 		toolResults := []message.ContentBlock{}
@@ -99,7 +101,9 @@ func (a *Agent) Run(ctx context.Context) error {
 			Content: toolResults,
 		}
 
-		a.conversation.Append(toolResultMsg)
+		truncatedToolResultMsg := a.llm.TruncateMessage(toolResultMsg, 5000)
+
+		a.conversation.Append(truncatedToolResultMsg)
 		a.saveConversation()
 	}
 
