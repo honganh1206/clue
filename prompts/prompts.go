@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-//go:embed claude.txt
+//go:embed claude.md
 var claudeSystemPrompt string
 
 // TODO: Parameterize this with LLM provider name

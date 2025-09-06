@@ -2,7 +2,10 @@ package message
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
+
+	"github.com/anthropics/anthropic-sdk-go"
 )
 
 // TODO: Rename this struct to Payload?
@@ -10,7 +13,7 @@ import (
 type Message struct {
 	Role string `json:"role"`
 	// Cannot unmarshal interface as not concrete type, so we use tagged union
-	Content []ContentBlockUnion `json:"content"`
+	Content []ContentBlock `json:"content"`
 	// Optional as metadata
 	ID        string    `json:"id,omitempty" db:"id"`
 	CreatedAt time.Time `json:"created_at" db:"created_at"`
@@ -31,168 +34,142 @@ const (
 	ToolResultType = "tool_result"
 )
 
-type TextContentBlock struct {
-	Type string `json:"type"`
+type ContentBlock interface {
+	Type() string
+	ToAnthropic() anthropic.ContentBlockParamUnion
+}
+
+type TextBlock struct {
 	Text string `json:"text"`
 }
 
-func NewTextContentBlock(text string) ContentBlockUnion {
-	return ContentBlockUnion{
-		Type: TextType,
-		OfTextBlock: &TextContentBlock{
-			Text: text,
-		}}
+func (t TextBlock) Type() string { return "text" }
+func (t TextBlock) ToAnthropic() anthropic.ContentBlockParamUnion {
+	return anthropic.NewTextBlock(t.Text)
 }
 
-type ToolUseContentBlock struct {
-	Type  string          `json:"type"`
+func NewTextBlock(text string) ContentBlock {
+	return TextBlock{
+		Text: text,
+	}
+}
+
+type ToolUseBlock struct {
 	ID    string          `json:"id"`
 	Name  string          `json:"name"`
 	Input json.RawMessage `json:"input"`
 }
 
-func NewToolUseContentBlock(id, name string, input json.RawMessage) ContentBlockUnion {
-	return ContentBlockUnion{
-		Type: ToolUseType,
-		OfToolUseBlock: &ToolUseContentBlock{
-			ID:    id,
-			Name:  name,
-			Input: input,
-		}}
+func (t ToolUseBlock) Type() string { return "tool_use" }
+func (t ToolUseBlock) ToAnthropic() anthropic.ContentBlockParamUnion {
+	return anthropic.NewToolUseBlock(t.ID, t.Input, t.Name)
 }
 
-type ToolResultContentBlock struct {
-	Type      string `json:"type"`
+func NewToolUseBlock(id, name string, input json.RawMessage) ContentBlock {
+	return ToolUseBlock{
+		ID:    id,
+		Name:  name,
+		Input: input,
+	}
+}
+
+type ToolResultBlock struct {
 	ToolUseID string `json:"tool_use_id"`
 	ToolName  string `json:"tool_name"`
-	Content   any    `json:"content"`
+	Content   string `json:"content"`
 	IsError   bool   `json:"is_error,omitempty"`
 }
 
-func NewToolResultContentBlock(toolUseID, toolName string, content any, isError bool) ContentBlockUnion {
-	return ContentBlockUnion{
-		Type: ToolResultType,
-		OfToolResultBlock: &ToolResultContentBlock{
-			ToolUseID: toolUseID,
-			ToolName:  toolName,
-			Content:   content,
-			IsError:   isError,
-		}}
-
+func (t ToolResultBlock) Type() string { return "tool_result" }
+func (t ToolResultBlock) ToAnthropic() anthropic.ContentBlockParamUnion {
+	return anthropic.NewToolResultBlock(t.ToolUseID, t.Content, t.IsError)
 }
 
-// Tagged union taking on different fixed types
-type ContentBlockUnion struct {
-	Type string `json:"type"`
-	// Tag field ensures the correct variant is selected at runtime
-	// Only one can be used at a time, and a tag indicates which type is used
-	OfTextBlock       *TextContentBlock       `json:"-"`
-	OfToolUseBlock    *ToolUseContentBlock    `json:"-"`
-	OfToolResultBlock *ToolResultContentBlock `json:"-"`
+func NewToolResultBlock(toolUseID, toolName, content string, isError bool) ContentBlock {
+	return ToolResultBlock{
+		ToolUseID: toolUseID,
+		ToolName:  toolName,
+		Content:   content,
+		IsError:   isError,
+	}
 }
 
-// TODO: Research UnmarshalRoot of anthropic go sdk
-// There should be a neater way of doing this?
-func (c *ContentBlockUnion) MarshalJSON() ([]byte, error) {
-	switch c.Type {
-	case TextType:
-		if c.OfTextBlock != nil {
-			return json.Marshal(struct {
-				Type string `json:"type"`
-				Text string `json:"text"`
-			}{
-				Type: TextType,
-				Text: c.OfTextBlock.Text,
-			})
-		}
-	case ToolUseType:
-		if c.OfToolUseBlock != nil {
-			return json.Marshal(struct {
-				Type  string          `json:"type"`
-				ID    string          `json:"id"`
-				Name  string          `json:"name"`
-				Input json.RawMessage `json:"input"`
-			}{
-				Type:  ToolUseType,
-				ID:    c.OfToolUseBlock.ID,
-				Name:  c.OfToolUseBlock.Name,
-				Input: c.OfToolUseBlock.Input,
-			})
-		}
-	case ToolResultType:
-		if c.OfToolResultBlock != nil {
-			return json.Marshal(struct {
-				Type      string `json:"type"`
-				ToolUseID string `json:"tool_use_id"`
-				Content   any    `json:"content"`
-				IsError   bool   `json:"is_error,omitempty"`
-			}{
-				Type:      ToolResultType,
-				ToolUseID: c.OfToolResultBlock.ToolUseID,
-				Content:   c.OfToolResultBlock.Content,
-				IsError:   c.OfToolResultBlock.IsError,
-			})
+// Custom JSON marshaling for Message to handle ContentBlock interface
+func (m *Message) MarshalJSON() ([]byte, error) {
+	type MessageAlias Message
+	type contentWithType struct {
+		Type      string          `json:"type"`
+		Text      string          `json:"text,omitempty"`
+		ID        string          `json:"id,omitempty"`
+		Name      string          `json:"name,omitempty"`
+		Input     json.RawMessage `json:"input,omitempty"`
+		ToolUseID string          `json:"tool_use_id,omitempty"`
+		ToolName  string          `json:"tool_name,omitempty"`
+		Content   string          `json:"content,omitempty"`
+		IsError   bool            `json:"is_error,omitempty"`
+	}
+
+	temp := struct {
+		*MessageAlias
+		Content []contentWithType `json:"content"`
+	}{
+		MessageAlias: (*MessageAlias)(m),
+		Content:      make([]contentWithType, len(m.Content)),
+	}
+
+	for i, block := range m.Content {
+		switch b := block.(type) {
+		case TextBlock:
+			temp.Content[i] = contentWithType{Type: TextType, Text: b.Text}
+		case ToolUseBlock:
+			temp.Content[i] = contentWithType{Type: ToolUseType, ID: b.ID, Name: b.Name, Input: b.Input}
+		case ToolResultBlock:
+			temp.Content[i] = contentWithType{Type: ToolResultType, ToolUseID: b.ToolUseID, ToolName: b.ToolName, Content: b.Content, IsError: b.IsError}
+		default:
+			return nil, fmt.Errorf("unknown content block type: %T", block)
 		}
 	}
-	return json.Marshal(struct {
-		Type string `json:"type"`
-	}{Type: c.Type})
+
+	return json.Marshal(temp)
 }
 
-func (c *ContentBlockUnion) UnmarshalJSON(data []byte) error {
-	var typeOnly struct {
-		Type string `json:"type"`
+// Custom JSON unmarshaling for Message to handle ContentBlock interface
+func (m *Message) UnmarshalJSON(data []byte) error {
+	type MessageAlias Message
+	type contentWithType struct {
+		Type      string          `json:"type"`
+		Text      string          `json:"text,omitempty"`
+		ID        string          `json:"id,omitempty"`
+		Name      string          `json:"name,omitempty"`
+		Input     json.RawMessage `json:"input,omitempty"`
+		ToolUseID string          `json:"tool_use_id,omitempty"`
+		ToolName  string          `json:"tool_name,omitempty"`
+		Content   string          `json:"content,omitempty"`
+		IsError   bool            `json:"is_error,omitempty"`
 	}
-	if err := json.Unmarshal(data, &typeOnly); err != nil {
+
+	temp := struct {
+		*MessageAlias
+		Content []contentWithType `json:"content"`
+	}{
+		MessageAlias: (*MessageAlias)(m),
+	}
+
+	if err := json.Unmarshal(data, &temp); err != nil {
 		return err
 	}
 
-	c.Type = typeOnly.Type
-
-	switch c.Type {
-	case TextType:
-		var textBlock struct {
-			Type string `json:"type"`
-			Text string `json:"text"`
-		}
-		if err := json.Unmarshal(data, &textBlock); err != nil {
-			return err
-		}
-		c.OfTextBlock = &TextContentBlock{
-			Type: textBlock.Type,
-			Text: textBlock.Text,
-		}
-	case ToolUseType:
-		var toolUseBlock struct {
-			Type  string          `json:"type"`
-			ID    string          `json:"id"`
-			Name  string          `json:"name"`
-			Input json.RawMessage `json:"input"`
-		}
-		if err := json.Unmarshal(data, &toolUseBlock); err != nil {
-			return err
-		}
-		c.OfToolUseBlock = &ToolUseContentBlock{
-			Type:  toolUseBlock.Type,
-			ID:    toolUseBlock.ID,
-			Name:  toolUseBlock.Name,
-			Input: toolUseBlock.Input,
-		}
-	case ToolResultType:
-		var toolResultBlock struct {
-			Type      string `json:"type"`
-			ToolUseID string `json:"tool_use_id"`
-			Content   any    `json:"content"`
-			IsError   bool   `json:"is_error"`
-		}
-		if err := json.Unmarshal(data, &toolResultBlock); err != nil {
-			return err
-		}
-		c.OfToolResultBlock = &ToolResultContentBlock{
-			Type:      toolResultBlock.Type,
-			ToolUseID: toolResultBlock.ToolUseID,
-			Content:   toolResultBlock.Content,
-			IsError:   toolResultBlock.IsError,
+	m.Content = make([]ContentBlock, len(temp.Content))
+	for i, c := range temp.Content {
+		switch c.Type {
+		case TextType:
+			m.Content[i] = TextBlock{Text: c.Text}
+		case ToolUseType:
+			m.Content[i] = ToolUseBlock{ID: c.ID, Name: c.Name, Input: c.Input}
+		case ToolResultType:
+			m.Content[i] = ToolResultBlock{ToolUseID: c.ToolUseID, ToolName: c.ToolName, Content: c.Content, IsError: c.IsError}
+		default:
+			return fmt.Errorf("unknown content block type: %s", c.Type)
 		}
 	}
 

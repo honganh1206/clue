@@ -7,7 +7,7 @@ import (
 )
 
 type ToolBox struct {
-	Tools []ToolDefinition
+	Tools []*ToolDefinition
 }
 
 type ToolDefinition struct {

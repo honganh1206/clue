@@ -45,8 +45,8 @@ func TestConversation_Append(t *testing.T) {
 
 	msg := &message.Message{
 		Role: message.UserRole,
-		Content: []message.ContentBlockUnion{
-			message.NewTextContentBlock("Hello, world!"),
+		Content: []message.ContentBlock{
+			message.NewTextBlock("Hello, world!"),
 		},
 	}
 
@@ -69,8 +69,8 @@ func TestConversation_Append(t *testing.T) {
 
 	msg2 := &message.Message{
 		Role: message.AssistantRole,
-		Content: []message.ContentBlockUnion{
-			message.NewTextContentBlock("Hello back!"),
+		Content: []message.ContentBlock{
+			message.NewTextBlock("Hello back!"),
 		},
 	}
 
@@ -100,15 +100,15 @@ func TestConversation_SaveTo(t *testing.T) {
 
 	conv.Append(&message.Message{
 		Role: message.UserRole,
-		Content: []message.ContentBlockUnion{
-			message.NewTextContentBlock("First message"),
+		Content: []message.ContentBlock{
+			message.NewTextBlock("First message"),
 		},
 	})
 
 	conv.Append(&message.Message{
 		Role: message.AssistantRole,
-		Content: []message.ContentBlockUnion{
-			message.NewTextContentBlock("Second message"),
+		Content: []message.ContentBlock{
+			message.NewTextBlock("Second message"),
 		},
 	})
 
@@ -165,8 +165,8 @@ func TestConversation_SaveTo_DuplicateConversation(t *testing.T) {
 
 	conv.Append(&message.Message{
 		Role: message.UserRole,
-		Content: []message.ContentBlockUnion{
-			message.NewTextContentBlock("Test message"),
+		Content: []message.ContentBlock{
+			message.NewTextBlock("Test message"),
 		},
 	})
 
@@ -178,8 +178,8 @@ func TestConversation_SaveTo_DuplicateConversation(t *testing.T) {
 	// Add another message and save again
 	conv.Append(&message.Message{
 		Role: message.AssistantRole,
-		Content: []message.ContentBlockUnion{
-			message.NewTextContentBlock("Response message"),
+		Content: []message.ContentBlock{
+			message.NewTextBlock("Response message"),
 		},
 	})
 
@@ -227,8 +227,8 @@ func TestList(t *testing.T) {
 	}
 	conv1.Append(&message.Message{
 		Role: message.UserRole,
-		Content: []message.ContentBlockUnion{
-			message.NewTextContentBlock("First conversation message"),
+		Content: []message.ContentBlock{
+			message.NewTextBlock("First conversation message"),
 		},
 	})
 
@@ -238,14 +238,14 @@ func TestList(t *testing.T) {
 	}
 	conv2.Append(&message.Message{
 		Role: message.UserRole,
-		Content: []message.ContentBlockUnion{
-			message.NewTextContentBlock("Second conversation message"),
+		Content: []message.ContentBlock{
+			message.NewTextBlock("Second conversation message"),
 		},
 	})
 	conv2.Append(&message.Message{
 		Role: message.AssistantRole,
-		Content: []message.ContentBlockUnion{
-			message.NewTextContentBlock("Response to second conversation"),
+		Content: []message.ContentBlock{
+			message.NewTextBlock("Response to second conversation"),
 		},
 	})
 
@@ -397,8 +397,8 @@ func TestLoad(t *testing.T) {
 	// Add text message
 	conv.Append(&message.Message{
 		Role: message.UserRole,
-		Content: []message.ContentBlockUnion{
-			message.NewTextContentBlock("Hello, this is a test message"),
+		Content: []message.ContentBlock{
+			message.NewTextBlock("Hello, this is a test message"),
 		},
 	})
 
@@ -406,16 +406,16 @@ func TestLoad(t *testing.T) {
 	toolInput := []byte(`{"query": "test"}`)
 	conv.Append(&message.Message{
 		Role: message.AssistantRole,
-		Content: []message.ContentBlockUnion{
-			message.NewToolUseContentBlock("tool-123", "search", toolInput),
+		Content: []message.ContentBlock{
+			message.NewToolUseBlock("tool-123", "search", toolInput),
 		},
 	})
 
 	// Add tool result message
 	conv.Append(&message.Message{
 		Role: message.UserRole,
-		Content: []message.ContentBlockUnion{
-			message.NewToolResultContentBlock("tool-123", "tool-name", "Search results here", false),
+		Content: []message.ContentBlock{
+			message.NewToolResultBlock("tool-123", "search", "Search results here", false),
 		},
 	})
 
@@ -459,42 +459,48 @@ func TestLoad(t *testing.T) {
 		for j, originalContent := range originalMsg.Content {
 			loadedContent := loadedMsg.Content[j]
 
-			if originalContent.Type != loadedContent.Type {
-				t.Errorf("Message %d, Content %d: Expected type %s, got %s", i, j, originalContent.Type, loadedContent.Type)
+			if originalContent.Type() != loadedContent.Type() {
+				t.Errorf("Message %d, Content %d: Expected type %s, got %s", i, j, originalContent.Type(), loadedContent.Type())
 			}
 
-			switch originalContent.Type {
+			switch originalContent.Type() {
 			case message.TextType:
-				if originalContent.OfTextBlock == nil || loadedContent.OfTextBlock == nil {
-					t.Errorf("Message %d, Content %d: TextBlock is nil", i, j)
+				originalText, originalOk := originalContent.(message.TextBlock)
+				loadedText, loadedOk := loadedContent.(message.TextBlock)
+				if !originalOk || !loadedOk {
+					t.Errorf("Message %d, Content %d: TextBlock type assertion failed", i, j)
 					continue
 				}
-				if loadedContent.OfTextBlock.Text != originalContent.OfTextBlock.Text {
-					t.Errorf("Message %d, Content %d: Expected text %s, got %s", i, j, originalContent.OfTextBlock.Text, loadedContent.OfTextBlock.Text)
+				if loadedText.Text != originalText.Text {
+					t.Errorf("Message %d, Content %d: Expected text %s, got %s", i, j, originalText.Text, loadedText.Text)
 				}
 
 			case message.ToolUseType:
-				if originalContent.OfToolUseBlock == nil || loadedContent.OfToolUseBlock == nil {
-					t.Errorf("Message %d, Content %d: ToolUseBlock is nil", i, j)
+				originalToolUse, originalOk := originalContent.(message.ToolUseBlock)
+				loadedToolUse, loadedOk := loadedContent.(message.ToolUseBlock)
+				if !originalOk || !loadedOk {
+					t.Errorf("Message %d, Content %d: ToolUseBlock type assertion failed", i, j)
 					continue
 				}
-				if loadedContent.OfToolUseBlock.ID != originalContent.OfToolUseBlock.ID {
-					t.Errorf("Message %d, Content %d: Expected tool ID %s, got %s", i, j, originalContent.OfToolUseBlock.ID, loadedContent.OfToolUseBlock.ID)
+				if loadedToolUse.ID != originalToolUse.ID {
+					t.Errorf("Message %d, Content %d: Expected tool ID %s, got %s", i, j, originalToolUse.ID, loadedToolUse.ID)
 				}
-				if loadedContent.OfToolUseBlock.Name != originalContent.OfToolUseBlock.Name {
-					t.Errorf("Message %d, Content %d: Expected tool name %s, got %s", i, j, originalContent.OfToolUseBlock.Name, loadedContent.OfToolUseBlock.Name)
+				if loadedToolUse.Name != originalToolUse.Name {
+					t.Errorf("Message %d, Content %d: Expected tool name %s, got %s", i, j, originalToolUse.Name, loadedToolUse.Name)
 				}
 
 			case message.ToolResultType:
-				if originalContent.OfToolResultBlock == nil || loadedContent.OfToolResultBlock == nil {
-					t.Errorf("Message %d, Content %d: ToolResultBlock is nil", i, j)
+				originalResult, originalOk := originalContent.(message.ToolResultBlock)
+				loadedResult, loadedOk := loadedContent.(message.ToolResultBlock)
+				if !originalOk || !loadedOk {
+					t.Errorf("Message %d, Content %d: ToolResultBlock type assertion failed", i, j)
 					continue
 				}
-				if loadedContent.OfToolResultBlock.ToolUseID != originalContent.OfToolResultBlock.ToolUseID {
-					t.Errorf("Message %d, Content %d: Expected tool use ID %s, got %s", i, j, originalContent.OfToolResultBlock.ToolUseID, loadedContent.OfToolResultBlock.ToolUseID)
+				if loadedResult.ToolUseID != originalResult.ToolUseID {
+					t.Errorf("Message %d, Content %d: Expected tool use ID %s, got %s", i, j, originalResult.ToolUseID, loadedResult.ToolUseID)
 				}
-				if loadedContent.OfToolResultBlock.IsError != originalContent.OfToolResultBlock.IsError {
-					t.Errorf("Message %d, Content %d: Expected is_error %v, got %v", i, j, originalContent.OfToolResultBlock.IsError, loadedContent.OfToolResultBlock.IsError)
+				if loadedResult.IsError != originalResult.IsError {
+					t.Errorf("Message %d, Content %d: Expected is_error %v, got %v", i, j, originalResult.IsError, loadedResult.IsError)
 				}
 			}
 		}

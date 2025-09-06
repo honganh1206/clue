@@ -20,7 +20,7 @@ type Tool struct {
 }
 
 // Tools is a collection of Tool.
-type Tools []Tool
+type Tools []*Tool
 
 // Defines the parameters for the "tools/call" request.
 type ToolsCallParams struct {
@@ -43,18 +43,18 @@ type ToolsListParams struct {
 
 // Defines the result for the "tools/list" response.
 type ToolsListResult struct {
-	Tools      []Tool `json:"tools"`
-	NextCursor string `json:"nextCursor,omitempty"`
+	Tools      []*Tool `json:"tools"`
+	NextCursor string  `json:"nextCursor,omitempty"`
 }
 
 // ByName finds a tool by its name from a list of tools.
-func (t Tools) ByName(name string) (Tool, bool) {
+func (t Tools) ByName(name string) (*Tool, bool) {
 	for _, tool := range t {
 		if tool.Name == name {
 			return tool, true
 		}
 	}
-	return Tool{}, false
+	return &Tool{}, false
 }
 
 type ToolDetails struct {

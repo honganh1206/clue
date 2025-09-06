@@ -12,36 +12,36 @@ import (
 	"github.com/honganh1206/clue/tools"
 )
 
-func interactive(ctx context.Context, convID string, modelConfig inference.ModelConfig, client *api.Client, mcpConfigs []mcp.ServerConfig) error {
-	model, err := inference.Init(ctx, modelConfig)
+func interactive(ctx context.Context, convID string, llmClient inference.BaseLLMClient, apiClient *api.Client, mcpConfigs []mcp.ServerConfig) error {
+	llm, err := inference.Init(ctx, llmClient)
 	if err != nil {
 		log.Fatalf("Failed to initialize model: %s", err.Error())
 	}
 
 	toolBox := &tools.ToolBox{
-		Tools: []tools.ToolDefinition{
-			tools.ReadFileDefinition,
-			tools.ListFilesDefinition,
-			tools.EditFileDefinition,
-			tools.GrepSearchDefinition,
-			tools.CodeJudgeDefinition,
+		Tools: []*tools.ToolDefinition{
+			&tools.ReadFileDefinition,
+			&tools.ListFilesDefinition,
+			&tools.EditFileDefinition,
+			&tools.GrepSearchDefinition,
+			&tools.CodeJudgeDefinition,
 		},
 	}
 	var conv *conversation.Conversation
 
 	if convID != "" {
-		conv, err = client.GetConversation(convID)
+		conv, err = apiClient.GetConversation(convID)
 		if err != nil {
 			return err
 		}
 	} else {
-		conv, err = client.CreateConversation()
+		conv, err = apiClient.CreateConversation()
 		if err != nil {
 			return err
 		}
 	}
 
-	a := agent.New(model, conv, toolBox, client, mcpConfigs)
+	a := agent.New(llm, conv, toolBox, apiClient, mcpConfigs)
 
 	// In production, use Background() as the final root context()
 	// For dev env, TODO for temporary scaffolding

@@ -2,10 +2,7 @@ package inference
 
 const (
 	AnthropicModelName = "Claude"
-	OpenAIModelName    = "ChatGPT"
 	GoogleModelName    = "Gemini"
-	MetaModelName      = "Llama"
-	MistralModelName   = "Mistral"
 )
 
 const (
