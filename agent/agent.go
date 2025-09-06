@@ -50,6 +50,8 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	readUserInput := true
 
+	a.conversation.Messages = a.llm.SummarizeHistory(a.conversation.Messages, 20)
+
 	for {
 		if readUserInput {
 			fmt.Print("\u001b[94m>\u001b[0m ")
@@ -73,8 +75,6 @@ func (a *Agent) Run(ctx context.Context) error {
 		}
 
 		a.conversation.Append(agentMsg)
-		// Keep the last 5 messages
-		a.conversation.Messages = a.llm.SummarizeHistory(a.conversation.Messages, 20)
 		a.saveConversation()
 
 		toolResults := []message.ContentBlock{}
@@ -267,12 +267,6 @@ func getModelColor(modelName string) string {
 		return "\u001b[38;5;208m" // Orange
 	case inference.GoogleModelName:
 		return "\u001b[94m" // Blue
-	case inference.OpenAIModelName:
-		return "\u001b[92m" // Green
-	case inference.MetaModelName:
-		return "\u001b[95m" // Purple/Magenta
-	case inference.MistralModelName:
-		return "\u001b[96m" // Cyan
 	default:
 		return "\u001b[97m" // White (default)
 	}

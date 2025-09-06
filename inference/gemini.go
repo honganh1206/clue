@@ -14,48 +14,56 @@ import (
 	"google.golang.org/genai"
 )
 
-type GeminiModel struct {
+type GeminiClient struct {
+	BaseLLMClient
 	client    *genai.Client
 	model     ModelVersion
 	maxTokens int64
-	// TODO: Fields for contents and tools during runtime?
+	// TODO: field for caching
 }
 
-func NewGeminiModel(client *genai.Client, model ModelVersion, maxTokens int64) *GeminiModel {
-	return &GeminiModel{
+func NewGeminiClient(client *genai.Client, model ModelVersion, maxTokens int64) *GeminiClient {
+	return &GeminiClient{
 		client:    client,
 		model:     model,
 		maxTokens: maxTokens,
 	}
 }
 
-func (m *GeminiModel) Name() string {
-	return GoogleModelName
+func (c *GeminiClient) ProviderName() string {
+	return c.BaseLLMClient.Provider
 }
 
 func getGeminiModelName(model ModelVersion) string {
 	return string(model)
 }
 
-func (m *GeminiModel) RunInference(ctx context.Context, msgs []*message.Message, tools []tools.ToolDefinition) (*message.Message, error) {
-	contents := convertToGeminiContents(msgs)
+func (c *GeminiClient) SummarizeHistory(history []*message.Message, threshold int) []*message.Message {
+	return c.BaseLLMClient.BaseSummarizeHistory(history, threshold)
+}
+
+func (c *GeminiClient) TruncateMessage(msg *message.Message, threshold int) *message.Message {
+	return c.BaseLLMClient.BaseTruncateMessage(msg, threshold)
+}
+func (c *GeminiClient) RunInferenceStream(ctx context.Context, history []*message.Message, tools []*tools.ToolDefinition) (*message.Message, error) {
+	contents := convertToGeminiContents(history)
 
 	geminiTools, err := convertToGeminiTools(tools)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert tools: %w", err)
 	}
 
-	modelName := getGeminiModelName(m.model)
+	modelName := getGeminiModelName(c.model)
 
 	sysPrompt := prompts.GeminiSystemPrompt()
 
 	config := &genai.GenerateContentConfig{
-		MaxOutputTokens:   int32(m.maxTokens),
+		MaxOutputTokens:   int32(c.maxTokens),
 		Tools:             geminiTools,
 		SystemInstruction: genai.NewContentFromText(sysPrompt, genai.RoleUser),
 	}
 
-	iter := m.client.Models.GenerateContentStream(ctx, modelName, contents, config)
+	iter := c.client.Models.GenerateContentStream(ctx, modelName, contents, config)
 
 	response, err := streamGeminiResponse(iter)
 	if err != nil {
@@ -195,7 +203,7 @@ func convertToGeminiParts(blocks []message.ContentBlock) []*genai.Part {
 	return parts
 }
 
-func convertToGeminiTools(tools []tools.ToolDefinition) ([]*genai.Tool, error) {
+func convertToGeminiTools(tools []*tools.ToolDefinition) ([]*genai.Tool, error) {
 	if len(tools) == 0 {
 		return nil, nil
 	}
@@ -215,7 +223,7 @@ func convertToGeminiTools(tools []tools.ToolDefinition) ([]*genai.Tool, error) {
 	return []*genai.Tool{builtinTool}, nil
 }
 
-func convertToGeminiFunctionDeclaration(tool tools.ToolDefinition) (*genai.FunctionDeclaration, error) {
+func convertToGeminiFunctionDeclaration(tool *tools.ToolDefinition) (*genai.FunctionDeclaration, error) {
 	params, err := schema.ConvertToGeminiSchema(tool.InputSchema)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert schema to Gemini format: %w", err)

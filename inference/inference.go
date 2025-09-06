@@ -3,10 +3,13 @@ package inference
 import (
 	"context"
 	"fmt"
+	"log"
+	"os"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/honganh1206/clue/message"
 	"github.com/honganh1206/clue/tools"
+	"google.golang.org/genai"
 )
 
 type LLMClient interface {
@@ -14,8 +17,12 @@ type LLMClient interface {
 	// What to do? Maintain a parallel flattened view/Flatten incrementally with new messages/Modify the engine
 	RunInferenceStream(ctx context.Context, history []*message.Message, tools []*tools.ToolDefinition) (*message.Message, error)
 	SummarizeHistory(history []*message.Message, threshold int) []*message.Message
+	// ApplySlidingWindow(history []*message.Message, windowSize int) []*message.Message
 	TruncateMessage(msg *message.Message, threshold int) *message.Message
 	ProviderName() string
+	// TODO: Implement these
+	// ToNativeMessageStructure()
+	// ToNativeToolSchema()
 }
 
 type BaseLLMClient struct {
@@ -29,15 +36,15 @@ func Init(ctx context.Context, llm BaseLLMClient) (LLMClient, error) {
 	case AnthropicProvider:
 		client := anthropic.NewClient() // Default to look up ANTHROPIC_API_KEY
 		return NewAnthropicClient(&client, ModelVersion(llm.Model), llm.TokenLimit), nil
-	// case GoogleProvider:
-	// 	client, err := genai.NewClient(ctx, &genai.ClientConfig{
-	// 		APIKey:  os.Getenv("GEMINI_API_KEY"),
-	// 		Backend: genai.BackendGeminiAPI,
-	// 	})
-	// 	if err != nil {
-	// 		log.Fatal(err)
-	// 	}
-	// 	return NewGeminiModel(client, ModelVersion(config.Model), config.MaxTokens), nil
+	case GoogleProvider:
+		client, err := genai.NewClient(ctx, &genai.ClientConfig{
+			APIKey:  os.Getenv("GEMINI_API_KEY"),
+			Backend: genai.BackendGeminiAPI,
+		})
+		if err != nil {
+			log.Fatal(err)
+		}
+		return NewGeminiClient(client, ModelVersion(llm.Model), llm.TokenLimit), nil
 	default:
 		return nil, fmt.Errorf("unknown model provider: %s", llm.Provider)
 	}
@@ -75,13 +82,12 @@ func GetDefaultModel(provider ProviderName) ModelVersion {
 	case AnthropicProvider:
 		return Claude35Sonnet
 	case GoogleProvider:
-		return Gemini25Pro
+		return Gemini25Flash
 	default:
 		return ""
 	}
 }
 
-// optimizeMessageHistory implements sliding window and summarization for message history
 func (b *BaseLLMClient) BaseSummarizeHistory(history []*message.Message, threshold int) []*message.Message {
 	if len(history) <= threshold {
 		return history

@@ -30,16 +30,16 @@ func NewAnthropicClient(client *anthropic.Client, model ModelVersion, maxTokens 
 	}
 }
 
-func (m *AnthropicClient) ProviderName() string {
-	return m.BaseLLMClient.Provider
+func (c *AnthropicClient) ProviderName() string {
+	return c.BaseLLMClient.Provider
 }
 
-func (m *AnthropicClient) SummarizeHistory(history []*message.Message, threshold int) []*message.Message {
-	return m.BaseLLMClient.BaseSummarizeHistory(history, threshold)
+func (c *AnthropicClient) SummarizeHistory(history []*message.Message, threshold int) []*message.Message {
+	return c.BaseLLMClient.BaseSummarizeHistory(history, threshold)
 }
 
-func (m *AnthropicClient) TruncateMessage(msg *message.Message, threshold int) *message.Message {
-	return m.BaseLLMClient.BaseTruncateMessage(msg, threshold)
+func (c *AnthropicClient) TruncateMessage(msg *message.Message, threshold int) *message.Message {
+	return c.BaseLLMClient.BaseTruncateMessage(msg, threshold)
 }
 
 func getAnthropicModel(model ModelVersion) anthropic.Model {
@@ -63,7 +63,7 @@ func getAnthropicModel(model ModelVersion) anthropic.Model {
 	}
 }
 
-func (m *AnthropicClient) RunInferenceStream(ctx context.Context, history []*message.Message, tools []*tools.ToolDefinition) (*message.Message, error) {
+func (c *AnthropicClient) RunInferenceStream(ctx context.Context, history []*message.Message, tools []*tools.ToolDefinition) (*message.Message, error) {
 	anthropicMsgs := convertToAnthropicMsgs(history)
 
 	anthropicTools, err := convertToAnthropicTools(tools)
@@ -75,13 +75,13 @@ func (m *AnthropicClient) RunInferenceStream(ctx context.Context, history []*mes
 
 	// Optimize system prompt for caching - split into cacheable and dynamic parts
 
-	anthropicStream := m.client.Messages.NewStreaming(ctx, anthropic.MessageNewParams{
-		Model:     getAnthropicModel(m.model),
-		MaxTokens: m.maxTokens,
+	anthropicStream := c.client.Messages.NewStreaming(ctx, anthropic.MessageNewParams{
+		Model:     getAnthropicModel(c.model),
+		MaxTokens: c.maxTokens,
 		Messages:  anthropicMsgs,
 		Tools:     anthropicTools,
 		System: []anthropic.TextBlockParam{
-			{Text: systemPrompt, CacheControl: m.cache}},
+			{Text: systemPrompt, CacheControl: c.cache}},
 	})
 
 	response, err := streamAnthropicResponse(anthropicStream)
