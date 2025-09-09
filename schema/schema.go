@@ -23,6 +23,7 @@ func Generate[T any]() *jsonschema.Schema {
 	return rawSchema
 }
 
+// TODO: Use when migrating from jsonschema to json.RawMessage?
 func ConvertStructToJSONRawMessage[T any]() json.RawMessage {
 	var v T
 	b, err := json.Marshal(v)

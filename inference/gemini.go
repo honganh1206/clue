@@ -19,6 +19,8 @@ type GeminiClient struct {
 	client    *genai.Client
 	model     ModelVersion
 	maxTokens int64
+	contents  []*genai.Content
+	tools     []*genai.Tool
 	// TODO: field for caching
 }
 
@@ -45,25 +47,18 @@ func (c *GeminiClient) SummarizeHistory(history []*message.Message, threshold in
 func (c *GeminiClient) TruncateMessage(msg *message.Message, threshold int) *message.Message {
 	return c.BaseLLMClient.BaseTruncateMessage(msg, threshold)
 }
-func (c *GeminiClient) RunInferenceStream(ctx context.Context, history []*message.Message, tools []*tools.ToolDefinition) (*message.Message, error) {
-	contents := convertToGeminiContents(history)
-
-	geminiTools, err := convertToGeminiTools(tools)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert tools: %w", err)
-	}
-
+func (c *GeminiClient) RunInferenceStream(ctx context.Context) (*message.Message, error) {
 	modelName := getGeminiModelName(c.model)
 
 	sysPrompt := prompts.GeminiSystemPrompt()
 
 	config := &genai.GenerateContentConfig{
 		MaxOutputTokens:   int32(c.maxTokens),
-		Tools:             geminiTools,
+		Tools:             c.tools,
 		SystemInstruction: genai.NewContentFromText(sysPrompt, genai.RoleUser),
 	}
 
-	iter := c.client.Models.GenerateContentStream(ctx, modelName, contents, config)
+	iter := c.client.Models.GenerateContentStream(ctx, modelName, c.contents, config)
 
 	response, err := streamGeminiResponse(iter)
 	if err != nil {
@@ -71,6 +66,58 @@ func (c *GeminiClient) RunInferenceStream(ctx context.Context, history []*messag
 	}
 
 	return response, nil
+}
+
+func (c *GeminiClient) ToNativeHistory(history []*message.Message) error {
+	if len(history) == 0 {
+		// TODO: Add custom error
+		return nil
+	}
+	c.contents = make([]*genai.Content, 0, len(history))
+
+	for _, msg := range history {
+		// TODO: Add custom error
+		_ = c.ToNativeMessage(msg)
+	}
+
+	return nil
+}
+
+func (c *GeminiClient) ToNativeMessage(msg *message.Message) error {
+	parts := convertToGeminiParts(msg.Content)
+	if len(parts) == 0 {
+		return nil
+	}
+
+	content := &genai.Content{
+		Role:  msg.Role,
+		Parts: parts,
+	}
+
+	c.contents = append(c.contents, content)
+	return nil
+}
+
+func (c *GeminiClient) ToNativeTools(tools []*tools.ToolDefinition) error {
+	if len(tools) == 0 {
+		return nil
+	}
+
+	builtinTool := &genai.Tool{
+		FunctionDeclarations: make([]*genai.FunctionDeclaration, 0, len(tools)),
+	}
+
+	for _, tool := range tools {
+		geminiToolFuncDec, err := convertToGeminiFunctionDeclaration(tool)
+		if err != nil {
+			return err
+		}
+		builtinTool.FunctionDeclarations = append(builtinTool.FunctionDeclarations, geminiToolFuncDec)
+	}
+
+	c.tools = []*genai.Tool{builtinTool}
+
+	return nil
 }
 
 func streamGeminiResponse(response iter.Seq2[*genai.GenerateContentResponse, error]) (*message.Message, error) {
@@ -148,26 +195,6 @@ func streamGeminiResponse(response iter.Seq2[*genai.GenerateContentResponse, err
 	fmt.Println()
 
 	return msg, nil
-}
-
-func convertToGeminiContents(msgs []*message.Message) []*genai.Content {
-	contents := make([]*genai.Content, 0, len(msgs))
-
-	for _, msg := range msgs {
-		parts := convertToGeminiParts(msg.Content)
-		if len(parts) == 0 {
-			continue
-		}
-
-		content := &genai.Content{
-			Role:  msg.Role,
-			Parts: parts,
-		}
-
-		contents = append(contents, content)
-	}
-
-	return contents
 }
 
 func convertToGeminiParts(blocks []message.ContentBlock) []*genai.Part {

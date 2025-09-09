@@ -3,10 +3,13 @@ package inference
 import (
 	"context"
 	"fmt"
+	"log"
+	"os"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/honganh1206/clue/message"
 	"github.com/honganh1206/clue/tools"
+	"google.golang.org/genai"
 )
 
 type LLMClient interface {
@@ -34,15 +37,15 @@ func Init(ctx context.Context, llm BaseLLMClient) (LLMClient, error) {
 	case AnthropicProvider:
 		client := anthropic.NewClient() // Default to look up ANTHROPIC_API_KEY
 		return NewAnthropicClient(&client, ModelVersion(llm.Model), llm.TokenLimit), nil
-	// case GoogleProvider:
-	// 	client, err := genai.NewClient(ctx, &genai.ClientConfig{
-	// 		APIKey:  os.Getenv("GEMINI_API_KEY"),
-	// 		Backend: genai.BackendGeminiAPI,
-	// 	})
-	// 	if err != nil {
-	// 		log.Fatal(err)
-	// 	}
-	// 	return NewGeminiClient(client, ModelVersion(llm.Model), llm.TokenLimit), nil
+	case GoogleProvider:
+		client, err := genai.NewClient(ctx, &genai.ClientConfig{
+			APIKey:  os.Getenv("GEMINI_API_KEY"),
+			Backend: genai.BackendGeminiAPI,
+		})
+		if err != nil {
+			log.Fatal(err)
+		}
+		return NewGeminiClient(client, ModelVersion(llm.Model), llm.TokenLimit), nil
 	default:
 		return nil, fmt.Errorf("unknown model provider: %s", llm.Provider)
 	}

@@ -19,8 +19,6 @@ var codeJudgePrompt string
 
 var CodeJudgeInputSchema = schema.Generate[CodeJudgeInput]()
 
-// TODO: Calling this is very costly :)
-// 2 requests already cost 2 mil tokens
 var CodeJudgeDefinition = ToolDefinition{
 	Name:        "code_judge",
 	Description: codeJudgePrompt,
@@ -35,7 +33,6 @@ type JudgementResult struct {
 
 func CodeJudge(input json.RawMessage) (string, error) {
 	var judgeInput CodeJudgeInput
-	// TODO: Fail to unmarshal input here
 	err := json.Unmarshal(input, &judgeInput)
 	if err != nil {
 		return "", fmt.Errorf("failed to unmarshal input: %w", err)

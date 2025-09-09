@@ -13,9 +13,6 @@ import (
 	"github.com/honganh1206/clue/tools"
 )
 
-// Global counter for debug tracking
-var convertToAnthropicMsgsCounter int64
-
 type AnthropicClient struct {
 	BaseLLMClient
 	client    *anthropic.Client
@@ -24,6 +21,7 @@ type AnthropicClient struct {
 	cache     anthropic.CacheControlEphemeralParam
 	history   []anthropic.MessageParam
 	tools     []anthropic.ToolUnionParam
+	// TODO: Field for system prompt
 }
 
 func NewAnthropicClient(client *anthropic.Client, model ModelVersion, maxTokens int64) *AnthropicClient {
@@ -69,6 +67,7 @@ func getAnthropicModel(model ModelVersion) anthropic.Model {
 }
 
 func (c *AnthropicClient) RunInferenceStream(ctx context.Context) (*message.Message, error) {
+	// TODO: This should be called once only
 	systemPrompt := prompts.ClaudeSystemPrompt()
 
 	// Optimize system prompt for caching - split into cacheable and dynamic parts

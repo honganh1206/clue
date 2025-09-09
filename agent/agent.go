@@ -78,10 +78,6 @@ func (a *Agent) Run(ctx context.Context) error {
 			a.saveConversation()
 		}
 
-		// if len(a.conversation.Messages) != 0 {
-		// 	// At this point the conversation is still null
-		// 	a.llm.ToNativeMessages(a.conversation.Messages)
-		// }
 		agentMsg, err := a.llm.RunInferenceStream(ctx)
 		if err != nil {
 			return err
@@ -96,6 +92,7 @@ func (a *Agent) Run(ctx context.Context) error {
 			switch block := c.(type) {
 			// TODO: Switch case for text type should be here
 			// and we need to stream the response here, not inside the model integrations
+			// and we can do proper output formatting here instead
 			case message.ToolUseBlock:
 				result := a.executeTool(block.ID, block.Name, block.Input)
 				toolResults = append(toolResults, result)
@@ -114,10 +111,8 @@ func (a *Agent) Run(ctx context.Context) error {
 			Content: toolResults,
 		}
 
-		truncatedToolResultMsg := a.llm.TruncateMessage(toolResultMsg, 5000)
-
-		_ = a.llm.ToNativeMessage(truncatedToolResultMsg)
-		a.conversation.Append(truncatedToolResultMsg)
+		_ = a.llm.ToNativeMessage(toolResultMsg)
+		a.conversation.Append(toolResultMsg)
 		a.saveConversation()
 	}
 

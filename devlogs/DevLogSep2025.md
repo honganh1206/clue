@@ -13,3 +13,7 @@ We also have to do some _content reduction strategies_:
 And there is this _prompt steering problem_: Whenever I try to tell the agent to "read file x", it takes it quite literally by reading the absolute path of the file I gave it, then later realizing that there is not such file in that folder, it invokes the search tool.
 
 I need it to invoke the search tool _in the first place_.
+
+Sep 9th: I have just realized that I did not skip the `.git` folder when invoking `list_files` tool :) That's why the number of input tokens was so damn high.
+
+Anyways, the `TruncateMessage` and `SummarizeHistory` methods for `LLMClient` might still be useful in the future.
