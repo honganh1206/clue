@@ -13,12 +13,17 @@ import (
 	"github.com/honganh1206/clue/tools"
 )
 
+// Global counter for debug tracking
+var convertToAnthropicMsgsCounter int64
+
 type AnthropicClient struct {
 	BaseLLMClient
 	client    *anthropic.Client
 	model     ModelVersion
 	maxTokens int64
 	cache     anthropic.CacheControlEphemeralParam
+	history   []anthropic.MessageParam
+	tools     []anthropic.ToolUnionParam
 }
 
 func NewAnthropicClient(client *anthropic.Client, model ModelVersion, maxTokens int64) *AnthropicClient {
@@ -63,23 +68,15 @@ func getAnthropicModel(model ModelVersion) anthropic.Model {
 	}
 }
 
-func (c *AnthropicClient) RunInferenceStream(ctx context.Context, history []*message.Message, tools []*tools.ToolDefinition) (*message.Message, error) {
-	anthropicMsgs := convertToAnthropicMsgs(history)
-
-	anthropicTools, err := convertToAnthropicTools(tools)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert tools: %w", err)
-	}
-
+func (c *AnthropicClient) RunInferenceStream(ctx context.Context) (*message.Message, error) {
 	systemPrompt := prompts.ClaudeSystemPrompt()
 
 	// Optimize system prompt for caching - split into cacheable and dynamic parts
-
 	anthropicStream := c.client.Messages.NewStreaming(ctx, anthropic.MessageNewParams{
 		Model:     getAnthropicModel(c.model),
 		MaxTokens: c.maxTokens,
-		Messages:  anthropicMsgs,
-		Tools:     anthropicTools,
+		Messages:  c.history,
+		Tools:     c.tools,
 		System: []anthropic.TextBlockParam{
 			{Text: systemPrompt, CacheControl: c.cache}},
 	})
@@ -92,30 +89,53 @@ func (c *AnthropicClient) RunInferenceStream(ctx context.Context, history []*mes
 	return response, nil
 }
 
-// Convert generic messages to Anthropic ones
-func convertToAnthropicMsgs(msgs []*message.Message) []anthropic.MessageParam {
-	anthropicMsgs := make([]anthropic.MessageParam, 0, len(msgs))
+func (c *AnthropicClient) ToNativeHistory(history []*message.Message) error {
+	if len(history) == 0 {
+		// TODO: Add custom error
+		return nil
+	}
+	c.history = make([]anthropic.MessageParam, 0, len(history))
 
-	for _, msg := range msgs {
-
-		var anthropicMsg anthropic.MessageParam
-
-		blocks := convertToAnthropicBlocks(msg.Content)
-
-		switch msg.Role {
-		case message.UserRole:
-			anthropicMsg = anthropic.NewUserMessage(blocks...)
-		case message.AssistantRole:
-			anthropicMsg = anthropic.NewAssistantMessage(blocks...)
-		}
-
-		anthropicMsgs = append(anthropicMsgs, anthropicMsg)
-
-		continue
-
+	for _, msg := range history {
+		// TOD): Error handling
+		_ = c.ToNativeMessage(msg)
 	}
 
-	return anthropicMsgs
+	return nil
+}
+
+func (c *AnthropicClient) ToNativeMessage(msg *message.Message) error {
+	// TODO: Add null check
+	var nativeMsg anthropic.MessageParam
+	blocks := convertToAnthropicBlocks(msg.Content)
+	switch msg.Role {
+	case message.UserRole:
+		nativeMsg = anthropic.NewUserMessage(blocks...)
+	case message.AssistantRole:
+		nativeMsg = anthropic.NewAssistantMessage(blocks...)
+	}
+
+	c.history = append(c.history, nativeMsg)
+	return nil
+}
+
+func (c *AnthropicClient) ToNativeTools(tools []*tools.ToolDefinition) error {
+	if len(tools) == 0 {
+		return nil
+	}
+
+	c.tools = make([]anthropic.ToolUnionParam, 0, len(tools))
+
+	for _, tool := range tools {
+		anthropicTool, err := convertToAnthropicTool(tool)
+		if err != nil {
+			return err
+		}
+
+		c.tools = append(c.tools, anthropicTool)
+	}
+
+	return nil
 }
 
 func convertToAnthropicBlocks(blocks []message.ContentBlock) []anthropic.ContentBlockParamUnion {
@@ -188,40 +208,21 @@ func convertFromAnthropicMessage(anthropicMsg anthropic.Message) (*message.Messa
 	return msg, nil
 }
 
-func convertToAnthropicTools(tools []*tools.ToolDefinition) ([]anthropic.ToolUnionParam, error) {
-	if len(tools) == 0 {
-		return nil, nil
-	}
-
-	anthropicTools := make([]anthropic.ToolUnionParam, 0, len(tools))
-
-	for _, tool := range tools {
-		anthropicTool, err := convertToAnthropicTool(tool)
-		if err != nil {
-			return nil, err
-		}
-
-		anthropicTools = append(anthropicTools, *anthropicTool)
-	}
-
-	return anthropicTools, nil
-}
-
 // Convert generic schema to Anthropic schema
-func convertToAnthropicTool(tool *tools.ToolDefinition) (*anthropic.ToolUnionParam, error) {
+func convertToAnthropicTool(tool *tools.ToolDefinition) (anthropic.ToolUnionParam, error) {
 	schema, err := json.Marshal(tool.InputSchema)
 	if err != nil {
-		return nil, err
+		// return nil, err
 	}
 
 	var anthropicSchema anthropic.ToolInputSchemaParam
 	if err := json.Unmarshal(schema, &anthropicSchema); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal to Anthropic schema: %w", err)
+		// return nil, fmt.Errorf("failed to unmarshal to Anthropic schema: %w", err)
 	}
 
 	// Grouping tools together in an unified interface for code, bash and text editor?
 	// No need to know the internal details
-	return &anthropic.ToolUnionParam{
+	return anthropic.ToolUnionParam{
 		OfTool: &anthropic.ToolParam{
 			Name:        tool.Name,
 			Description: anthropic.String(tool.Description),

@@ -52,6 +52,14 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	a.conversation.Messages = a.llm.SummarizeHistory(a.conversation.Messages, 20)
 
+	if len(a.conversation.Messages) != 0 {
+		// TODO: Pass the continue conversation flag here?
+		// At this point the conversation is still null
+		a.llm.ToNativeHistory(a.conversation.Messages)
+	}
+
+	a.llm.ToNativeTools(a.toolBox.Tools)
+
 	for {
 		if readUserInput {
 			fmt.Print("\u001b[94m>\u001b[0m ")
@@ -64,16 +72,21 @@ func (a *Agent) Run(ctx context.Context) error {
 				Role:    message.UserRole,
 				Content: []message.ContentBlock{message.NewTextBlock(userInput)},
 			}
-
+			// TODO: Error handling
+			_ = a.llm.ToNativeMessage(userMsg)
 			a.conversation.Append(userMsg)
 			a.saveConversation()
 		}
 
-		agentMsg, err := a.llm.RunInferenceStream(ctx, a.conversation.Messages, a.toolBox.Tools)
+		// if len(a.conversation.Messages) != 0 {
+		// 	// At this point the conversation is still null
+		// 	a.llm.ToNativeMessages(a.conversation.Messages)
+		// }
+		agentMsg, err := a.llm.RunInferenceStream(ctx)
 		if err != nil {
 			return err
 		}
-
+		_ = a.llm.ToNativeMessage(agentMsg)
 		a.conversation.Append(agentMsg)
 		a.saveConversation()
 
@@ -103,6 +116,7 @@ func (a *Agent) Run(ctx context.Context) error {
 
 		truncatedToolResultMsg := a.llm.TruncateMessage(toolResultMsg, 5000)
 
+		_ = a.llm.ToNativeMessage(truncatedToolResultMsg)
 		a.conversation.Append(truncatedToolResultMsg)
 		a.saveConversation()
 	}
