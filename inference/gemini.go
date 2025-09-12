@@ -3,6 +3,7 @@ package inference
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"iter"
@@ -48,6 +49,10 @@ func (c *GeminiClient) TruncateMessage(msg *message.Message, threshold int) *mes
 	return c.BaseLLMClient.BaseTruncateMessage(msg, threshold)
 }
 func (c *GeminiClient) RunInferenceStream(ctx context.Context) (*message.Message, error) {
+	if len(c.contents) == 0 {
+		return nil, errors.New("gemini: no messages in conversation history")
+	}
+
 	modelName := getGeminiModelName(c.model)
 
 	sysPrompt := prompts.GeminiSystemPrompt()
@@ -70,23 +75,27 @@ func (c *GeminiClient) RunInferenceStream(ctx context.Context) (*message.Message
 
 func (c *GeminiClient) ToNativeHistory(history []*message.Message) error {
 	if len(history) == 0 {
-		// TODO: Add custom error
-		return nil
+		return errors.New("gemini: empty conversation history")
 	}
 	c.contents = make([]*genai.Content, 0, len(history))
 
 	for _, msg := range history {
-		// TODO: Add custom error
-		_ = c.ToNativeMessage(msg)
+		if err := c.ToNativeMessage(msg); err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
 
 func (c *GeminiClient) ToNativeMessage(msg *message.Message) error {
+	if msg == nil {
+		return errors.New("gemini: message is nil")
+	}
+
 	parts := convertToGeminiParts(msg.Content)
 	if len(parts) == 0 {
-		return nil
+		return errors.New("gemini: message has no content parts")
 	}
 
 	content := &genai.Content{
@@ -100,7 +109,7 @@ func (c *GeminiClient) ToNativeMessage(msg *message.Message) error {
 
 func (c *GeminiClient) ToNativeTools(tools []*tools.ToolDefinition) error {
 	if len(tools) == 0 {
-		return nil
+		return errors.New("gemini: no tools provided")
 	}
 
 	builtinTool := &genai.Tool{

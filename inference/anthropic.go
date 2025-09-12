@@ -67,6 +67,10 @@ func getAnthropicModel(model ModelVersion) anthropic.Model {
 }
 
 func (c *AnthropicClient) RunInferenceStream(ctx context.Context) (*message.Message, error) {
+	if len(c.history) == 0 {
+		return nil, errors.New("anthropic: no messages in conversation history")
+	}
+
 	// TODO: This should be called once only
 	systemPrompt := prompts.ClaudeSystemPrompt()
 
@@ -90,21 +94,24 @@ func (c *AnthropicClient) RunInferenceStream(ctx context.Context) (*message.Mess
 
 func (c *AnthropicClient) ToNativeHistory(history []*message.Message) error {
 	if len(history) == 0 {
-		// TODO: Add custom error
-		return nil
+		return errors.New("anthropic: empty conversation history")
 	}
 	c.history = make([]anthropic.MessageParam, 0, len(history))
 
 	for _, msg := range history {
-		// TOD): Error handling
-		_ = c.ToNativeMessage(msg)
+		if err := c.ToNativeMessage(msg); err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
 
 func (c *AnthropicClient) ToNativeMessage(msg *message.Message) error {
-	// TODO: Add null check
+	if msg == nil {
+		return errors.New("anthropic: message is nil")
+	}
+
 	var nativeMsg anthropic.MessageParam
 	blocks := convertToAnthropicBlocks(msg.Content)
 	switch msg.Role {
@@ -112,6 +119,8 @@ func (c *AnthropicClient) ToNativeMessage(msg *message.Message) error {
 		nativeMsg = anthropic.NewUserMessage(blocks...)
 	case message.AssistantRole:
 		nativeMsg = anthropic.NewAssistantMessage(blocks...)
+	default:
+		return errors.New("anthropic: invalid message role")
 	}
 
 	c.history = append(c.history, nativeMsg)

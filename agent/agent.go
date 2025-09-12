@@ -53,8 +53,6 @@ func (a *Agent) Run(ctx context.Context) error {
 	a.conversation.Messages = a.llm.SummarizeHistory(a.conversation.Messages, 20)
 
 	if len(a.conversation.Messages) != 0 {
-		// TODO: Pass the continue conversation flag here?
-		// At this point the conversation is still null
 		a.llm.ToNativeHistory(a.conversation.Messages)
 	}
 
@@ -72,8 +70,11 @@ func (a *Agent) Run(ctx context.Context) error {
 				Role:    message.UserRole,
 				Content: []message.ContentBlock{message.NewTextBlock(userInput)},
 			}
-			// TODO: Error handling
-			_ = a.llm.ToNativeMessage(userMsg)
+			err := a.llm.ToNativeMessage(userMsg)
+			if err != nil {
+				return err
+			}
+
 			a.conversation.Append(userMsg)
 			a.saveConversation()
 		}
@@ -82,7 +83,12 @@ func (a *Agent) Run(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		_ = a.llm.ToNativeMessage(agentMsg)
+
+		err = a.llm.ToNativeMessage(agentMsg)
+		if err != nil {
+			return err
+		}
+
 		a.conversation.Append(agentMsg)
 		a.saveConversation()
 
@@ -111,7 +117,11 @@ func (a *Agent) Run(ctx context.Context) error {
 			Content: toolResults,
 		}
 
-		_ = a.llm.ToNativeMessage(toolResultMsg)
+		err = a.llm.ToNativeMessage(toolResultMsg)
+		if err != nil {
+			return err
+		}
+
 		a.conversation.Append(toolResultMsg)
 		a.saveConversation()
 	}
