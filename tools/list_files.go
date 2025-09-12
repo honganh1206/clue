@@ -41,6 +41,12 @@ func ListFiles(input json.RawMessage) (string, error) {
 			return err
 		}
 
+		// Adding this makes the code runs a lot faster.
+		// Should have thought of this sooner :)
+		if info.IsDir() && info.Name() == ".git" {
+			return filepath.SkipDir
+		}
+
 		relPath, err := filepath.Rel(dir, path)
 		if err != nil {
 			return err

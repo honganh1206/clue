@@ -1,21 +1,25 @@
 package tools
 
 import (
+	_ "embed"
 	"encoding/json"
 	"os"
 
 	"github.com/honganh1206/clue/schema"
 )
 
+//go:embed read_file.md
+var readFilePrompt string
+
 type ReadFileInput struct {
-	Path string `json:"path" jsonschema_description:"The relative path of a file in the working directory."`
+	Path string `json:"path" jsonschema_description:"The absolute path of a file in the working directory."`
 }
 
 var ReadFileInputSchema = schema.Generate[ReadFileInput]()
 
 var ReadFileDefinition = ToolDefinition{
 	Name:        "read_file",
-	Description: "Read the contents of a given relative file path. Use this when you want to see what's inside a file. Do not use this with directory names.",
+	Description: readFilePrompt,
 	InputSchema: ReadFileInputSchema, // Machine-readable description of the tool's input
 	Function:    ReadFile,
 }

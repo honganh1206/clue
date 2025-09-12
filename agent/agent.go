@@ -16,16 +16,16 @@ import (
 )
 
 type Agent struct {
-	model        inference.Model
+	llm          inference.LLMClient
 	toolBox      *tools.ToolBox
 	conversation *conversation.Conversation
 	client       *api.Client
 	mcp          mcp.Config
 }
 
-func New(model inference.Model, conversation *conversation.Conversation, toolBox *tools.ToolBox, client *api.Client, mcpConfigs []mcp.ServerConfig) *Agent {
+func New(llm inference.LLMClient, conversation *conversation.Conversation, toolBox *tools.ToolBox, client *api.Client, mcpConfigs []mcp.ServerConfig) *Agent {
 	agent := &Agent{
-		model:        model,
+		llm:          llm,
 		toolBox:      toolBox,
 		conversation: conversation,
 		client:       client,
@@ -42,13 +42,21 @@ func New(model inference.Model, conversation *conversation.Conversation, toolBox
 
 func (a *Agent) Run(ctx context.Context) error {
 	defer a.shutdownMCPServers()
-	modelName := a.model.Name()
+	modelName := a.llm.ProviderName()
 	colorCode := getModelColor(modelName)
 	resetCode := "\u001b[0m"
 
 	fmt.Printf("Chat with %s%s%s (use 'ctrl-c' to quit)\n", colorCode, modelName, resetCode)
 
 	readUserInput := true
+
+	a.conversation.Messages = a.llm.SummarizeHistory(a.conversation.Messages, 20)
+
+	if len(a.conversation.Messages) != 0 {
+		a.llm.ToNativeHistory(a.conversation.Messages)
+	}
+
+	a.llm.ToNativeTools(a.toolBox.Tools)
 
 	for {
 		if readUserInput {
@@ -60,14 +68,23 @@ func (a *Agent) Run(ctx context.Context) error {
 
 			userMsg := &message.Message{
 				Role:    message.UserRole,
-				Content: []message.ContentBlockUnion{message.NewTextContentBlock(userInput)},
+				Content: []message.ContentBlock{message.NewTextBlock(userInput)},
+			}
+			err := a.llm.ToNativeMessage(userMsg)
+			if err != nil {
+				return err
 			}
 
 			a.conversation.Append(userMsg)
 			a.saveConversation()
 		}
 
-		agentMsg, err := a.model.CompleteStream(ctx, a.conversation.Messages, a.toolBox.Tools)
+		agentMsg, err := a.llm.RunInferenceStream(ctx)
+		if err != nil {
+			return err
+		}
+
+		err = a.llm.ToNativeMessage(agentMsg)
 		if err != nil {
 			return err
 		}
@@ -75,14 +92,15 @@ func (a *Agent) Run(ctx context.Context) error {
 		a.conversation.Append(agentMsg)
 		a.saveConversation()
 
-		toolResults := []message.ContentBlockUnion{}
+		toolResults := []message.ContentBlock{}
 
 		for _, c := range agentMsg.Content {
-			switch c.Type {
+			switch block := c.(type) {
 			// TODO: Switch case for text type should be here
 			// and we need to stream the response here, not inside the model integrations
-			case message.ToolUseType:
-				result := a.executeTool(c.OfToolUseBlock.ID, c.OfToolUseBlock.Name, c.OfToolUseBlock.Input)
+			// and we can do proper output formatting here instead
+			case message.ToolUseBlock:
+				result := a.executeTool(block.ID, block.Name, block.Input)
 				toolResults = append(toolResults, result)
 			}
 		}
@@ -97,6 +115,11 @@ func (a *Agent) Run(ctx context.Context) error {
 		toolResultMsg := &message.Message{
 			Role:    message.UserRole,
 			Content: toolResults,
+		}
+
+		err = a.llm.ToNativeMessage(toolResultMsg)
+		if err != nil {
+			return err
 		}
 
 		a.conversation.Append(toolResultMsg)
@@ -145,7 +168,7 @@ func (a *Agent) registerMCPServers() {
 		for _, t := range tool {
 			toolName := fmt.Sprintf("%s_%s", server.ID(), t.Name)
 
-			decl := tools.ToolDefinition{
+			decl := &tools.ToolDefinition{
 				Name:        toolName,
 				Description: t.Description,
 				InputSchema: t.InputSchema,
@@ -170,14 +193,14 @@ func (a *Agent) registerMCPServers() {
 	}
 }
 
-func (a *Agent) executeTool(id, name string, input json.RawMessage) message.ContentBlockUnion {
+func (a *Agent) executeTool(id, name string, input json.RawMessage) message.ContentBlock {
 	if execDetails, isMCPTool := a.mcp.ToolMap[name]; isMCPTool {
 		return a.executeMCPTool(id, name, input, execDetails)
 	}
 	return a.executeLocalTool(id, name, input)
 }
 
-func (a *Agent) executeMCPTool(id, name string, input json.RawMessage, toolDetails mcp.ToolDetails) message.ContentBlockUnion {
+func (a *Agent) executeMCPTool(id, name string, input json.RawMessage, toolDetails mcp.ToolDetails) message.ContentBlock {
 	// TODO: Copy from local tool execution
 	// might need more rework
 	fmt.Printf("\u001b[92mtool\u001b[0m: %s(%s)\n", name, input)
@@ -197,11 +220,11 @@ func (a *Agent) executeMCPTool(id, name string, input json.RawMessage, toolDetai
 	result, err := toolDetails.Server.Call(context.Background(), name, args)
 
 	if err != nil {
-		return message.NewToolResultContentBlock(id, name,
+		return message.NewToolResultBlock(id, name,
 			fmt.Sprintf("MCP tool %s execution error: %v", name, err), true)
 	}
 	if result == nil {
-		return message.NewToolResultContentBlock(id, name, "Tool executed successfully but returned no content", false)
+		return message.NewToolResultBlock(id, name, "Tool executed successfully but returned no content", false)
 	}
 
 	// We have to do this,
@@ -210,14 +233,14 @@ func (a *Agent) executeMCPTool(id, name string, input json.RawMessage, toolDetai
 	// even though we do have :)
 	content := fmt.Sprintf("%v", result)
 	if content == "" {
-		return message.NewToolResultContentBlock(id, name, "Tool executed successfully but returned empty content", false)
+		return message.NewToolResultBlock(id, name, "Tool executed successfully but returned empty content", false)
 	}
 
-	return message.NewToolResultContentBlock(id, name, content, false)
+	return message.NewToolResultBlock(id, name, content, false)
 }
 
-func (a *Agent) executeLocalTool(id, name string, input json.RawMessage) message.ContentBlockUnion {
-	var toolDef tools.ToolDefinition
+func (a *Agent) executeLocalTool(id, name string, input json.RawMessage) message.ContentBlock {
+	var toolDef *tools.ToolDefinition
 	var found bool
 	for _, tool := range a.toolBox.Tools {
 		if tool.Name == name {
@@ -230,7 +253,7 @@ func (a *Agent) executeLocalTool(id, name string, input json.RawMessage) message
 	if !found {
 		// TODO: Return proper error type
 		errorMsg := "tool not found"
-		return message.NewToolResultContentBlock(id, name, errorMsg, true)
+		return message.NewToolResultBlock(id, name, errorMsg, true)
 	}
 
 	fmt.Printf("\u001b[92mtool\u001b[0m: %s(%s)\n", name, input)
@@ -239,10 +262,10 @@ func (a *Agent) executeLocalTool(id, name string, input json.RawMessage) message
 	response, err := toolDef.Function(input)
 
 	if err != nil {
-		return message.NewToolResultContentBlock(id, name, err.Error(), true)
+		return message.NewToolResultBlock(id, name, err.Error(), true)
 	}
 
-	return message.NewToolResultContentBlock(id, name, response, false)
+	return message.NewToolResultBlock(id, name, response, false)
 }
 
 // TODO: Should this be in interactive.go?
@@ -263,12 +286,6 @@ func getModelColor(modelName string) string {
 		return "\u001b[38;5;208m" // Orange
 	case inference.GoogleModelName:
 		return "\u001b[94m" // Blue
-	case inference.OpenAIModelName:
-		return "\u001b[92m" // Green
-	case inference.MetaModelName:
-		return "\u001b[95m" // Purple/Magenta
-	case inference.MistralModelName:
-		return "\u001b[96m" // Cyan
 	default:
 		return "\u001b[97m" // White (default)
 	}

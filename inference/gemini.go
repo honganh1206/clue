@@ -3,6 +3,7 @@ package inference
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"iter"
@@ -14,48 +15,55 @@ import (
 	"google.golang.org/genai"
 )
 
-type GeminiModel struct {
+type GeminiClient struct {
+	BaseLLMClient
 	client    *genai.Client
 	model     ModelVersion
 	maxTokens int64
-	// TODO: Fields for contents and tools during runtime?
+	contents  []*genai.Content
+	tools     []*genai.Tool
+	// TODO: field for caching
 }
 
-func NewGeminiModel(client *genai.Client, model ModelVersion, maxTokens int64) *GeminiModel {
-	return &GeminiModel{
+func NewGeminiClient(client *genai.Client, model ModelVersion, maxTokens int64) *GeminiClient {
+	return &GeminiClient{
 		client:    client,
 		model:     model,
 		maxTokens: maxTokens,
 	}
 }
 
-func (m *GeminiModel) Name() string {
-	return GoogleModelName
+func (c *GeminiClient) ProviderName() string {
+	return c.BaseLLMClient.Provider
 }
 
 func getGeminiModelName(model ModelVersion) string {
 	return string(model)
 }
 
-func (m *GeminiModel) CompleteStream(ctx context.Context, msgs []*message.Message, tools []tools.ToolDefinition) (*message.Message, error) {
-	contents := convertToGeminiContents(msgs)
+func (c *GeminiClient) SummarizeHistory(history []*message.Message, threshold int) []*message.Message {
+	return c.BaseLLMClient.BaseSummarizeHistory(history, threshold)
+}
 
-	geminiTools, err := convertToGeminiTools(tools)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert tools: %w", err)
+func (c *GeminiClient) TruncateMessage(msg *message.Message, threshold int) *message.Message {
+	return c.BaseLLMClient.BaseTruncateMessage(msg, threshold)
+}
+func (c *GeminiClient) RunInferenceStream(ctx context.Context) (*message.Message, error) {
+	if len(c.contents) == 0 {
+		return nil, errors.New("gemini: no messages in conversation history")
 	}
 
-	modelName := getGeminiModelName(m.model)
+	modelName := getGeminiModelName(c.model)
 
 	sysPrompt := prompts.GeminiSystemPrompt()
 
 	config := &genai.GenerateContentConfig{
-		MaxOutputTokens:   int32(m.maxTokens),
-		Tools:             geminiTools,
+		MaxOutputTokens:   int32(c.maxTokens),
+		Tools:             c.tools,
 		SystemInstruction: genai.NewContentFromText(sysPrompt, genai.RoleUser),
 	}
 
-	iter := m.client.Models.GenerateContentStream(ctx, modelName, contents, config)
+	iter := c.client.Models.GenerateContentStream(ctx, modelName, c.contents, config)
 
 	response, err := streamGeminiResponse(iter)
 	if err != nil {
@@ -65,14 +73,70 @@ func (m *GeminiModel) CompleteStream(ctx context.Context, msgs []*message.Messag
 	return response, nil
 }
 
+func (c *GeminiClient) ToNativeHistory(history []*message.Message) error {
+	if len(history) == 0 {
+		return errors.New("gemini: empty conversation history")
+	}
+	c.contents = make([]*genai.Content, 0, len(history))
+
+	for _, msg := range history {
+		if err := c.ToNativeMessage(msg); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (c *GeminiClient) ToNativeMessage(msg *message.Message) error {
+	if msg == nil {
+		return errors.New("gemini: message is nil")
+	}
+
+	parts := convertToGeminiParts(msg.Content)
+	if len(parts) == 0 {
+		return errors.New("gemini: message has no content parts")
+	}
+
+	content := &genai.Content{
+		Role:  msg.Role,
+		Parts: parts,
+	}
+
+	c.contents = append(c.contents, content)
+	return nil
+}
+
+func (c *GeminiClient) ToNativeTools(tools []*tools.ToolDefinition) error {
+	if len(tools) == 0 {
+		return errors.New("gemini: no tools provided")
+	}
+
+	builtinTool := &genai.Tool{
+		FunctionDeclarations: make([]*genai.FunctionDeclaration, 0, len(tools)),
+	}
+
+	for _, tool := range tools {
+		geminiToolFuncDec, err := convertToGeminiFunctionDeclaration(tool)
+		if err != nil {
+			return err
+		}
+		builtinTool.FunctionDeclarations = append(builtinTool.FunctionDeclarations, geminiToolFuncDec)
+	}
+
+	c.tools = []*genai.Tool{builtinTool}
+
+	return nil
+}
+
 func streamGeminiResponse(response iter.Seq2[*genai.GenerateContentResponse, error]) (*message.Message, error) {
 	var fullText string
-	var toolCalls []message.ContentBlockUnion
+	var toolCalls []message.ContentBlock
 	var outputContents []*genai.Content
 
 	msg := &message.Message{
 		Role:    message.ModelRole,
-		Content: make([]message.ContentBlockUnion, 0),
+		Content: make([]message.ContentBlock, 0),
 	}
 
 	for chunk, err := range response {
@@ -120,7 +184,7 @@ func streamGeminiResponse(response iter.Seq2[*genai.GenerateContentResponse, err
 					return nil, fmt.Errorf("failed to marshal function args: %w", err)
 				}
 
-				toolCall := message.NewToolUseContentBlock(
+				toolCall := message.NewToolUseBlock(
 					fc.ID,
 					fc.Name,
 					inputBytes,
@@ -133,7 +197,7 @@ func streamGeminiResponse(response iter.Seq2[*genai.GenerateContentResponse, err
 	}
 
 	if fullText != "" {
-		msg.Content = append(msg.Content, message.NewTextContentBlock(fullText))
+		msg.Content = append(msg.Content, message.NewTextBlock(fullText))
 	}
 
 	msg.Content = append(msg.Content, toolCalls...)
@@ -142,56 +206,32 @@ func streamGeminiResponse(response iter.Seq2[*genai.GenerateContentResponse, err
 	return msg, nil
 }
 
-func convertToGeminiContents(msgs []*message.Message) []*genai.Content {
-	contents := make([]*genai.Content, 0, len(msgs))
-
-	for _, msg := range msgs {
-		parts := convertToGeminiParts(msg.Content)
-		if len(parts) == 0 {
-			continue
-		}
-
-		content := &genai.Content{
-			Role:  msg.Role,
-			Parts: parts,
-		}
-
-		contents = append(contents, content)
-	}
-
-	return contents
-}
-
-func convertToGeminiParts(blocks []message.ContentBlockUnion) []*genai.Part {
+func convertToGeminiParts(blocks []message.ContentBlock) []*genai.Part {
 	parts := make([]*genai.Part, 0, len(blocks))
 
 	for _, b := range blocks {
-		switch b.Type {
+		switch b.Type() {
 		case message.TextType:
-			if b.OfTextBlock != nil {
-				textContent := b.OfTextBlock.Text
-				parts = append(parts, genai.NewPartFromText(textContent))
+			if textBlock, ok := b.(message.TextBlock); ok {
+				parts = append(parts, genai.NewPartFromText(textBlock.Text))
 			}
 		case message.ToolUseType:
-			if b.OfToolUseBlock != nil {
-				toolName := b.OfToolUseBlock.Name
+			if toolUse, ok := b.(message.ToolUseBlock); ok {
 				var args map[string]any
 
-				err := json.Unmarshal(b.OfToolUseBlock.Input, &args)
+				err := json.Unmarshal(toolUse.Input, &args)
 				if err != nil {
 					continue
 				}
 
-				parts = append(parts, genai.NewPartFromFunctionCall(toolName, args))
+				parts = append(parts, genai.NewPartFromFunctionCall(toolUse.Name, args))
 			}
 		case message.ToolResultType:
-			if b.OfToolResultBlock != nil {
-				toolName := b.OfToolResultBlock.ToolName
-
+			if toolResult, ok := b.(message.ToolResultBlock); ok {
 				// Gemini NEEDS the content to be wrapped inside "result"
-				response := map[string]any{"result": b.OfToolResultBlock.Content}
+				response := map[string]any{"result": toolResult.Content}
 
-				parts = append(parts, genai.NewPartFromFunctionResponse(toolName, response))
+				parts = append(parts, genai.NewPartFromFunctionResponse(toolResult.ToolName, response))
 			}
 		}
 	}
@@ -199,7 +239,7 @@ func convertToGeminiParts(blocks []message.ContentBlockUnion) []*genai.Part {
 	return parts
 }
 
-func convertToGeminiTools(tools []tools.ToolDefinition) ([]*genai.Tool, error) {
+func convertToGeminiTools(tools []*tools.ToolDefinition) ([]*genai.Tool, error) {
 	if len(tools) == 0 {
 		return nil, nil
 	}
@@ -219,7 +259,7 @@ func convertToGeminiTools(tools []tools.ToolDefinition) ([]*genai.Tool, error) {
 	return []*genai.Tool{builtinTool}, nil
 }
 
-func convertToGeminiFunctionDeclaration(tool tools.ToolDefinition) (*genai.FunctionDeclaration, error) {
+func convertToGeminiFunctionDeclaration(tool *tools.ToolDefinition) (*genai.FunctionDeclaration, error) {
 	params, err := schema.ConvertToGeminiSchema(tool.InputSchema)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert schema to Gemini format: %w", err)

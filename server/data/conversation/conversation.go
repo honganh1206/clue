@@ -222,7 +222,7 @@ func (cm ConversationModel) Load(id string) (*Conversation, error) {
 
 	query = `
 		SELECT
-			payload
+			sequence_number, payload
 		FROM
 			messages WHERE conversation_id = ?
 		ORDER BY
@@ -238,9 +238,10 @@ func (cm ConversationModel) Load(id string) (*Conversation, error) {
 	var msgs []*message.Message
 
 	for rows.Next() {
+		var sequenceNumber int
 		var payload []byte
 
-		if err := rows.Scan(&payload); err != nil {
+		if err := rows.Scan(&sequenceNumber, &payload); err != nil {
 			return nil, fmt.Errorf("failed to scan message for conversation ID '%s': %w", id, err)
 		}
 
@@ -248,6 +249,9 @@ func (cm ConversationModel) Load(id string) (*Conversation, error) {
 		if err := json.Unmarshal(payload, &msg); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal temp message payload for conversation ID '%s': %w", id, err)
 		}
+
+		// Restore the sequence number from database
+		msg.Sequence = sequenceNumber
 
 		msgs = append(msgs, msg)
 	}
