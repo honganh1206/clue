@@ -61,6 +61,8 @@ func main() {
 			fmt.Fprintf(conversationView, "[red::]You:[-]\n%s\n\n", content)
 
 			// Simple echo response (replace with actual AI integration)
+			// TODO: Receive buffer/output streaming from agent.go? and stream the output token here?
+			//
 			fmt.Fprintf(conversationView, "[green::]AI:[-]\n%s\n\n", "Echo: "+content)
 
 			// Scroll to end and re-enable input

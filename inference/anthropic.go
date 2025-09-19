@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/packages/ssestream"
@@ -66,9 +67,10 @@ func getAnthropicModel(model ModelVersion) anthropic.Model {
 	}
 }
 
-func (c *AnthropicClient) RunInferenceStream(ctx context.Context) (*message.Message, error) {
+// TODO: Return delta instead of full content string builder?
+func (c *AnthropicClient) RunInferenceStream(ctx context.Context, onDelta func(string)) (string, error) {
 	if len(c.history) == 0 {
-		return nil, errors.New("anthropic: no messages in conversation history")
+		return "", errors.New("anthropic: no messages in conversation history")
 	}
 
 	// TODO: This should be called once only
@@ -84,9 +86,9 @@ func (c *AnthropicClient) RunInferenceStream(ctx context.Context) (*message.Mess
 			{Text: systemPrompt, CacheControl: c.cache}},
 	})
 
-	response, err := streamAnthropicResponse(anthropicStream)
+	response, err := streamAnthropicResponse(anthropicStream, onDelta)
 	if err != nil {
-		return nil, err
+		return response, err
 	}
 
 	return response, nil
@@ -157,42 +159,52 @@ func convertToAnthropicBlocks(blocks []message.ContentBlock) []anthropic.Content
 	return anthropicBlocks
 }
 
-func streamAnthropicResponse(stream *ssestream.Stream[anthropic.MessageStreamEventUnion]) (*message.Message, error) {
-	anthropicMsg := anthropic.Message{}
+func streamAnthropicResponse(stream *ssestream.Stream[anthropic.MessageStreamEventUnion], onDelta func(string)) (string, error) {
+	msg := anthropic.Message{}
 
 	for stream.Next() {
 		event := stream.Current()
-		if err := anthropicMsg.Accumulate(event); err != nil {
+		if err := msg.Accumulate(event); err != nil {
 			fmt.Printf("error accumulating event: %v\n", err)
 			continue
 		}
 
-		switch event := event.AsAny().(type) {
+		switch ev := event.AsAny().(type) {
 		case anthropic.ContentBlockDeltaEvent:
-			print(event.Delta.Text)
-		case anthropic.ContentBlockStartEvent:
-		case anthropic.ContentBlockStopEvent:
-			fmt.Println()
-		case anthropic.MessageStopEvent:
-			fmt.Println()
-		case anthropic.MessageStartEvent:
-		case anthropic.MessageDeltaEvent:
-		default:
-			fmt.Printf("Unhandled event type: %T\n", event)
+			switch d := ev.Delta.AsAny().(type) {
+			case anthropic.TextDelta:
+				// Emit text deltas when available
+				if d.Text != "" {
+					onDelta(d.Text)
+				}
+			}
 		}
 	}
 
 	if err := stream.Err(); err != nil {
-		// TODO: Make the agent retry the operation instead
-		// The tokens must flow
-		var apierr *anthropic.Error
-		if errors.As(err, &apierr) {
-			println(string(apierr.DumpResponse(true))) // Prints the serialized HTTP response
+		// The token must flow.
+		// Return whatever we have with error.
+		var sb strings.Builder
+		for _, blk := range msg.Content {
+			switch v := blk.AsAny().(type) {
+			case anthropic.TextBlock:
+				sb.WriteString(v.Text)
+			}
 		}
-		panic(err)
+		return sb.String(), err
 	}
 
-	return convertFromAnthropicMessage(anthropicMsg)
+	var sb strings.Builder
+	// TODO: Use convertFromAnthropicMessage here.
+	// For now we test with text only
+	for _, blk := range msg.Content {
+		switch v := blk.AsAny().(type) {
+		case anthropic.TextBlock:
+			sb.WriteString(v.Text)
+		}
+	}
+
+	return sb.String(), nil
 }
 
 func convertFromAnthropicMessage(anthropicMsg anthropic.Message) (*message.Message, error) {

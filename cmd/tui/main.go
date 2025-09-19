@@ -555,6 +555,7 @@ func main() {
 					Time: time.Now().Unix(),
 				}
 				// Exclude system message from persistent storage
+				// TODO: Do we need this? Since we save messages atomically?
 				if messages[0].Role == roleSystem {
 					c.Messages = messages[1:]
 				} else {

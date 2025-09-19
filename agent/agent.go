@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
+	"sync"
 
 	"github.com/honganh1206/clue/api"
 	"github.com/honganh1206/clue/inference"
@@ -79,7 +81,7 @@ func (a *Agent) Run(ctx context.Context) error {
 			a.saveConversation()
 		}
 
-		agentMsg, err := a.llm.RunInferenceStream(ctx)
+		agentMsg, err := a.streamResponse(ctx)
 		if err != nil {
 			return err
 		}
@@ -313,4 +315,36 @@ func (a *Agent) shutdownMCPServers() {
 			fmt.Printf("MCP server %s closed successfully\n", s.ID())
 		}
 	}
+}
+
+func (a *Agent) streamResponse(ctx context.Context) (*message.Message, error) {
+	var full strings.Builder
+	var streamErr error
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	onDelta := func(delta string) {
+		// TODO: Some formatting here and there
+		print(delta)
+		full.WriteString(delta)
+	}
+
+	go func() {
+		defer wg.Done()
+		_, streamErr = a.llm.RunInferenceStream(ctx, onDelta)
+	}()
+
+	wg.Wait()
+
+	if streamErr != nil {
+		return nil, streamErr
+	}
+
+	msg := &message.Message{
+		Role:    message.AssistantRole,
+		Content: []message.ContentBlock{message.NewTextBlock(full.String())},
+	}
+
+	return msg, nil
 }
