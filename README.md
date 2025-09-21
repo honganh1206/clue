@@ -1,3 +1,5 @@
+[![justforfunnoreally.dev badge](https://img.shields.io/badge/justforfunnoreally-dev-9ff)](https://justforfunnoreally.dev)
+
 <div class="title-block" style="text-align: center;" align="center">
 
 # Clue - Simple AI Coding Agent in Go
