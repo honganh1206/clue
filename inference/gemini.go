@@ -27,6 +27,9 @@ type GeminiClient struct {
 
 func NewGeminiClient(client *genai.Client, model ModelVersion, maxTokens int64) *GeminiClient {
 	return &GeminiClient{
+		BaseLLMClient: BaseLLMClient{
+			Provider: GoogleModelName,
+		},
 		client:    client,
 		model:     model,
 		maxTokens: maxTokens,

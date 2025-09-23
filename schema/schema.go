@@ -73,12 +73,10 @@ func buildGeminiSchema(schema map[string]any) *genai.Schema {
 		}
 	}
 
-	// Set description
 	if desc, ok := schema["description"].(string); ok {
 		result.Description = desc
 	}
 
-	// Handle properties for object types
 	if props, ok := schema["properties"].(map[string]any); ok {
 		result.Properties = make(map[string]*genai.Schema)
 		for name, prop := range props {
@@ -88,12 +86,10 @@ func buildGeminiSchema(schema map[string]any) *genai.Schema {
 		}
 	}
 
-	// Handle array items
 	if items, ok := schema["items"].(map[string]any); ok {
 		result.Items = buildGeminiSchema(items)
 	}
 
-	// Handle required fields
 	if required, ok := schema["required"].([]any); ok {
 		result.Required = make([]string, 0, len(required))
 		for _, req := range required {
@@ -103,7 +99,6 @@ func buildGeminiSchema(schema map[string]any) *genai.Schema {
 		}
 	}
 
-	// Handle enum values
 	if enumVals, ok := schema["enum"].([]any); ok {
 		result.Enum = make([]string, 0, len(enumVals))
 		for _, val := range enumVals {

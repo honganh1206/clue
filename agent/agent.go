@@ -320,30 +320,26 @@ func (a *Agent) shutdownMCPServers() {
 func (a *Agent) streamResponse(ctx context.Context) (*message.Message, error) {
 	var full strings.Builder
 	var streamErr error
+	var msg *message.Message
 
 	var wg sync.WaitGroup
 	wg.Add(1)
 
 	onDelta := func(delta string) {
-		// TODO: Some formatting here and there
+		// TODO: Some formatting here and there?
 		print(delta)
 		full.WriteString(delta)
 	}
 
 	go func() {
 		defer wg.Done()
-		_, streamErr = a.llm.RunInferenceStream(ctx, onDelta)
+		msg, streamErr = a.llm.RunInferenceStream(ctx, onDelta)
 	}()
 
 	wg.Wait()
 
 	if streamErr != nil {
 		return nil, streamErr
-	}
-
-	msg := &message.Message{
-		Role:    message.AssistantRole,
-		Content: []message.ContentBlock{message.NewTextBlock(full.String())},
 	}
 
 	return msg, nil

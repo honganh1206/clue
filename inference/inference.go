@@ -12,7 +12,7 @@ import (
 type LLMClient interface {
 	// Stream text deltas while generating the message.
 	// Implementation should call onDelta with incremental text and return the final full text when the stream finishes.
-	RunInferenceStream(ctx context.Context, onDelta func(string)) (string, error)
+	RunInferenceStream(ctx context.Context, onDelta func(string)) (*message.Message, error)
 	SummarizeHistory(history []*message.Message, threshold int) []*message.Message
 	// ApplySlidingWindow(history []*message.Message, windowSize int) []*message.Message
 	TruncateMessage(msg *message.Message, threshold int) *message.Message
@@ -77,7 +77,7 @@ func ListAvailableModels(provider ProviderName) []ModelVersion {
 func GetDefaultModel(provider ProviderName) ModelVersion {
 	switch provider {
 	case AnthropicProvider:
-		return Claude35Haiku
+		return Claude4Sonnet
 	case GoogleProvider:
 		return Gemini25Flash
 	default:
