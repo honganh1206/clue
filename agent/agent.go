@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
 	"sync"
 
 	"github.com/honganh1206/clue/api"
@@ -42,46 +41,26 @@ func New(llm inference.LLMClient, conversation *conversation.Conversation, toolB
 	return agent
 }
 
-func (a *Agent) Run(ctx context.Context) error {
-	defer a.shutdownMCPServers()
-	modelName := a.llm.ProviderName()
-	colorCode := getModelColor(modelName)
-	resetCode := "\u001b[0m"
-
-	fmt.Printf("Chat with %s%s%s (use 'ctrl-c' to quit)\n", colorCode, modelName, resetCode)
-
-	readUserInput := true
-
-	a.conversation.Messages = a.llm.SummarizeHistory(a.conversation.Messages, 20)
-
-	if len(a.conversation.Messages) != 0 {
-		a.llm.ToNativeHistory(a.conversation.Messages)
+// Run handles a single user message and returns the agent's response
+// This method is designed for TUI integration where streaming is handled externally
+func (a *Agent) Run(ctx context.Context, userInput string, onDelta func(string)) error {
+	// Create user message
+	userMsg := &message.Message{
+		Role:    message.UserRole,
+		Content: []message.ContentBlock{message.NewTextBlock(userInput)},
 	}
 
-	a.llm.ToNativeTools(a.toolBox.Tools)
+	err := a.llm.ToNativeMessage(userMsg)
+	if err != nil {
+		return err
+	}
+
+	a.conversation.Append(userMsg)
+	a.saveConversation()
 
 	for {
-		if readUserInput {
-			fmt.Print("\u001b[94m>\u001b[0m ")
-			userInput, ok := getUserMessage()
-			if !ok {
-				break
-			}
-
-			userMsg := &message.Message{
-				Role:    message.UserRole,
-				Content: []message.ContentBlock{message.NewTextBlock(userInput)},
-			}
-			err := a.llm.ToNativeMessage(userMsg)
-			if err != nil {
-				return err
-			}
-
-			a.conversation.Append(userMsg)
-			a.saveConversation()
-		}
-
-		agentMsg, err := a.streamResponse(ctx)
+		// Get agent response
+		agentMsg, err := a.streamResponse(ctx, onDelta)
 		if err != nil {
 			return err
 		}
@@ -94,13 +73,10 @@ func (a *Agent) Run(ctx context.Context) error {
 		a.conversation.Append(agentMsg)
 		a.saveConversation()
 
+		// Check if we need to execute tools
 		toolResults := []message.ContentBlock{}
-
 		for _, c := range agentMsg.Content {
 			switch block := c.(type) {
-			// TODO: Switch case for text type should be here
-			// and we need to stream the response here, not inside the model integrations
-			// and we can do proper output formatting here instead
 			case message.ToolUseBlock:
 				result := a.executeTool(block.ID, block.Name, block.Input)
 				toolResults = append(toolResults, result)
@@ -108,12 +84,11 @@ func (a *Agent) Run(ctx context.Context) error {
 		}
 
 		if len(toolResults) == 0 {
-			readUserInput = true
-			continue
+			// No tool calls, we're done
+			break
 		}
 
-		readUserInput = false
-
+		// Process tool results
 		toolResultMsg := &message.Message{
 			Role:    message.UserRole,
 			Content: toolResults,
@@ -316,20 +291,12 @@ func (a *Agent) shutdownMCPServers() {
 		}
 	}
 }
-
-func (a *Agent) streamResponse(ctx context.Context) (*message.Message, error) {
-	var full strings.Builder
+func (a *Agent) streamResponse(ctx context.Context, onDelta func(string)) (*message.Message, error) {
 	var streamErr error
 	var msg *message.Message
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-
-	onDelta := func(delta string) {
-		// TODO: Some formatting here and there?
-		print(delta)
-		full.WriteString(delta)
-	}
 
 	go func() {
 		defer wg.Done()

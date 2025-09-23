@@ -1,17 +1,18 @@
-package main
+package cmd
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
 	"github.com/gdamore/tcell/v2"
+	"github.com/honganh1206/clue/agent"
 	"github.com/rivo/tview"
 )
 
-func main() {
+func TUI(ctx context.Context, a *agent.Agent) error {
 	app := tview.NewApplication()
 
-	// Components
 	conversationView := tview.NewTextView().
 		SetDynamicColors(true).
 		SetWordWrap(true).
@@ -20,16 +21,14 @@ func main() {
 		})
 
 	questionInput := tview.NewTextArea()
-	questionInput.SetTitle("Enter to send").
+	questionInput.SetTitle("Enter to send (ESC to focus conversation, Ctrl+C to quit)").
 		SetTitleAlign(tview.AlignLeft).
 		SetBorder(true)
 
-	// Layout
 	mainLayout := tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(conversationView, 0, 1, false).
 		AddItem(questionInput, 5, 1, true)
 
-	// Event handling
 	conversationView.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		switch event.Key() {
 		case tcell.KeyEnter:
@@ -49,32 +48,42 @@ func main() {
 			if strings.TrimSpace(content) == "" {
 				return nil
 			}
-			// Clear input after submission
 			questionInput.SetText("", false)
-			// Disable input during processing
 			questionInput.SetDisabled(true)
 
 			// Display user message
-			if conversationView.GetText(false) != "" {
-				fmt.Fprintf(conversationView, "\n\n")
-			}
-			fmt.Fprintf(conversationView, "[red::]You:[-]\n%s\n\n", content)
-
-			// Simple echo response (replace with actual AI integration)
-			// TODO: Receive buffer/output streaming from agent.go? and stream the output token here?
-			//
-			fmt.Fprintf(conversationView, "[green::]AI:[-]\n%s\n\n", "Echo: "+content)
-
-			// Scroll to end and re-enable input
+			fmt.Fprintf(conversationView, "[azure::]> %s\n\n", content)
 			conversationView.ScrollToEnd()
-			questionInput.SetDisabled(false)
+
+			// Process with agent in background
+			go func() {
+				defer func() {
+					questionInput.SetDisabled(false)
+					app.Draw()
+				}()
+
+				// Stream agent response
+				fmt.Fprintf(conversationView, "")
+
+				onDelta := func(delta string) {
+					fmt.Fprintf(conversationView, "[white::] %s", delta)
+					app.Draw()
+				}
+
+				err := a.Run(ctx, content, onDelta)
+				if err != nil {
+					fmt.Fprintf(conversationView, "[red::]Error: %v[-]\n\n", err)
+					return
+				}
+
+				fmt.Fprintf(conversationView, "\n\n")
+				conversationView.ScrollToEnd()
+			}()
+
 			return nil
 		}
 		return event
 	})
 
-	// Start app
-	if err := app.SetRoot(mainLayout, true).SetFocus(questionInput).Run(); err != nil {
-		panic(err)
-	}
+	return app.SetRoot(mainLayout, true).SetFocus(questionInput).Run()
 }

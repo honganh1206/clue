@@ -45,7 +45,7 @@ func interactive(ctx context.Context, convID string, llmClient inference.BaseLLM
 
 	// In production, use Background() as the final root context()
 	// For dev env, TODO for temporary scaffolding
-	err = a.Run(ctx)
+	err = TUI(ctx, a)
 
 	if err != nil {
 		return err
