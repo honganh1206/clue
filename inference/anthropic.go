@@ -26,6 +26,7 @@ type AnthropicClient struct {
 
 func NewAnthropicClient(client *anthropic.Client, model ModelVersion, maxTokens int64) *AnthropicClient {
 	systemPrompt := prompts.ClaudeSystemPrompt()
+
 	return &AnthropicClient{
 		BaseLLMClient: BaseLLMClient{
 			Provider: AnthropicModelName,
@@ -212,7 +213,22 @@ func toAnthropicBlocks(blocks []message.ContentBlock) []anthropic.ContentBlockPa
 	anthropicBlocks := make([]anthropic.ContentBlockParamUnion, 0, len(blocks))
 
 	for _, block := range blocks {
-		anthropicBlocks = append(anthropicBlocks, block.ToAnthropic())
+		switch b := block.(type) {
+		case message.ToolResultBlock:
+			anthropicBlocks = append(anthropicBlocks, anthropic.NewToolResultBlock(b.ToolUseID, b.Content, b.IsError))
+		case message.TextBlock:
+			anthropicBlocks = append(anthropicBlocks, anthropic.NewTextBlock(b.Text))
+		case message.ToolUseBlock:
+			toolUseParam := anthropic.ToolUseBlockParam{
+				ID:    b.ID,
+				Name:  b.Name,
+				Input: b.Input,
+			}
+
+			anthropicBlocks = append(anthropicBlocks, anthropic.ContentBlockParamUnion{
+				OfToolUse: &toolUseParam,
+			})
+		}
 	}
 
 	return anthropicBlocks

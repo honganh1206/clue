@@ -459,12 +459,34 @@ func TestLoad(t *testing.T) {
 		for j, originalContent := range originalMsg.Content {
 			loadedContent := loadedMsg.Content[j]
 
-			if originalContent.Type() != loadedContent.Type() {
-				t.Errorf("Message %d, Content %d: Expected type %s, got %s", i, j, originalContent.Type(), loadedContent.Type())
+			// Check if both content blocks have the same type using type switches
+			originalType := ""
+			loadedType := ""
+
+			switch originalContent.(type) {
+			case message.TextBlock:
+				originalType = "text"
+			case message.ToolUseBlock:
+				originalType = "tool_use"
+			case message.ToolResultBlock:
+				originalType = "tool_result"
 			}
 
-			switch originalContent.Type() {
-			case message.TextType:
+			switch loadedContent.(type) {
+			case message.TextBlock:
+				loadedType = "text"
+			case message.ToolUseBlock:
+				loadedType = "tool_use"
+			case message.ToolResultBlock:
+				loadedType = "tool_result"
+			}
+
+			if originalType != loadedType {
+				t.Errorf("Message %d, Content %d: Expected type %s, got %s", i, j, originalType, loadedType)
+			}
+
+			switch originalContent.(type) {
+			case message.TextBlock:
 				originalText, originalOk := originalContent.(message.TextBlock)
 				loadedText, loadedOk := loadedContent.(message.TextBlock)
 				if !originalOk || !loadedOk {
@@ -475,7 +497,7 @@ func TestLoad(t *testing.T) {
 					t.Errorf("Message %d, Content %d: Expected text %s, got %s", i, j, originalText.Text, loadedText.Text)
 				}
 
-			case message.ToolUseType:
+			case message.ToolUseBlock:
 				originalToolUse, originalOk := originalContent.(message.ToolUseBlock)
 				loadedToolUse, loadedOk := loadedContent.(message.ToolUseBlock)
 				if !originalOk || !loadedOk {
@@ -489,7 +511,7 @@ func TestLoad(t *testing.T) {
 					t.Errorf("Message %d, Content %d: Expected tool name %s, got %s", i, j, originalToolUse.Name, loadedToolUse.Name)
 				}
 
-			case message.ToolResultType:
+			case message.ToolResultBlock:
 				originalResult, originalOk := originalContent.(message.ToolResultBlock)
 				loadedResult, loadedOk := loadedContent.(message.ToolResultBlock)
 				if !originalOk || !loadedOk {

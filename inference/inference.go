@@ -3,10 +3,13 @@ package inference
 import (
 	"context"
 	"fmt"
+	"log"
+	"os"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/honganh1206/clue/message"
 	"github.com/honganh1206/clue/tools"
+	"google.golang.org/genai"
 )
 
 type LLMClient interface {
@@ -33,15 +36,15 @@ func Init(ctx context.Context, llm BaseLLMClient) (LLMClient, error) {
 	case AnthropicProvider:
 		client := anthropic.NewClient() // Default to look up ANTHROPIC_API_KEY
 		return NewAnthropicClient(&client, ModelVersion(llm.Model), llm.TokenLimit), nil
-	// case GoogleProvider:
-	// 	client, err := genai.NewClient(ctx, &genai.ClientConfig{
-	// 		APIKey:  os.Getenv("GEMINI_API_KEY"),
-	// 		Backend: genai.BackendGeminiAPI,
-	// 	})
-	// 	if err != nil {
-	// 		log.Fatal(err)
-	// 	}
-	// 	return NewGeminiClient(client, ModelVersion(llm.Model), llm.TokenLimit), nil
+	case GoogleProvider:
+		client, err := genai.NewClient(ctx, &genai.ClientConfig{
+			APIKey:  os.Getenv("GEMINI_API_KEY"),
+			Backend: genai.BackendGeminiAPI,
+		})
+		if err != nil {
+			log.Fatal(err)
+		}
+		return NewGeminiClient(client, ModelVersion(llm.Model), llm.TokenLimit), nil
 	default:
 		return nil, fmt.Errorf("unknown model provider: %s", llm.Provider)
 	}
@@ -79,7 +82,7 @@ func GetDefaultModel(provider ProviderName) ModelVersion {
 	case AnthropicProvider:
 		return Claude4Sonnet
 	case GoogleProvider:
-		return Gemini25Flash
+		return Gemini25Pro
 	default:
 		return ""
 	}
@@ -105,11 +108,8 @@ func (b *BaseLLMClient) BaseSummarizeHistory(history []*message.Message, thresho
 
 func (b *BaseLLMClient) BaseTruncateMessage(msg *message.Message, threshold int) *message.Message {
 	for i, b := range msg.Content {
-		if b.Type() != message.ToolResultType {
-			continue
-		}
-
 		// TODO: A new parameter to specify which keys to preserve
+		// Should we add check to continue if not ToolResultBlock?
 		if toolResult, ok := b.(message.ToolResultBlock); ok {
 			if len(toolResult.Content) < threshold {
 				return msg
