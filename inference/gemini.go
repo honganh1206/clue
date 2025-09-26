@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"iter"
+	"strings"
 
 	"github.com/honganh1206/clue/message"
 	"github.com/honganh1206/clue/prompts"
@@ -17,19 +17,26 @@ import (
 
 type GeminiClient struct {
 	BaseLLMClient
-	client    *genai.Client
-	model     ModelVersion
-	maxTokens int64
-	contents  []*genai.Content
-	tools     []*genai.Tool
+	client       *genai.Client
+	model        ModelVersion
+	maxTokens    int64
+	contents     []*genai.Content
+	tools        []*genai.Tool
+	systemPrompt string
 	// TODO: field for caching
 }
 
 func NewGeminiClient(client *genai.Client, model ModelVersion, maxTokens int64) *GeminiClient {
+	systemPrompt := prompts.GeminiSystemPrompt()
+
 	return &GeminiClient{
-		client:    client,
-		model:     model,
-		maxTokens: maxTokens,
+		BaseLLMClient: BaseLLMClient{
+			Provider: GoogleModelName,
+		},
+		client:       client,
+		model:        model,
+		maxTokens:    maxTokens,
+		systemPrompt: systemPrompt,
 	}
 }
 
@@ -48,89 +55,22 @@ func (c *GeminiClient) SummarizeHistory(history []*message.Message, threshold in
 func (c *GeminiClient) TruncateMessage(msg *message.Message, threshold int) *message.Message {
 	return c.BaseLLMClient.BaseTruncateMessage(msg, threshold)
 }
-func (c *GeminiClient) RunInferenceStream(ctx context.Context) (*message.Message, error) {
+func (c *GeminiClient) RunInferenceStream(ctx context.Context, onDelta func(string)) (*message.Message, error) {
 	if len(c.contents) == 0 {
 		return nil, errors.New("gemini: no messages in conversation history")
 	}
 
 	modelName := getGeminiModelName(c.model)
 
-	sysPrompt := prompts.GeminiSystemPrompt()
-
 	config := &genai.GenerateContentConfig{
 		MaxOutputTokens:   int32(c.maxTokens),
 		Tools:             c.tools,
-		SystemInstruction: genai.NewContentFromText(sysPrompt, genai.RoleUser),
+		SystemInstruction: genai.NewContentFromText(c.systemPrompt, genai.RoleUser),
 	}
 
-	iter := c.client.Models.GenerateContentStream(ctx, modelName, c.contents, config)
+	response := c.client.Models.GenerateContentStream(ctx, modelName, c.contents, config)
 
-	response, err := streamGeminiResponse(iter)
-	if err != nil {
-		return nil, err
-	}
-
-	return response, nil
-}
-
-func (c *GeminiClient) ToNativeHistory(history []*message.Message) error {
-	if len(history) == 0 {
-		return errors.New("gemini: empty conversation history")
-	}
-	c.contents = make([]*genai.Content, 0, len(history))
-
-	for _, msg := range history {
-		if err := c.ToNativeMessage(msg); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (c *GeminiClient) ToNativeMessage(msg *message.Message) error {
-	if msg == nil {
-		return errors.New("gemini: message is nil")
-	}
-
-	parts := convertToGeminiParts(msg.Content)
-	if len(parts) == 0 {
-		return errors.New("gemini: message has no content parts")
-	}
-
-	content := &genai.Content{
-		Role:  msg.Role,
-		Parts: parts,
-	}
-
-	c.contents = append(c.contents, content)
-	return nil
-}
-
-func (c *GeminiClient) ToNativeTools(tools []*tools.ToolDefinition) error {
-	if len(tools) == 0 {
-		return errors.New("gemini: no tools provided")
-	}
-
-	builtinTool := &genai.Tool{
-		FunctionDeclarations: make([]*genai.FunctionDeclaration, 0, len(tools)),
-	}
-
-	for _, tool := range tools {
-		geminiToolFuncDec, err := convertToGeminiFunctionDeclaration(tool)
-		if err != nil {
-			return err
-		}
-		builtinTool.FunctionDeclarations = append(builtinTool.FunctionDeclarations, geminiToolFuncDec)
-	}
-
-	c.tools = []*genai.Tool{builtinTool}
-
-	return nil
-}
-
-func streamGeminiResponse(response iter.Seq2[*genai.GenerateContentResponse, error]) (*message.Message, error) {
-	var fullText string
+	var fullText strings.Builder
 	var toolCalls []message.ContentBlock
 	var outputContents []*genai.Content
 
@@ -165,7 +105,7 @@ func streamGeminiResponse(response iter.Seq2[*genai.GenerateContentResponse, err
 				// TODO: We have a max length limit of 1024
 				// so if the content exceeds 1024 the fetch MCP tool would stop
 				// and there will be a finish reason
-				fmt.Printf("finish reason indicates: %v\n", chunk.Candidates[0].FinishReason)
+				// fmt.Printf("finish reason indicates: %v\n", chunk.Candidates[0].FinishReason)
 				// Continue to next chunk instead of processing empty parts
 				outputContents = append(outputContents, bestContent)
 				continue
@@ -174,8 +114,8 @@ func streamGeminiResponse(response iter.Seq2[*genai.GenerateContentResponse, err
 
 		for _, p := range bestContent.Parts {
 			if p.Text != "" {
-				fmt.Print(p.Text)
-				fullText += p.Text
+				onDelta(p.Text)
+				fullText.WriteString(p.Text)
 			}
 			if p.FunctionCall != nil {
 				fc := p.FunctionCall
@@ -196,52 +136,53 @@ func streamGeminiResponse(response iter.Seq2[*genai.GenerateContentResponse, err
 		outputContents = append(outputContents, bestContent)
 	}
 
-	if fullText != "" {
-		msg.Content = append(msg.Content, message.NewTextBlock(fullText))
+	// Necessary check: 'data' must have one initialized field
+	if fullText.String() != "" {
+		msg.Content = append(msg.Content, message.NewTextBlock(fullText.String()))
 	}
 
 	msg.Content = append(msg.Content, toolCalls...)
-	fmt.Println()
 
 	return msg, nil
 }
 
-func convertToGeminiParts(blocks []message.ContentBlock) []*genai.Part {
-	parts := make([]*genai.Part, 0, len(blocks))
+func (c *GeminiClient) ToNativeHistory(history []*message.Message) error {
+	if len(history) == 0 {
+		return errors.New("gemini: empty conversation history")
+	}
+	c.contents = make([]*genai.Content, 0, len(history))
 
-	for _, b := range blocks {
-		switch b.Type() {
-		case message.TextType:
-			if textBlock, ok := b.(message.TextBlock); ok {
-				parts = append(parts, genai.NewPartFromText(textBlock.Text))
-			}
-		case message.ToolUseType:
-			if toolUse, ok := b.(message.ToolUseBlock); ok {
-				var args map[string]any
-
-				err := json.Unmarshal(toolUse.Input, &args)
-				if err != nil {
-					continue
-				}
-
-				parts = append(parts, genai.NewPartFromFunctionCall(toolUse.Name, args))
-			}
-		case message.ToolResultType:
-			if toolResult, ok := b.(message.ToolResultBlock); ok {
-				// Gemini NEEDS the content to be wrapped inside "result"
-				response := map[string]any{"result": toolResult.Content}
-
-				parts = append(parts, genai.NewPartFromFunctionResponse(toolResult.ToolName, response))
-			}
+	for _, msg := range history {
+		if err := c.ToNativeMessage(msg); err != nil {
+			return err
 		}
 	}
 
-	return parts
+	return nil
 }
 
-func convertToGeminiTools(tools []*tools.ToolDefinition) ([]*genai.Tool, error) {
+func (c *GeminiClient) ToNativeMessage(msg *message.Message) error {
+	if msg == nil {
+		return errors.New("gemini: message is nil")
+	}
+
+	parts := toGeminiParts(msg.Content)
+	if len(parts) == 0 {
+		return errors.New("gemini: message has no content parts")
+	}
+
+	content := &genai.Content{
+		Role:  msg.Role,
+		Parts: parts,
+	}
+
+	c.contents = append(c.contents, content)
+	return nil
+}
+
+func (c *GeminiClient) ToNativeTools(tools []*tools.ToolDefinition) error {
 	if len(tools) == 0 {
-		return nil, nil
+		return errors.New("gemini: no tools provided")
 	}
 
 	builtinTool := &genai.Tool{
@@ -249,17 +190,45 @@ func convertToGeminiTools(tools []*tools.ToolDefinition) ([]*genai.Tool, error) 
 	}
 
 	for _, tool := range tools {
-		geminiToolFuncDec, err := convertToGeminiFunctionDeclaration(tool)
+		geminiToolFuncDec, err := toGeminiFunctionDeclaration(tool)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		builtinTool.FunctionDeclarations = append(builtinTool.FunctionDeclarations, geminiToolFuncDec)
 	}
 
-	return []*genai.Tool{builtinTool}, nil
+	c.tools = []*genai.Tool{builtinTool}
+
+	return nil
 }
 
-func convertToGeminiFunctionDeclaration(tool *tools.ToolDefinition) (*genai.FunctionDeclaration, error) {
+func toGeminiParts(blocks []message.ContentBlock) []*genai.Part {
+	parts := make([]*genai.Part, 0, len(blocks))
+
+	for _, block := range blocks {
+		switch b := block.(type) {
+		case message.TextBlock:
+			parts = append(parts, genai.NewPartFromText(b.Text))
+		case message.ToolUseBlock:
+			var args map[string]any
+
+			err := json.Unmarshal(b.Input, &args)
+			if err != nil {
+				continue
+			}
+
+			parts = append(parts, genai.NewPartFromFunctionCall(b.Name, args))
+		case message.ToolResultBlock:
+			response := map[string]any{"result": b.Content}
+
+			parts = append(parts, genai.NewPartFromFunctionResponse(b.ToolName, response))
+		}
+	}
+
+	return parts
+}
+
+func toGeminiFunctionDeclaration(tool *tools.ToolDefinition) (*genai.FunctionDeclaration, error) {
 	params, err := schema.ConvertToGeminiSchema(tool.InputSchema)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert schema to Gemini format: %w", err)

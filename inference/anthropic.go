@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/anthropics/anthropic-sdk-go"
-	"github.com/anthropics/anthropic-sdk-go/packages/ssestream"
 	"github.com/honganh1206/clue/message"
 	"github.com/honganh1206/clue/prompts"
 	"github.com/honganh1206/clue/tools"
@@ -15,21 +15,27 @@ import (
 
 type AnthropicClient struct {
 	BaseLLMClient
-	client    *anthropic.Client
-	model     ModelVersion
-	maxTokens int64
-	cache     anthropic.CacheControlEphemeralParam
-	history   []anthropic.MessageParam
-	tools     []anthropic.ToolUnionParam
-	// TODO: Field for system prompt
+	client       *anthropic.Client
+	model        ModelVersion
+	maxTokens    int64
+	cache        anthropic.CacheControlEphemeralParam
+	history      []anthropic.MessageParam
+	tools        []anthropic.ToolUnionParam
+	systemPrompt string
 }
 
 func NewAnthropicClient(client *anthropic.Client, model ModelVersion, maxTokens int64) *AnthropicClient {
+	systemPrompt := prompts.ClaudeSystemPrompt()
+
 	return &AnthropicClient{
-		client:    client,
-		model:     model,
-		maxTokens: maxTokens,
-		cache:     anthropic.NewCacheControlEphemeralParam(),
+		BaseLLMClient: BaseLLMClient{
+			Provider: AnthropicModelName,
+		},
+		client:       client,
+		model:        model,
+		maxTokens:    maxTokens,
+		cache:        anthropic.NewCacheControlEphemeralParam(),
+		systemPrompt: systemPrompt,
 	}
 }
 
@@ -66,30 +72,88 @@ func getAnthropicModel(model ModelVersion) anthropic.Model {
 	}
 }
 
-func (c *AnthropicClient) RunInferenceStream(ctx context.Context) (*message.Message, error) {
+// TODO: Return delta instead of full content string builder?
+func (c *AnthropicClient) RunInferenceStream(ctx context.Context, onDelta func(string)) (*message.Message, error) {
 	if len(c.history) == 0 {
 		return nil, errors.New("anthropic: no messages in conversation history")
 	}
 
-	// TODO: This should be called once only
-	systemPrompt := prompts.ClaudeSystemPrompt()
-
-	// Optimize system prompt for caching - split into cacheable and dynamic parts
-	anthropicStream := c.client.Messages.NewStreaming(ctx, anthropic.MessageNewParams{
+	stream := c.client.Messages.NewStreaming(ctx, anthropic.MessageNewParams{
 		Model:     getAnthropicModel(c.model),
 		MaxTokens: c.maxTokens,
 		Messages:  c.history,
 		Tools:     c.tools,
 		System: []anthropic.TextBlockParam{
-			{Text: systemPrompt, CacheControl: c.cache}},
+			{Text: c.systemPrompt, CacheControl: c.cache}},
 	})
 
-	response, err := streamAnthropicResponse(anthropicStream)
+	llmresp := anthropic.Message{}
+
+	for stream.Next() {
+		event := stream.Current()
+		if err := llmresp.Accumulate(event); err != nil {
+			fmt.Printf("error accumulating event: %v\n", err)
+			continue
+		}
+
+		switch ev := event.AsAny().(type) {
+		// Temp formatting
+		case anthropic.ContentBlockStartEvent:
+		case anthropic.ContentBlockStopEvent:
+			fmt.Println()
+		case anthropic.MessageStopEvent:
+			fmt.Println()
+		case anthropic.MessageStartEvent:
+		case anthropic.MessageDeltaEvent:
+		default:
+			fmt.Printf("Unhandled event type: %T\n", event)
+		case anthropic.ContentBlockDeltaEvent:
+			switch d := ev.Delta.AsAny().(type) {
+			case anthropic.TextDelta:
+				// Emit text deltas when available
+				if d.Text != "" {
+					onDelta(d.Text)
+				}
+			}
+		}
+	}
+
+	if streamErr := stream.Err(); streamErr != nil {
+		// The token must flow.
+		// Return whatever we have with error.
+		var sb strings.Builder
+		for _, blk := range llmresp.Content {
+			switch v := blk.AsAny().(type) {
+			case anthropic.TextBlock:
+				sb.WriteString(v.Text)
+			}
+		}
+		msg, err := toGenericMessage(llmresp)
+		if err != nil {
+			return nil, err
+		}
+
+		return msg, err
+	}
+
+	// TODO: Use respCh, errCh to accumulate delta?
+
+	var sb strings.Builder
+	for _, blk := range llmresp.Content {
+		switch v := blk.AsAny().(type) {
+		case anthropic.TextBlock:
+			sb.WriteString(v.Text)
+		case anthropic.ToolUseBlock:
+			sb.WriteString(v.JSON.Input.Raw())
+		}
+	}
+
+	msg, err := toGenericMessage(llmresp)
 	if err != nil {
 		return nil, err
 	}
 
-	return response, nil
+	return msg, nil
 }
 
 func (c *AnthropicClient) ToNativeHistory(history []*message.Message) error {
@@ -113,7 +177,7 @@ func (c *AnthropicClient) ToNativeMessage(msg *message.Message) error {
 	}
 
 	var nativeMsg anthropic.MessageParam
-	blocks := convertToAnthropicBlocks(msg.Content)
+	blocks := toAnthropicBlocks(msg.Content)
 	switch msg.Role {
 	case message.UserRole:
 		nativeMsg = anthropic.NewUserMessage(blocks...)
@@ -135,7 +199,7 @@ func (c *AnthropicClient) ToNativeTools(tools []*tools.ToolDefinition) error {
 	c.tools = make([]anthropic.ToolUnionParam, 0, len(tools))
 
 	for _, tool := range tools {
-		anthropicTool, err := convertToAnthropicTool(tool)
+		anthropicTool, err := toAnthropicTool(tool)
 		if err != nil {
 			return err
 		}
@@ -146,56 +210,33 @@ func (c *AnthropicClient) ToNativeTools(tools []*tools.ToolDefinition) error {
 	return nil
 }
 
-func convertToAnthropicBlocks(blocks []message.ContentBlock) []anthropic.ContentBlockParamUnion {
+func toAnthropicBlocks(blocks []message.ContentBlock) []anthropic.ContentBlockParamUnion {
 	// Unified interface for different request types i.e. text, image, document, thinking
 	anthropicBlocks := make([]anthropic.ContentBlockParamUnion, 0, len(blocks))
 
 	for _, block := range blocks {
-		anthropicBlocks = append(anthropicBlocks, block.ToAnthropic())
+		switch b := block.(type) {
+		case message.ToolResultBlock:
+			anthropicBlocks = append(anthropicBlocks, anthropic.NewToolResultBlock(b.ToolUseID, b.Content, b.IsError))
+		case message.TextBlock:
+			anthropicBlocks = append(anthropicBlocks, anthropic.NewTextBlock(b.Text))
+		case message.ToolUseBlock:
+			toolUseParam := anthropic.ToolUseBlockParam{
+				ID:    b.ID,
+				Name:  b.Name,
+				Input: b.Input,
+			}
+
+			anthropicBlocks = append(anthropicBlocks, anthropic.ContentBlockParamUnion{
+				OfToolUse: &toolUseParam,
+			})
+		}
 	}
 
 	return anthropicBlocks
 }
 
-func streamAnthropicResponse(stream *ssestream.Stream[anthropic.MessageStreamEventUnion]) (*message.Message, error) {
-	anthropicMsg := anthropic.Message{}
-
-	for stream.Next() {
-		event := stream.Current()
-		if err := anthropicMsg.Accumulate(event); err != nil {
-			fmt.Printf("error accumulating event: %v\n", err)
-			continue
-		}
-
-		switch event := event.AsAny().(type) {
-		case anthropic.ContentBlockDeltaEvent:
-			print(event.Delta.Text)
-		case anthropic.ContentBlockStartEvent:
-		case anthropic.ContentBlockStopEvent:
-			fmt.Println()
-		case anthropic.MessageStopEvent:
-			fmt.Println()
-		case anthropic.MessageStartEvent:
-		case anthropic.MessageDeltaEvent:
-		default:
-			fmt.Printf("Unhandled event type: %T\n", event)
-		}
-	}
-
-	if err := stream.Err(); err != nil {
-		// TODO: Make the agent retry the operation instead
-		// The tokens must flow
-		var apierr *anthropic.Error
-		if errors.As(err, &apierr) {
-			println(string(apierr.DumpResponse(true))) // Prints the serialized HTTP response
-		}
-		panic(err)
-	}
-
-	return convertFromAnthropicMessage(anthropicMsg)
-}
-
-func convertFromAnthropicMessage(anthropicMsg anthropic.Message) (*message.Message, error) {
+func toGenericMessage(anthropicMsg anthropic.Message) (*message.Message, error) {
 	msg := &message.Message{
 		Role:    message.AssistantRole,
 		Content: make([]message.ContentBlock, 0)}
@@ -217,7 +258,7 @@ func convertFromAnthropicMessage(anthropicMsg anthropic.Message) (*message.Messa
 }
 
 // Convert generic schema to Anthropic schema
-func convertToAnthropicTool(tool *tools.ToolDefinition) (anthropic.ToolUnionParam, error) {
+func toAnthropicTool(tool *tools.ToolDefinition) (anthropic.ToolUnionParam, error) {
 	schema, err := json.Marshal(tool.InputSchema)
 	if err != nil {
 		// return nil, err

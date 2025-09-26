@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
-
-	"github.com/anthropics/anthropic-sdk-go"
 )
 
 // TODO: Rename this struct to Payload?
@@ -34,18 +32,17 @@ const (
 	ToolResultType = "tool_result"
 )
 
+// Here so we can marshal/unmarshal content blocks
 type ContentBlock interface {
 	Type() string
-	ToAnthropic() anthropic.ContentBlockParamUnion
 }
+
+func (t TextBlock) Type() string       { return TextType }
+func (t ToolUseBlock) Type() string    { return ToolUseType }
+func (t ToolResultBlock) Type() string { return ToolResultType }
 
 type TextBlock struct {
 	Text string `json:"text"`
-}
-
-func (t TextBlock) Type() string { return "text" }
-func (t TextBlock) ToAnthropic() anthropic.ContentBlockParamUnion {
-	return anthropic.NewTextBlock(t.Text)
 }
 
 func NewTextBlock(text string) ContentBlock {
@@ -58,11 +55,6 @@ type ToolUseBlock struct {
 	ID    string          `json:"id"`
 	Name  string          `json:"name"`
 	Input json.RawMessage `json:"input"`
-}
-
-func (t ToolUseBlock) Type() string { return "tool_use" }
-func (t ToolUseBlock) ToAnthropic() anthropic.ContentBlockParamUnion {
-	return anthropic.NewToolUseBlock(t.ID, t.Input, t.Name)
 }
 
 func NewToolUseBlock(id, name string, input json.RawMessage) ContentBlock {
@@ -78,11 +70,6 @@ type ToolResultBlock struct {
 	ToolName  string `json:"tool_name"`
 	Content   string `json:"content"`
 	IsError   bool   `json:"is_error,omitempty"`
-}
-
-func (t ToolResultBlock) Type() string { return "tool_result" }
-func (t ToolResultBlock) ToAnthropic() anthropic.ContentBlockParamUnion {
-	return anthropic.NewToolResultBlock(t.ToolUseID, t.Content, t.IsError)
 }
 
 func NewToolResultBlock(toolUseID, toolName, content string, isError bool) ContentBlock {

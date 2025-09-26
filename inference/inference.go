@@ -13,9 +13,9 @@ import (
 )
 
 type LLMClient interface {
-	// FIXME: VERY RESOURCE-CONSUMING since we are invoking this in every loop
-	// What to do? Maintain a parallel flattened view/Flatten incrementally with new messages/Modify the engine
-	RunInferenceStream(ctx context.Context) (*message.Message, error)
+	// Stream text deltas while generating the message.
+	// Implementation should call onDelta with incremental text and return the final full text when the stream finishes.
+	RunInferenceStream(ctx context.Context, onDelta func(string)) (*message.Message, error)
 	SummarizeHistory(history []*message.Message, threshold int) []*message.Message
 	// ApplySlidingWindow(history []*message.Message, windowSize int) []*message.Message
 	TruncateMessage(msg *message.Message, threshold int) *message.Message
@@ -80,9 +80,9 @@ func ListAvailableModels(provider ProviderName) []ModelVersion {
 func GetDefaultModel(provider ProviderName) ModelVersion {
 	switch provider {
 	case AnthropicProvider:
-		return Claude35Sonnet
+		return Claude4Sonnet
 	case GoogleProvider:
-		return Gemini25Flash
+		return Gemini25Pro
 	default:
 		return ""
 	}
@@ -108,11 +108,8 @@ func (b *BaseLLMClient) BaseSummarizeHistory(history []*message.Message, thresho
 
 func (b *BaseLLMClient) BaseTruncateMessage(msg *message.Message, threshold int) *message.Message {
 	for i, b := range msg.Content {
-		if b.Type() != message.ToolResultType {
-			continue
-		}
-
 		// TODO: A new parameter to specify which keys to preserve
+		// Should we add check to continue if not ToolResultBlock?
 		if toolResult, ok := b.(message.ToolResultBlock); ok {
 			if len(toolResult.Content) < threshold {
 				return msg
