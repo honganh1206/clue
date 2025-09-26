@@ -190,20 +190,15 @@ func (a *Agent) executeTool(id, name string, input json.RawMessage, onDelta func
 	// TODO: Shorten the relative/absolute path and underline it.
 	// For content to edit, remove it from the display?
 	if toolResult, ok := result.(message.ToolResultBlock); ok && toolResult.IsError {
-		onDelta(fmt.Sprintf("\n\n[red]\u2717 %s failed[white]\n\n", name))
+		onDelta(fmt.Sprintf("[red]\u2717 %s failed\n\n", name))
 	} else {
-		onDelta(fmt.Sprintf("\n\n[green]\u2713 %s [white] %s [azure]\n\n", name, input))
+		onDelta(fmt.Sprintf("[green]\u2713 %s %s\n\n", name, input))
 	}
 
 	return result
 }
 
 func (a *Agent) executeMCPTool(id, name string, input json.RawMessage, toolDetails mcp.ToolDetails) message.ContentBlock {
-	// TODO: Copy from local tool execution
-	// might need more rework
-	fmt.Printf("\u001b[92mtool\u001b[0m: %s(%s)\n", name, input)
-	fmt.Println()
-
 	var args map[string]any
 
 	err := json.Unmarshal(input, &args)

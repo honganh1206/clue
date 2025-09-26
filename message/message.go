@@ -34,12 +34,12 @@ const (
 
 // Here so we can marshal/unmarshal content blocks
 type ContentBlock interface {
-	Type()
+	Type() string
 }
 
-func (t TextBlock) Type()       {}
-func (t ToolUseBlock) Type()    {}
-func (t ToolResultBlock) Type() {}
+func (t TextBlock) Type() string       { return TextType }
+func (t ToolUseBlock) Type() string    { return ToolUseType }
+func (t ToolResultBlock) Type() string { return ToolResultType }
 
 type TextBlock struct {
 	Text string `json:"text"`

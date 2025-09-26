@@ -43,7 +43,7 @@ func interactive(ctx context.Context, convID string, llmClient inference.BaseLLM
 
 	a := agent.New(llm, conv, toolBox, apiClient, mcpConfigs)
 
-	err = tui(ctx, a)
+	err = tui(ctx, a, conv)
 
 	if err != nil {
 		return err
