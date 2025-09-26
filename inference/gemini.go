@@ -105,7 +105,7 @@ func (c *GeminiClient) RunInferenceStream(ctx context.Context, onDelta func(stri
 				// TODO: We have a max length limit of 1024
 				// so if the content exceeds 1024 the fetch MCP tool would stop
 				// and there will be a finish reason
-				fmt.Printf("finish reason indicates: %v\n", chunk.Candidates[0].FinishReason)
+				// fmt.Printf("finish reason indicates: %v\n", chunk.Candidates[0].FinishReason)
 				// Continue to next chunk instead of processing empty parts
 				outputContents = append(outputContents, bestContent)
 				continue
@@ -136,10 +136,12 @@ func (c *GeminiClient) RunInferenceStream(ctx context.Context, onDelta func(stri
 		outputContents = append(outputContents, bestContent)
 	}
 
-	msg.Content = append(msg.Content, message.NewTextBlock(fullText.String()))
+	// Necessary check: 'data' must have one initialized field
+	if fullText.String() != "" {
+		msg.Content = append(msg.Content, message.NewTextBlock(fullText.String()))
+	}
 
 	msg.Content = append(msg.Content, toolCalls...)
-	fmt.Println() // NOTE: Formatting hack
 
 	return msg, nil
 }
@@ -217,7 +219,7 @@ func toGeminiParts(blocks []message.ContentBlock) []*genai.Part {
 
 			parts = append(parts, genai.NewPartFromFunctionCall(b.Name, args))
 		case message.ToolResultBlock:
-			response := map[string]any{"data": b.Content}
+			response := map[string]any{"result": b.Content}
 
 			parts = append(parts, genai.NewPartFromFunctionResponse(b.ToolName, response))
 		}
