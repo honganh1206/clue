@@ -10,7 +10,9 @@ import (
 	"github.com/rivo/tview"
 )
 
-func TUI(ctx context.Context, a *agent.Agent) error {
+func tui(ctx context.Context, a *agent.Agent) error {
+	defer a.ShutdownMCPServers()
+	
 	app := tview.NewApplication()
 
 	conversationView := tview.NewTextView().
@@ -44,6 +46,7 @@ func TUI(ctx context.Context, a *agent.Agent) error {
 				app.SetFocus(conversationView)
 			}
 		case tcell.KeyEnter:
+			// TODO: Continue from existing convo?
 			content := questionInput.GetText()
 			if strings.TrimSpace(content) == "" {
 				return nil
@@ -51,23 +54,17 @@ func TUI(ctx context.Context, a *agent.Agent) error {
 			questionInput.SetText("", false)
 			questionInput.SetDisabled(true)
 
-			// Display user message
-			fmt.Fprintf(conversationView, "[azure::]> %s\n\n", content)
-			conversationView.ScrollToEnd()
+			fmt.Fprintf(conversationView, "[azure::]| %s\n\n", content)
 
-			// Process with agent in background
 			go func() {
 				defer func() {
 					questionInput.SetDisabled(false)
-					app.Draw()
 				}()
 
-				// Stream agent response
 				fmt.Fprintf(conversationView, "")
 
 				onDelta := func(delta string) {
-					fmt.Fprintf(conversationView, "[white::] %s", delta)
-					app.Draw()
+					fmt.Fprintf(conversationView, "[white::]%s", delta)
 				}
 
 				err := a.Run(ctx, content, onDelta)
@@ -77,7 +74,6 @@ func TUI(ctx context.Context, a *agent.Agent) error {
 				}
 
 				fmt.Fprintf(conversationView, "\n\n")
-				conversationView.ScrollToEnd()
 			}()
 
 			return nil

@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -44,22 +43,33 @@ func New(llm inference.LLMClient, conversation *conversation.Conversation, toolB
 // Run handles a single user message and returns the agent's response
 // This method is designed for TUI integration where streaming is handled externally
 func (a *Agent) Run(ctx context.Context, userInput string, onDelta func(string)) error {
-	// Create user message
-	userMsg := &message.Message{
-		Role:    message.UserRole,
-		Content: []message.ContentBlock{message.NewTextBlock(userInput)},
+
+	readUserInput := true
+
+	a.conversation.Messages = a.llm.SummarizeHistory(a.conversation.Messages, 20)
+
+	if len(a.conversation.Messages) != 0 {
+		a.llm.ToNativeHistory(a.conversation.Messages)
 	}
 
-	err := a.llm.ToNativeMessage(userMsg)
-	if err != nil {
-		return err
-	}
-
-	a.conversation.Append(userMsg)
-	a.saveConversation()
+	a.llm.ToNativeTools(a.toolBox.Tools)
 
 	for {
-		// Get agent response
+		if readUserInput {
+			userMsg := &message.Message{
+				Role:    message.UserRole,
+				Content: []message.ContentBlock{message.NewTextBlock(userInput)},
+			}
+
+			err := a.llm.ToNativeMessage(userMsg)
+			if err != nil {
+				return err
+			}
+
+			a.conversation.Append(userMsg)
+			a.saveConversation()
+		}
+
 		agentMsg, err := a.streamResponse(ctx, onDelta)
 		if err != nil {
 			return err
@@ -73,22 +83,22 @@ func (a *Agent) Run(ctx context.Context, userInput string, onDelta func(string))
 		a.conversation.Append(agentMsg)
 		a.saveConversation()
 
-		// Check if we need to execute tools
 		toolResults := []message.ContentBlock{}
 		for _, c := range agentMsg.Content {
 			switch block := c.(type) {
 			case message.ToolUseBlock:
-				result := a.executeTool(block.ID, block.Name, block.Input)
+				result := a.executeTool(block.ID, block.Name, block.Input, onDelta)
 				toolResults = append(toolResults, result)
 			}
 		}
 
 		if len(toolResults) == 0 {
-			// No tool calls, we're done
+			readUserInput = true
 			break
 		}
 
-		// Process tool results
+		readUserInput = false
+
 		toolResultMsg := &message.Message{
 			Role:    message.UserRole,
 			Content: toolResults,
@@ -102,15 +112,14 @@ func (a *Agent) Run(ctx context.Context, userInput string, onDelta func(string))
 		a.conversation.Append(toolResultMsg)
 		a.saveConversation()
 	}
-
 	return nil
 }
 
 func (a *Agent) registerMCPServers() {
-	fmt.Printf("Initializing MCP servers based on %d configurations...\n", len(a.mcp.ServerConfigs))
+	// fmt.Printf("Initializing MCP servers based on %d configurations...\n", len(a.mcp.ServerConfigs))
 
 	for _, serverCfg := range a.mcp.ServerConfigs {
-		fmt.Printf("Attempting to create MCP server instance for ID %s (command: %s)\n", serverCfg.ID, serverCfg.Command)
+		// fmt.Printf("Attempting to create MCP server instance for ID %s (command: %s)\n", serverCfg.ID, serverCfg.Command)
 		server, err := mcp.NewServer(serverCfg.ID, serverCfg.Command)
 		if err != nil {
 			// TODO: Better error handling
@@ -127,10 +136,10 @@ func (a *Agent) registerMCPServers() {
 			continue
 		}
 
-		fmt.Printf("MCP Server %s started successfully.\n", serverCfg.ID)
+		// fmt.Printf("MCP Server %s started successfully.\n", serverCfg.ID)
 		a.mcp.ActiveServers = append(a.mcp.ActiveServers, server)
 
-		fmt.Printf("Fetching tools from MCP server %s...\n", server.ID())
+		// fmt.Printf("Fetching tools from MCP server %s...\n", server.ID())
 		tool, err := server.ListTools(context.Background()) // Using context.Background() for now
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error listing tools from MCP server %s: %v\\n", server.ID(), err)
@@ -166,15 +175,27 @@ func (a *Agent) registerMCPServers() {
 		for toolName := range a.mcp.ToolMap {
 			mcpToolNames = append(mcpToolNames, toolName)
 		}
-		fmt.Printf("Added MCP tools to agent toolbox: %v\n", mcpToolNames)
+		// fmt.Printf("Added MCP tools to agent toolbox: %v\n", mcpToolNames)
 	}
 }
 
-func (a *Agent) executeTool(id, name string, input json.RawMessage) message.ContentBlock {
+func (a *Agent) executeTool(id, name string, input json.RawMessage, onDelta func(string)) message.ContentBlock {
+	var result message.ContentBlock
 	if execDetails, isMCPTool := a.mcp.ToolMap[name]; isMCPTool {
-		return a.executeMCPTool(id, name, input, execDetails)
+		result = a.executeMCPTool(id, name, input, execDetails)
+	} else {
+		result = a.executeLocalTool(id, name, input)
 	}
-	return a.executeLocalTool(id, name, input)
+
+	// TODO: Shorten the relative/absolute path and underline it.
+	// For content to edit, remove it from the display?
+	if toolResult, ok := result.(message.ToolResultBlock); ok && toolResult.IsError {
+		onDelta(fmt.Sprintf("\n\n[red]\u2717 %s failed[white]\n\n", name))
+	} else {
+		onDelta(fmt.Sprintf("\n\n[green]\u2713 %s [white] %s [azure]\n\n", name, input))
+	}
+
+	return result
 }
 
 func (a *Agent) executeMCPTool(id, name string, input json.RawMessage, toolDetails mcp.ToolDetails) message.ContentBlock {
@@ -216,6 +237,7 @@ func (a *Agent) executeMCPTool(id, name string, input json.RawMessage, toolDetai
 	return message.NewToolResultBlock(id, name, content, false)
 }
 
+// TODO: Return proper error type
 func (a *Agent) executeLocalTool(id, name string, input json.RawMessage) message.ContentBlock {
 	var toolDef *tools.ToolDefinition
 	var found bool
@@ -228,13 +250,9 @@ func (a *Agent) executeLocalTool(id, name string, input json.RawMessage) message
 	}
 
 	if !found {
-		// TODO: Return proper error type
 		errorMsg := "tool not found"
 		return message.NewToolResultBlock(id, name, errorMsg, true)
 	}
-
-	fmt.Printf("\u001b[92mtool\u001b[0m: %s(%s)\n", name, input)
-	fmt.Println()
 
 	response, err := toolDef.Function(input)
 
@@ -243,29 +261,6 @@ func (a *Agent) executeLocalTool(id, name string, input json.RawMessage) message
 	}
 
 	return message.NewToolResultBlock(id, name, response, false)
-}
-
-// TODO: Should this be in interactive.go?
-func getUserMessage() (string, bool) {
-	scanner := bufio.NewScanner(os.Stdin)
-
-	if !scanner.Scan() {
-		return "", false
-	}
-	fmt.Println()
-	return scanner.Text(), true
-}
-
-// Returns the appropriate ANSI color code for the given model name
-func getModelColor(modelName string) string {
-	switch modelName {
-	case inference.AnthropicModelName:
-		return "\u001b[38;5;208m" // Orange
-	case inference.GoogleModelName:
-		return "\u001b[94m" // Blue
-	default:
-		return "\u001b[97m" // White (default)
-	}
 }
 
 func (a *Agent) saveConversation() error {
@@ -280,7 +275,7 @@ func (a *Agent) saveConversation() error {
 	return nil
 }
 
-func (a *Agent) shutdownMCPServers() {
+func (a *Agent) ShutdownMCPServers() {
 	fmt.Println("shutting down MCP servers...")
 	for _, s := range a.mcp.ActiveServers {
 		fmt.Printf("closing MCP server: %s\n", s.ID())

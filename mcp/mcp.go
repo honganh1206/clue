@@ -170,6 +170,7 @@ func (s *Server) Close() error {
 	if s.closer != nil {
 		if err := s.closer.Close(); err != nil {
 			if firstErr == nil {
+				// TODO: Still error when close with SIGTERM
 				firstErr = fmt.Errorf("mcp server: failed to close server pipes: %w", err)
 			} else {
 				fmt.Fprintf(os.Stderr, "additional error while closing server pipes: %v\n", err)

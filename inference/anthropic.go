@@ -136,6 +136,8 @@ func (c *AnthropicClient) RunInferenceStream(ctx context.Context, onDelta func(s
 		return msg, err
 	}
 
+	// TODO: Use respCh, errCh to accumulate delta?
+
 	var sb strings.Builder
 	for _, blk := range llmresp.Content {
 		switch v := blk.AsAny().(type) {
