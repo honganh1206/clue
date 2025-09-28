@@ -28,8 +28,8 @@ Executes the given shell command in the user's default shell.
    - Only the last 50000 characters of the output will be returned to you along with how many lines got truncated, if any
    - If necessary, when the output is truncated, consider running the command again with a grep or head filter to search through the truncated lines
 
-6. Stateless environment:
-   - Setting an environment variable or using `cd` only impacts a single command, it does not persist between commands
+6. Stateful environment:
+   - All commands share the same shell session. Shell state (environment variables, virtual environments, current directory, etc.) persist between commands. For example, if you set an environment variable as part of a command, the environment variable will persist for subsequent commands.
 
 7. Cross platform support:
     - When the Operating system is Windows, use `powershell` commands instead of Linux commands
