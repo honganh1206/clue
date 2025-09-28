@@ -77,7 +77,7 @@ func tui(ctx context.Context, agent *agent.Agent, conv *conversation.Conversatio
 					return
 				}
 
-				fmt.Fprintf(conversationView, "\n")
+				fmt.Fprintf(conversationView, "\n\n")
 				conversationView.ScrollToEnd()
 			}()
 

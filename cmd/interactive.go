@@ -25,6 +25,7 @@ func interactive(ctx context.Context, convID string, llmClient inference.BaseLLM
 			&tools.EditFileDefinition,
 			&tools.GrepSearchDefinition,
 			&tools.CodeJudgeDefinition,
+			&tools.BashDefinition,
 		},
 	}
 	var conv *conversation.Conversation
