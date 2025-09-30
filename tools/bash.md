@@ -28,8 +28,8 @@ Executes the given shell command in the user's default shell.
    - Only the last 50000 characters of the output will be returned to you along with how many lines got truncated, if any
    - If necessary, when the output is truncated, consider running the command again with a grep or head filter to search through the truncated lines
 
-6. Stateful environment:
-   - All commands share the same shell session. Shell state (environment variables, virtual environments, current directory, etc.) persist between commands. For example, if you set an environment variable as part of a command, the environment variable will persist for subsequent commands.
+6. Stateless environment:
+   - Setting an environment variable or using `cd` only impacts a single command, it does not persist between commands
 
 7. Cross platform support:
     - When the Operating system is Windows, use `powershell` commands instead of Linux commands
@@ -73,6 +73,15 @@ user: yes
 assistant: [uses Bash to 'git add' the unstaged changes from the 'git status' output]
 [uses Bash to run 'git commit -m "commit message"']
 </git-example>
+
+IMPORTANT notes:
+
+- When possible, combine the "git add" and "git commit" commands into a single "git commit -am" command, to speed things up. However, be careful not to stage files (e.g. with git add .) for commits that aren't part of the change, they may have untracked files they want to keep around, but not commit.
+- NEVER update the git config
+- DO NOT push to the remote repository
+- NEVER use git commands with the -i flag (like git rebase -i or git add -i) since they require interactive input which is not supported.
+- If there are no changes to commit (i.e., no untracked files and no modifications), do not create an empty commit
+- Ensure your commit message is meaningful and concise. It should explain the important parts of the changes, not just describe them.
 
 ## Prefer specific tools
 
