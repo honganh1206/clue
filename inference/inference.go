@@ -15,7 +15,8 @@ import (
 type LLMClient interface {
 	// Stream text deltas while generating the message.
 	// Implementation should call onDelta with incremental text and return the final full text when the stream finishes.
-	RunInferenceStream(ctx context.Context, onDelta func(string)) (*message.Message, error)
+	// If streaming is false, uses snapshot mode and onDelta is ignored.
+	RunInference(ctx context.Context, onDelta func(string), streaming bool) (*message.Message, error)
 	SummarizeHistory(history []*message.Message, threshold int) []*message.Message
 	// ApplySlidingWindow(history []*message.Message, windowSize int) []*message.Message
 	TruncateMessage(msg *message.Message, threshold int) *message.Message

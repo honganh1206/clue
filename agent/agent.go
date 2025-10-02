@@ -21,14 +21,16 @@ type Agent struct {
 	conversation *conversation.Conversation
 	client       *api.Client
 	mcp          mcp.Config
+	streaming    bool
 }
 
-func New(llm inference.LLMClient, conversation *conversation.Conversation, toolBox *tools.ToolBox, client *api.Client, mcpConfigs []mcp.ServerConfig) *Agent {
+func New(llm inference.LLMClient, conversation *conversation.Conversation, toolBox *tools.ToolBox, client *api.Client, mcpConfigs []mcp.ServerConfig, streaming bool) *Agent {
 	agent := &Agent{
 		llm:          llm,
 		toolBox:      toolBox,
 		conversation: conversation,
 		client:       client,
+		streaming:    streaming,
 	}
 
 	agent.mcp.ServerConfigs = mcpConfigs
@@ -259,6 +261,11 @@ func (a *Agent) executeLocalTool(id, name string, input json.RawMessage) message
 }
 
 func (a *Agent) saveConversation() error {
+	// Skip if no client (for sub-agents)
+	if a.client == nil {
+		return nil
+	}
+
 	if len(a.conversation.Messages) > 0 {
 		err := a.client.SaveConversation(a.conversation)
 		if err != nil {
@@ -290,7 +297,7 @@ func (a *Agent) streamResponse(ctx context.Context, onDelta func(string)) (*mess
 
 	go func() {
 		defer wg.Done()
-		msg, streamErr = a.llm.RunInferenceStream(ctx, onDelta)
+		msg, streamErr = a.llm.RunInference(ctx, onDelta, a.streaming)
 	}()
 
 	wg.Wait()
