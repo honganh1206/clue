@@ -72,88 +72,99 @@ func getAnthropicModel(model ModelVersion) anthropic.Model {
 	}
 }
 
-// TODO: Return delta instead of full content string builder?
-func (c *AnthropicClient) RunInferenceStream(ctx context.Context, onDelta func(string)) (*message.Message, error) {
+func (c *AnthropicClient) RunInference(ctx context.Context, onDelta func(string), streaming bool) (*message.Message, error) {
 	if len(c.history) == 0 {
 		return nil, errors.New("anthropic: no messages in conversation history")
 	}
 
-	stream := c.client.Messages.NewStreaming(ctx, anthropic.MessageNewParams{
+	params := anthropic.MessageNewParams{
 		Model:     getAnthropicModel(c.model),
 		MaxTokens: c.maxTokens,
 		Messages:  c.history,
 		Tools:     c.tools,
 		System: []anthropic.TextBlockParam{
 			{Text: c.systemPrompt, CacheControl: c.cache}},
-	})
+	}
 
-	llmresp := anthropic.Message{}
+	if streaming {
+		// Streaming mode: use SSE stream
+		stream := c.client.Messages.NewStreaming(ctx, params)
 
-	for stream.Next() {
-		event := stream.Current()
-		if err := llmresp.Accumulate(event); err != nil {
-			fmt.Printf("error accumulating event: %v\n", err)
-			continue
-		}
+		llmresp := anthropic.Message{}
 
-		switch ev := event.AsAny().(type) {
-		// Temp formatting
-		case anthropic.ContentBlockStartEvent:
-		case anthropic.ContentBlockStopEvent:
-			fmt.Println()
-		case anthropic.MessageStopEvent:
-			fmt.Println()
-		case anthropic.MessageStartEvent:
-		case anthropic.MessageDeltaEvent:
-		default:
-			fmt.Printf("Unhandled event type: %T\n", event)
-		case anthropic.ContentBlockDeltaEvent:
-			switch d := ev.Delta.AsAny().(type) {
-			case anthropic.TextDelta:
-				// Emit text deltas when available
-				if d.Text != "" {
-					onDelta(d.Text)
+		for stream.Next() {
+			event := stream.Current()
+			if err := llmresp.Accumulate(event); err != nil {
+				fmt.Printf("error accumulating event: %v\n", err)
+				continue
+			}
+
+			switch ev := event.AsAny().(type) {
+			case anthropic.ContentBlockStartEvent:
+			case anthropic.ContentBlockStopEvent:
+				fmt.Println()
+			case anthropic.MessageStopEvent:
+				fmt.Println()
+			case anthropic.MessageStartEvent:
+			case anthropic.MessageDeltaEvent:
+			default:
+				fmt.Printf("Unhandled event type: %T\n", event)
+			case anthropic.ContentBlockDeltaEvent:
+				switch d := ev.Delta.AsAny().(type) {
+				case anthropic.TextDelta:
+					if d.Text != "" {
+						onDelta(d.Text)
+					}
 				}
 			}
 		}
-	}
 
-	if streamErr := stream.Err(); streamErr != nil {
-		// The token must flow.
-		// Return whatever we have with error.
+		if streamErr := stream.Err(); streamErr != nil {
+			var sb strings.Builder
+			for _, blk := range llmresp.Content {
+				switch v := blk.AsAny().(type) {
+				case anthropic.TextBlock:
+					sb.WriteString(v.Text)
+				}
+			}
+			msg, err := toGenericMessage(llmresp)
+			if err != nil {
+				return nil, err
+			}
+
+			return msg, err
+		}
+
 		var sb strings.Builder
 		for _, blk := range llmresp.Content {
 			switch v := blk.AsAny().(type) {
 			case anthropic.TextBlock:
 				sb.WriteString(v.Text)
+			case anthropic.ToolUseBlock:
+				sb.WriteString(v.JSON.Input.Raw())
 			}
 		}
+
 		msg, err := toGenericMessage(llmresp)
 		if err != nil {
 			return nil, err
 		}
 
-		return msg, err
-	}
-
-	// TODO: Use respCh, errCh to accumulate delta?
-
-	var sb strings.Builder
-	for _, blk := range llmresp.Content {
-		switch v := blk.AsAny().(type) {
-		case anthropic.TextBlock:
-			sb.WriteString(v.Text)
-		case anthropic.ToolUseBlock:
-			sb.WriteString(v.JSON.Input.Raw())
+		return msg, nil
+	} else {
+		// Snapshot mode: use synchronous API call
+		response, err := c.client.Messages.New(ctx, params)
+		if err != nil {
+			return nil, fmt.Errorf("anthropic snapshot call failed: %w", err)
 		}
-	}
 
-	msg, err := toGenericMessage(llmresp)
-	if err != nil {
-		return nil, err
-	}
+		msg, err := toGenericMessage(*response)
+		if err != nil {
+			return nil, err
+		}
 
-	return msg, nil
+		return msg, nil
+	}
 }
 
 func (c *AnthropicClient) ToNativeHistory(history []*message.Message) error {

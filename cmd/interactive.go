@@ -13,6 +13,9 @@ import (
 )
 
 func interactive(ctx context.Context, convID string, llmClient inference.BaseLLMClient, apiClient *api.Client, mcpConfigs []mcp.ServerConfig) error {
+	// Initialize sub-agent runner for codebase_search tool
+	agent.InitSubAgentRunner()
+
 	llm, err := inference.Init(ctx, llmClient)
 	if err != nil {
 		log.Fatalf("Failed to initialize model: %s", err.Error())
@@ -24,6 +27,7 @@ func interactive(ctx context.Context, convID string, llmClient inference.BaseLLM
 			&tools.ListFilesDefinition,
 			&tools.EditFileDefinition,
 			&tools.GrepSearchDefinition,
+			&tools.CodebaseSearchDefinition,
 			&tools.CodeJudgeDefinition,
 			&tools.BashDefinition,
 		},
@@ -42,7 +46,7 @@ func interactive(ctx context.Context, convID string, llmClient inference.BaseLLM
 		}
 	}
 
-	a := agent.New(llm, conv, toolBox, apiClient, mcpConfigs)
+	a := agent.New(llm, conv, toolBox, apiClient, mcpConfigs, true)
 
 	err = tui(ctx, a, conv)
 

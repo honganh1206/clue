@@ -57,7 +57,7 @@ func tui(ctx context.Context, agent *agent.Agent, conv *conversation.Conversatio
 			questionInput.SetText("", false)
 			questionInput.SetDisabled(true)
 
-			fmt.Fprintf(conversationView, "[blue::]> %s\n\n", content)
+			fmt.Fprintf(conversationView, "\n[blue::]> %s\n\n", content)
 
 			go func() {
 				defer func() {

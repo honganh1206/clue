@@ -10,6 +10,7 @@ import (
 	"github.com/honganh1206/clue/schema"
 )
 
+// TODO: Embed markdown tool prompt
 // Apparently Claude loves replacing strings (known through experiments?)
 var EditFileDefinition = ToolDefinition{
 	Name: "edit_file",
