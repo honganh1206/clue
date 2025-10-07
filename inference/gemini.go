@@ -68,96 +68,60 @@ func (c *GeminiClient) RunInference(ctx context.Context, onDelta func(string), s
 		SystemInstruction: genai.NewContentFromText(c.systemPrompt, genai.RoleUser),
 	}
 
+	var resp *message.Message
+	var runErr error
+
 	if streaming {
-		// Streaming mode: use GenerateContentStream
-		response := c.client.Models.GenerateContentStream(ctx, modelName, c.contents, config)
-
-		var fullText strings.Builder
-		var toolCalls []message.ContentBlock
-		var outputContents []*genai.Content
-
-		msg := &message.Message{
-			Role:    message.ModelRole,
-			Content: make([]message.ContentBlock, 0),
-		}
-
-		for chunk, err := range response {
-			if err == io.EOF {
-				break
-			}
-
-			if err != nil {
-				return nil, err
-			}
-
-			if len(chunk.Candidates) == 0 || chunk.Candidates[0].Content == nil {
-				return nil, fmt.Errorf("no content returned")
-			}
-
-			bestCandidate := chunk.Candidates[0]
-			bestContent := bestCandidate.Content
-
-			if len(bestContent.Parts) == 0 {
-				if bestCandidate.FinishReason != "" {
-					outputContents = append(outputContents, bestContent)
-					continue
-				}
-			}
-
-			for _, p := range bestContent.Parts {
-				if p.Text != "" {
-					onDelta(p.Text)
-					fullText.WriteString(p.Text)
-				}
-				if p.FunctionCall != nil {
-					fc := p.FunctionCall
-					inputBytes, err := json.Marshal(fc.Args)
-					if err != nil {
-						return nil, fmt.Errorf("failed to marshal function args: %w", err)
-					}
-
-					toolCall := message.NewToolUseBlock(
-						fc.ID,
-						fc.Name,
-						inputBytes,
-					)
-					toolCalls = append(toolCalls, toolCall)
-				}
-			}
-
-			outputContents = append(outputContents, bestContent)
-		}
-
-		if fullText.String() != "" {
-			msg.Content = append(msg.Content, message.NewTextBlock(fullText.String()))
-		}
-
-		msg.Content = append(msg.Content, toolCalls...)
-
-		return msg, nil
+		resp, runErr = c.runInferenceStream(ctx, modelName, config, onDelta)
 	} else {
-		// Snapshot mode: use GenerateContent
-		response, err := c.client.Models.GenerateContent(ctx, modelName, c.contents, config)
-		if err != nil {
-			return nil, fmt.Errorf("gemini snapshot call failed: %w", err)
+		resp, runErr = c.runInferenceSnapshot(ctx, modelName, config)
+	}
+
+	if runErr != nil {
+		return nil, runErr
+	}
+
+	return resp, nil
+}
+
+func (c *GeminiClient) runInferenceStream(ctx context.Context, modelName string, config *genai.GenerateContentConfig, onDelta func(string)) (*message.Message, error) {
+	response := c.client.Models.GenerateContentStream(ctx, modelName, c.contents, config)
+
+	var fullText strings.Builder
+	var toolCalls []message.ContentBlock
+	var outputContents []*genai.Content
+
+	msg := &message.Message{
+		Role:    message.ModelRole,
+		Content: make([]message.ContentBlock, 0),
+	}
+
+	for chunk, err := range response {
+		if err == io.EOF {
+			break
 		}
 
-		if len(response.Candidates) == 0 || response.Candidates[0].Content == nil {
+		if err != nil {
+			return nil, err
+		}
+
+		if len(chunk.Candidates) == 0 || chunk.Candidates[0].Content == nil {
 			return nil, fmt.Errorf("no content returned")
 		}
 
-		bestContent := response.Candidates[0].Content
+		bestCandidate := chunk.Candidates[0]
+		bestContent := bestCandidate.Content
 
-		msg := &message.Message{
-			Role:    message.ModelRole,
-			Content: make([]message.ContentBlock, 0),
+		if len(bestContent.Parts) == 0 {
+			if bestCandidate.FinishReason != "" {
+				outputContents = append(outputContents, bestContent)
+				continue
+			}
 		}
-
-		var fullText strings.Builder
-		var toolCalls []message.ContentBlock
 
 		for _, p := range bestContent.Parts {
 			if p.Text != "" {
+				onDelta(p.Text)
 				fullText.WriteString(p.Text)
 			}
 			if p.FunctionCall != nil {
@@ -176,14 +140,65 @@ func (c *GeminiClient) RunInference(ctx context.Context, onDelta func(string), s
 			}
 		}
 
-		if fullText.String() != "" {
-			msg.Content = append(msg.Content, message.NewTextBlock(fullText.String()))
-		}
-
-		msg.Content = append(msg.Content, toolCalls...)
-
-		return msg, nil
+		outputContents = append(outputContents, bestContent)
 	}
+
+	if fullText.String() != "" {
+		msg.Content = append(msg.Content, message.NewTextBlock(fullText.String()))
+	}
+
+	msg.Content = append(msg.Content, toolCalls...)
+
+	return msg, nil
+}
+
+func (c *GeminiClient) runInferenceSnapshot(ctx context.Context, modelName string, config *genai.GenerateContentConfig) (*message.Message, error) {
+	response, err := c.client.Models.GenerateContent(ctx, modelName, c.contents, config)
+	if err != nil {
+		return nil, fmt.Errorf("gemini snapshot call failed: %w", err)
+	}
+
+	if len(response.Candidates) == 0 || response.Candidates[0].Content == nil {
+		return nil, fmt.Errorf("no content returned")
+	}
+
+	bestContent := response.Candidates[0].Content
+
+	msg := &message.Message{
+		Role:    message.ModelRole,
+		Content: make([]message.ContentBlock, 0),
+	}
+
+	var fullText strings.Builder
+	var toolCalls []message.ContentBlock
+
+	for _, p := range bestContent.Parts {
+		if p.Text != "" {
+			fullText.WriteString(p.Text)
+		}
+		if p.FunctionCall != nil {
+			fc := p.FunctionCall
+			inputBytes, err := json.Marshal(fc.Args)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal function args: %w", err)
+			}
+
+			toolCall := message.NewToolUseBlock(
+				fc.ID,
+				fc.Name,
+				inputBytes,
+			)
+			toolCalls = append(toolCalls, toolCall)
+		}
+	}
+
+	if fullText.String() != "" {
+		msg.Content = append(msg.Content, message.NewTextBlock(fullText.String()))
+	}
+
+	msg.Content = append(msg.Content, toolCalls...)
+
+	return msg, nil
 }
 
 func (c *GeminiClient) ToNativeHistory(history []*message.Message) error {

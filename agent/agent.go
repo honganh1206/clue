@@ -52,6 +52,7 @@ func (a *Agent) Run(ctx context.Context, userInput string, onDelta func(string))
 
 	readUserInput := true
 
+	// TODO: Add flag to know when to summarize
 	a.conversation.Messages = a.llm.SummarizeHistory(a.conversation.Messages, 20)
 
 	if len(a.conversation.Messages) != 0 {
@@ -154,7 +155,7 @@ func (a *Agent) registerMCPServers() {
 			continue
 			// return
 		}
-		fmt.Printf("Fetched %d tools from MCP server %s\n", len(tool), server.ID())
+		// fmt.Printf("Fetched %d tools from MCP server %s\n", len(tool), server.ID())
 		a.mcp.Tools = append(a.mcp.Tools, tool)
 
 		for _, t := range tool {
@@ -240,9 +241,9 @@ func (a *Agent) executeMCPTool(id, name string, input json.RawMessage, toolDetai
 
 // TODO: Return proper error type
 func (a *Agent) executeLocalTool(id, name string, input json.RawMessage) message.ContentBlock {
-	fmt.Printf("DEBUG AGENT executeLocalTool: id=%s, name=%s, input=%s\n", id, name, string(input))
 	var toolDef *tools.ToolDefinition
 	var found bool
+	// TODO: Toolbox should be a map, not a list of tools
 	for _, tool := range a.toolBox.Tools {
 		if tool.Name == name {
 			toolDef = tool
@@ -253,37 +254,32 @@ func (a *Agent) executeLocalTool(id, name string, input json.RawMessage) message
 
 	if !found {
 		errorMsg := "tool not found"
-		fmt.Printf("DEBUG AGENT executeLocalTool: tool not found - name=%s\n", name)
 		return message.NewToolResultBlock(id, name, errorMsg, true)
 	}
 	var response string
 	var err error
 
-	// Problem is that runSubagent returns a whole Message
-	// but we need toolDef to know we are invoking codebase_search
-	// and the for loops in agent.go and subagent.go are quite redundant
-
 	if toolDef.IsSubTool {
-		fmt.Printf("DEBUG AGENT executeLocalTool: Calling subagent for tool=%s\n", name)
+		// Make the subagent invoke tools
 		toolResultMsg, err := a.runSubagent(id, name, toolDef.Description, input)
 		if err != nil {
-			fmt.Printf("DEBUG AGENT executeLocalTool: Subagent failed - error=%v\n", err)
 			return message.NewToolResultBlock(id, name, err.Error(), true)
 		}
 
-		var finalAnswer strings.Builder
+		var final strings.Builder
+		// Iterating over block type is quite tiring?
 		for _, content := range toolResultMsg.Content {
-			if textBlk, ok := content.(message.TextBlock); ok {
-				finalAnswer.WriteString(textBlk.Text)
-			} else if toolResultBlk, ok := content.(message.ToolResultBlock); ok {
-				finalAnswer.WriteString(toolResultBlk.Content)
+			switch blk := content.(type) {
+			case message.TextBlock:
+				final.WriteString(blk.Text)
+			case message.ToolResultBlock:
+				final.WriteString(blk.Content)
 			}
 		}
 
-		response = finalAnswer.String()
-		fmt.Printf("DEBUG AGENT executeLocalTool: Subagent response received - name=%s, response_length=%d\n", name, len(response))
+		response = final.String()
 	} else {
-		fmt.Printf("DEBUG AGENT executeLocalTool: Executing regular tool=%s\n", name)
+		// The main agent invokes tools
 		response, err = toolDef.Function(input)
 	}
 
@@ -291,34 +287,30 @@ func (a *Agent) executeLocalTool(id, name string, input json.RawMessage) message
 		return message.NewToolResultBlock(id, name, err.Error(), true)
 	}
 
-	fmt.Printf("DEBUG AGENT executeLocalTool: success - name=%s, response=%s\n", name, response)
 	return message.NewToolResultBlock(id, name, response, false)
 }
 
-func (a *Agent) runSubagent(id, name, toolDescription string, input json.RawMessage) (*message.Message, error) {
-	fmt.Printf("DEBUG AGENT runSubagent: Starting - tool=%s, id=%s\n", name, id)
-	// The OG user input still needs to be processed by the main agent
-	// before we pass it to the subagent
-	var searchInput struct {
+func (a *Agent) runSubagent(id, name, toolDescription string, rawInput json.RawMessage) (*message.Message, error) {
+	// The OG input from the user gets processed by the main agent
+	// and the subagent will consume the processed input.
+	// This is for the maybe future of task delegation
+	var input struct {
 		Query string `json:"query"`
 	}
-	err := json.Unmarshal(input, &searchInput)
+
+	err := json.Unmarshal(rawInput, &input)
 	if err != nil {
-		fmt.Printf("DEBUG AGENT runSubagent: Error unmarshaling input: %v\n", err)
 		// Check errors instead of pretending nothing went wrong
 		return nil, err
 	}
 
-	fmt.Printf("DEBUG AGENT runSubagent: Calling subagent with query=%s, description=%s\n", searchInput.Query, toolDescription)
-	// Actually call the subagent with the query (revolutionary concept!)
-	result, err := a.sub.Run(context.Background(), toolDescription, searchInput.Query)
+	// TODO: Can we pass the original background context of the main agent?
+	// Or should we let each agent has their own context?
+	result, err := a.sub.Run(context.Background(), toolDescription, input.Query)
 	if err != nil {
-		fmt.Printf("DEBUG AGENT runSubagent: Subagent error: %v\n", err)
-		// Check errors instead of pretending nothing went wrong
 		return nil, err
 	}
 
-	fmt.Printf("DEBUG AGENT runSubagent: Subagent completed successfully, content blocks: %d\n", len(result.Content))
 	return result, nil
 }
 
@@ -331,7 +323,6 @@ func (a *Agent) saveConversation() error {
 	if len(a.conversation.Messages) > 0 {
 		err := a.client.SaveConversation(a.conversation)
 		if err != nil {
-			fmt.Printf("DEBUG: Failed conversation details - ConversationID: %s\n", a.conversation.ID)
 			return err
 		}
 	}
@@ -351,7 +342,6 @@ func (a *Agent) ShutdownMCPServers() {
 	}
 }
 func (a *Agent) streamResponse(ctx context.Context, onDelta func(string)) (*message.Message, error) {
-	fmt.Printf("DEBUG AGENT streamResponse: Starting main agent LLM inference\n")
 	var streamErr error
 	var msg *message.Message
 
@@ -366,10 +356,8 @@ func (a *Agent) streamResponse(ctx context.Context, onDelta func(string)) (*mess
 	wg.Wait()
 
 	if streamErr != nil {
-		fmt.Printf("DEBUG AGENT streamResponse: Main agent LLM error: %v\n", streamErr)
 		return nil, streamErr
 	}
 
-	fmt.Printf("DEBUG AGENT streamResponse: Main agent LLM completed successfully, content blocks: %d\n", len(msg.Content))
 	return msg, nil
 }

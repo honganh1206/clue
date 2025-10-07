@@ -6,7 +6,7 @@ import (
 	"github.com/honganh1206/clue/schema"
 )
 
-//go:embed codebase_search.md
+//go:embed codebase_searchagent.md
 var codebaseSearchPrompt string
 
 // CodebaseSearchDefinition defines the codebase_search tool

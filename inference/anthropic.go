@@ -25,6 +25,8 @@ type AnthropicClient struct {
 }
 
 func NewAnthropicClient(client *anthropic.Client, model ModelVersion, maxTokens int64) *AnthropicClient {
+	// TODO: The client should get an argument for this,
+	// since we need subagents to have separate system prompts
 	systemPrompt := prompts.ClaudeSystemPrompt()
 
 	return &AnthropicClient{
@@ -86,85 +88,100 @@ func (c *AnthropicClient) RunInference(ctx context.Context, onDelta func(string)
 			{Text: c.systemPrompt, CacheControl: c.cache}},
 	}
 
+	var resp *message.Message
+	var runErr error
+
 	if streaming {
-		// Streaming mode: use SSE stream
-		stream := c.client.Messages.NewStreaming(ctx, params)
+		resp, runErr = c.runInferenceStream(ctx, params, onDelta)
+	} else {
+		resp, runErr = c.runInferenceSnapshot(ctx, params)
+	}
 
-		llmresp := anthropic.Message{}
+	if runErr != nil {
+		return nil, runErr
+	}
 
-		for stream.Next() {
-			event := stream.Current()
-			if err := llmresp.Accumulate(event); err != nil {
-				fmt.Printf("error accumulating event: %v\n", err)
-				continue
-			}
+	return resp, nil
+}
 
-			switch ev := event.AsAny().(type) {
-			case anthropic.ContentBlockStartEvent:
-			case anthropic.ContentBlockStopEvent:
-				fmt.Println()
-			case anthropic.MessageStopEvent:
-				fmt.Println()
-			case anthropic.MessageStartEvent:
-			case anthropic.MessageDeltaEvent:
-			default:
-				fmt.Printf("Unhandled event type: %T\n", event)
-			case anthropic.ContentBlockDeltaEvent:
-				switch d := ev.Delta.AsAny().(type) {
-				case anthropic.TextDelta:
-					if d.Text != "" {
-						onDelta(d.Text)
-					}
+func (c *AnthropicClient) runInferenceStream(ctx context.Context, params anthropic.MessageNewParams, onDelta func(string)) (*message.Message, error) {
+	stream := c.client.Messages.NewStreaming(ctx, params)
+
+	llmresp := anthropic.Message{}
+
+	for stream.Next() {
+		event := stream.Current()
+		if err := llmresp.Accumulate(event); err != nil {
+			fmt.Printf("error accumulating event: %v\n", err)
+			continue
+		}
+
+		switch ev := event.AsAny().(type) {
+		case anthropic.ContentBlockStartEvent:
+		case anthropic.ContentBlockStopEvent:
+			fmt.Println()
+		case anthropic.MessageStopEvent:
+			fmt.Println()
+		case anthropic.MessageStartEvent:
+		case anthropic.MessageDeltaEvent:
+		default:
+			fmt.Printf("Unhandled event type: %T\n", event)
+		case anthropic.ContentBlockDeltaEvent:
+			switch d := ev.Delta.AsAny().(type) {
+			case anthropic.TextDelta:
+				if d.Text != "" {
+					onDelta(d.Text)
 				}
 			}
 		}
+	}
 
-		if streamErr := stream.Err(); streamErr != nil {
-			var sb strings.Builder
-			for _, blk := range llmresp.Content {
-				switch v := blk.AsAny().(type) {
-				case anthropic.TextBlock:
-					sb.WriteString(v.Text)
-				}
-			}
-			msg, err := toGenericMessage(llmresp)
-			if err != nil {
-				return nil, err
-			}
-
-			return msg, err
-		}
-
+	if streamErr := stream.Err(); streamErr != nil {
 		var sb strings.Builder
 		for _, blk := range llmresp.Content {
 			switch v := blk.AsAny().(type) {
 			case anthropic.TextBlock:
 				sb.WriteString(v.Text)
-			case anthropic.ToolUseBlock:
-				sb.WriteString(v.JSON.Input.Raw())
 			}
 		}
-
 		msg, err := toGenericMessage(llmresp)
 		if err != nil {
 			return nil, err
 		}
 
-		return msg, nil
-	} else {
-		// Snapshot mode: use synchronous API call
-		response, err := c.client.Messages.New(ctx, params)
-		if err != nil {
-			return nil, fmt.Errorf("anthropic snapshot call failed: %w", err)
-		}
-
-		msg, err := toGenericMessage(*response)
-		if err != nil {
-			return nil, err
-		}
-
-		return msg, nil
+		return msg, err
 	}
+
+	var sb strings.Builder
+	for _, blk := range llmresp.Content {
+		switch v := blk.AsAny().(type) {
+		case anthropic.TextBlock:
+			sb.WriteString(v.Text)
+		case anthropic.ToolUseBlock:
+			sb.WriteString(v.JSON.Input.Raw())
+		}
+	}
+
+	msg, err := toGenericMessage(llmresp)
+	if err != nil {
+		return nil, err
+	}
+
+	return msg, nil
+}
+
+func (c *AnthropicClient) runInferenceSnapshot(ctx context.Context, params anthropic.MessageNewParams) (*message.Message, error) {
+	response, err := c.client.Messages.New(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("anthropic snapshot call failed: %w", err)
+	}
+
+	msg, err := toGenericMessage(*response)
+	if err != nil {
+		return nil, err
+	}
+
+	return msg, nil
 }
 
 func (c *AnthropicClient) ToNativeHistory(history []*message.Message) error {
