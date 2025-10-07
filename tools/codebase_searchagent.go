@@ -9,13 +9,10 @@ import (
 //go:embed codebase_searchagent.md
 var codebaseSearchPrompt string
 
-// CodebaseSearchDefinition defines the codebase_search tool
-// This tool is special - it's handled by a subagent in Agent.Run(), not by a Function
 var CodebaseSearchDefinition = ToolDefinition{
 	Name:        "codebase_searchagent",
 	Description: codebaseSearchPrompt,
 	InputSchema: CodebaseSearchInputSchema,
-	Function:    nil, // No function - handled by subagent
 	IsSubTool:   true,
 }
 

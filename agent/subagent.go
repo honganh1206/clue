@@ -85,10 +85,12 @@ func (s *Subagent) Run(
 		}
 
 		if len(toolResults) == 0 {
+			// If we reach this case, it means we have finished processing the tool results
+			// and we are safe to return the text response from the agent.
 			return resp, nil
 		}
 
-		// Add tool results back to conversation for next iteration
+		// Send the result back to the model
 		toolResultMsg := &message.Message{
 			Role:    message.UserRole,
 			Content: toolResults,

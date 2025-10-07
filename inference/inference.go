@@ -99,7 +99,7 @@ func (b *BaseLLMClient) BaseSummarizeHistory(history []*message.Message, thresho
 	// Keep the system prompt
 	summarizedHistory = append(summarizedHistory, history[0])
 
-	// TODO: Call a smaller agent to summarize old messages?
+	// TODO: Call a subagent to summarize old messages
 
 	// Keep the most recent messages
 	recentMessages := history[len(history)-threshold:]

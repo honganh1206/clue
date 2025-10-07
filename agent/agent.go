@@ -100,6 +100,8 @@ func (a *Agent) Run(ctx context.Context, userInput string, onDelta func(string))
 		}
 
 		if len(toolResults) == 0 {
+			// If we reach this case, it means we have finished processing the tool results
+			// and we are safe to return the text response from the agent and wait for the next input.
 			readUserInput = true
 			break
 		}
@@ -304,7 +306,7 @@ func (a *Agent) runSubagent(id, name, toolDescription string, rawInput json.RawM
 		return nil, err
 	}
 
-	// TODO: Can we pass the original background context of the main agent?
+	// Can we pass the original background context of the main agent?
 	// Or should we let each agent has their own context?
 	result, err := a.sub.Run(context.Background(), toolDescription, input.Query)
 	if err != nil {
@@ -315,11 +317,6 @@ func (a *Agent) runSubagent(id, name, toolDescription string, rawInput json.RawM
 }
 
 func (a *Agent) saveConversation() error {
-	// Skip if no client (for sub-agents)
-	if a.client == nil {
-		return nil
-	}
-
 	if len(a.conversation.Messages) > 0 {
 		err := a.client.SaveConversation(a.conversation)
 		if err != nil {
