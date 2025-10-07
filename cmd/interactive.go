@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"log"
 
 	"github.com/honganh1206/clue/agent"
@@ -13,9 +14,6 @@ import (
 )
 
 func interactive(ctx context.Context, convID string, llmClient inference.BaseLLMClient, apiClient *api.Client, mcpConfigs []mcp.ServerConfig) error {
-	// Initialize sub-agent runner for codebase_search tool
-	agent.InitSubAgentRunner()
-
 	llm, err := inference.Init(ctx, llmClient)
 	if err != nil {
 		log.Fatalf("Failed to initialize model: %s", err.Error())
@@ -27,8 +25,7 @@ func interactive(ctx context.Context, convID string, llmClient inference.BaseLLM
 			&tools.ListFilesDefinition,
 			&tools.EditFileDefinition,
 			&tools.GrepSearchDefinition,
-			&tools.CodebaseSearchDefinition,
-			&tools.CodeJudgeDefinition,
+			&tools.CodebaseSearchDefinition, // Now handled by subagent
 			&tools.BashDefinition,
 		},
 	}
@@ -46,7 +43,17 @@ func interactive(ctx context.Context, convID string, llmClient inference.BaseLLM
 		}
 	}
 
-	a := agent.New(llm, conv, toolBox, apiClient, mcpConfigs, true)
+	subllm, err := inference.Init(ctx, inference.BaseLLMClient{
+		Provider:   inference.AnthropicProvider,
+		Model:      string(inference.Claude35Haiku),
+		TokenLimit: 8192,
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to initialize sub-agent LLM: %w", err)
+	}
+
+	a := agent.New(llm, subllm, conv, toolBox, apiClient, mcpConfigs, true)
 
 	err = tui(ctx, a, conv)
 

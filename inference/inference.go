@@ -36,6 +36,7 @@ func Init(ctx context.Context, llm BaseLLMClient) (LLMClient, error) {
 	switch llm.Provider {
 	case AnthropicProvider:
 		client := anthropic.NewClient() // Default to look up ANTHROPIC_API_KEY
+		// TODO: Should be passing system prompt from this point?
 		return NewAnthropicClient(&client, ModelVersion(llm.Model), llm.TokenLimit), nil
 	case GoogleProvider:
 		client, err := genai.NewClient(ctx, &genai.ClientConfig{
