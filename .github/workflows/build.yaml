@@ -29,6 +29,53 @@ jobs:
       - name: Install dependencies
         run: go install github.com/honganh1206/clue
 
+      - name: Check formatting
+        run: |
+          if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
+            echo "The following files need formatting:"
+            gofmt -s -l .
+            exit 1
+          fi
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Run tests
+        run: go test -v ./...
+
+      - name: Run tests with race detector
+        run: go test -race -short ./...
+        continue-on-error: true
+
+      - name: Run tests with coverage
+        run: go test -coverprofile=coverage.out -covermode=atomic ./...
+
+      - name: Display coverage report
+        run: go tool cover -func=coverage.out
+
+      - name: Upload coverage to artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.out
+          retention-days: 7
+
+      - name: Check test coverage threshold
+        run: |
+          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+          echo "Current coverage: ${COVERAGE}%"
+          THRESHOLD=75
+          # Use awk for floating point comparison
+          if [ $(echo "$COVERAGE $THRESHOLD" | awk '{print ($1 < $2)}') -eq 1 ]; then
+            echo "Coverage ${COVERAGE}% is below threshold of ${THRESHOLD}%"
+            exit 1
+          fi
+          echo "Coverage ${COVERAGE}% meets threshold of ${THRESHOLD}%"
+
+      - name: Run benchmarks
+        run: go test -bench=. -benchmem -run=^$ ./...
+        continue-on-error: true
+
       - name: Build
         run: bash ./scripts/build.sh $(cat ./scripts/VERSION)
 
