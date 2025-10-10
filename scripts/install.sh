@@ -39,7 +39,7 @@ case "$ARCH" in
     *) error "Unsupported architecture: $ARCH" ;;
 esac
 
-VERSION="0.2.1"
+VERSION="0.2.2"
 BASE_URL="https://github.com/honganh1206/clue/releases/download"
 DOWNLOAD_URL="${BASE_URL}/${VERSION}/clue_${VERSION}_${OS}_${ARCH}"
 
