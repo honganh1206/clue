@@ -24,10 +24,10 @@ type Agent struct {
 	mcp          mcp.Config
 	streaming    bool
 	// In the future it could be a map of agents, keys are task ID
-	sub *Subagent
+	Sub *Subagent
 }
 
-func New(llm, subllm inference.LLMClient, conversation *conversation.Conversation, toolBox *tools.ToolBox, client *api.Client, mcpConfigs []mcp.ServerConfig, streaming bool) *Agent {
+func New(llm inference.LLMClient, conversation *conversation.Conversation, toolBox *tools.ToolBox, client *api.Client, mcpConfigs []mcp.ServerConfig, streaming bool) *Agent {
 	agent := &Agent{
 		llm:          llm,
 		toolBox:      toolBox,
@@ -40,8 +40,6 @@ func New(llm, subllm inference.LLMClient, conversation *conversation.Conversatio
 	agent.mcp.ActiveServers = []*mcp.Server{}
 	agent.mcp.Tools = []mcp.Tools{}
 	agent.mcp.ToolMap = make(map[string]mcp.ToolDetails)
-	agent.registerMCPServers()
-	agent.sub = NewSubagent(subllm, false)
 
 	return agent
 }
@@ -49,7 +47,6 @@ func New(llm, subllm inference.LLMClient, conversation *conversation.Conversatio
 // Run handles a single user message and returns the agent's response
 // This method is designed for TUI integration where streaming is handled externally
 func (a *Agent) Run(ctx context.Context, userInput string, onDelta func(string)) error {
-
 	readUserInput := true
 
 	// TODO: Add flag to know when to summarize
@@ -124,7 +121,7 @@ func (a *Agent) Run(ctx context.Context, userInput string, onDelta func(string))
 	return nil
 }
 
-func (a *Agent) registerMCPServers() {
+func (a *Agent) RegisterMCPServers() {
 	// fmt.Printf("Initializing MCP servers based on %d configurations...\n", len(a.mcp.ServerConfigs))
 
 	for _, serverCfg := range a.mcp.ServerConfigs {
@@ -199,9 +196,9 @@ func (a *Agent) executeTool(id, name string, input json.RawMessage, onDelta func
 	// TODO: Shorten the relative/absolute path and underline it.
 	// For content to edit, remove it from the display?
 	if toolResult, ok := result.(message.ToolResultBlock); ok && toolResult.IsError {
-		onDelta(fmt.Sprintf("[red]\u2717 %s failed\n\n", name))
+		onDelta(fmt.Sprintf("\n[red]\u2717 %s failed\n\n", name))
 	} else {
-		onDelta(fmt.Sprintf("[green]\u2713 %s %s\n\n", name, input))
+		onDelta(fmt.Sprintf("\n[green]\u2713 %s %s\n\n", name, input))
 	}
 
 	return result
@@ -220,7 +217,6 @@ func (a *Agent) executeMCPTool(id, name string, input json.RawMessage, toolDetai
 	}
 
 	result, err := toolDetails.Server.Call(context.Background(), name, args)
-
 	if err != nil {
 		return message.NewToolResultBlock(id, name,
 			fmt.Sprintf("MCP tool %s execution error: %v", name, err), true)
@@ -308,7 +304,7 @@ func (a *Agent) runSubagent(id, name, toolDescription string, rawInput json.RawM
 
 	// Can we pass the original background context of the main agent?
 	// Or should we let each agent has their own context?
-	result, err := a.sub.Run(context.Background(), toolDescription, input.Query)
+	result, err := a.Sub.Run(context.Background(), toolDescription, input.Query)
 	if err != nil {
 		return nil, err
 	}
@@ -338,6 +334,7 @@ func (a *Agent) ShutdownMCPServers() {
 		}
 	}
 }
+
 func (a *Agent) streamResponse(ctx context.Context, onDelta func(string)) (*message.Message, error) {
 	var streamErr error
 	var msg *message.Message

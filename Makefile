@@ -12,3 +12,8 @@ list/conversations:
 	go run ./main.go conversation -l
 build:
 	go build -ldflags='-s' -o bin/clue main.go
+coverage:
+	go test ./... -coverprofile=coverage.out
+	go tool cover -html=coverage.out
+benchmark:
+	go test ./... -bench=. -benchmem

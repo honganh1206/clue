@@ -8,6 +8,7 @@ import (
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/honganh1206/clue/message"
+	"github.com/honganh1206/clue/prompts"
 	"github.com/honganh1206/clue/tools"
 	"google.golang.org/genai"
 )
@@ -36,8 +37,8 @@ func Init(ctx context.Context, llm BaseLLMClient) (LLMClient, error) {
 	switch llm.Provider {
 	case AnthropicProvider:
 		client := anthropic.NewClient() // Default to look up ANTHROPIC_API_KEY
-		// TODO: Should be passing system prompt from this point?
-		return NewAnthropicClient(&client, ModelVersion(llm.Model), llm.TokenLimit), nil
+		sysPrompt := prompts.ClaudeSystemPrompt()
+		return NewAnthropicClient(&client, ModelVersion(llm.Model), llm.TokenLimit, sysPrompt), nil
 	case GoogleProvider:
 		client, err := genai.NewClient(ctx, &genai.ClientConfig{
 			APIKey:  os.Getenv("GEMINI_API_KEY"),

@@ -25,10 +25,20 @@ func interactive(ctx context.Context, convID string, llmClient inference.BaseLLM
 			&tools.ListFilesDefinition,
 			&tools.EditFileDefinition,
 			&tools.GrepSearchDefinition,
-			&tools.CodebaseSearchDefinition, // Now handled by subagent
+			&tools.CodebaseSearchAgentDefinition, // Now handled by subagent
 			&tools.BashDefinition,
 		},
 	}
+
+	subToolBox := &tools.ToolBox{
+		Tools: []*tools.ToolDefinition{
+			// TODO: Add Glob in the future
+			&tools.ReadFileDefinition,
+			&tools.GrepSearchDefinition,
+			&tools.ListFilesDefinition,
+		},
+	}
+
 	var conv *conversation.Conversation
 
 	if convID != "" {
@@ -53,7 +63,13 @@ func interactive(ctx context.Context, convID string, llmClient inference.BaseLLM
 		return fmt.Errorf("failed to initialize sub-agent LLM: %w", err)
 	}
 
-	a := agent.New(llm, subllm, conv, toolBox, apiClient, mcpConfigs, true)
+	a := agent.New(llm, conv, toolBox, apiClient, mcpConfigs, true)
+
+	sub := agent.NewSubagent(subllm, subToolBox, false)
+	a.Sub = sub
+
+	a.RegisterMCPServers()
+	defer a.ShutdownMCPServers()
 
 	err = tui(ctx, a, conv)
 

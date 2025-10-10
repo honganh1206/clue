@@ -10,7 +10,7 @@ import (
 	"github.com/honganh1206/clue/tools"
 )
 
-// Subagent is a lightweight agent for executing sub-tasks like codebase_searchagent
+// Subagent is a lightweight agent for executing sub-tasks like codebase_search_agent
 // Unlike the main Agent, it:
 // - Has limited tools (only read operations)
 // - Doesn't save conversations
@@ -21,16 +21,7 @@ type Subagent struct {
 	streaming bool
 }
 
-func NewSubagent(llm inference.LLMClient, streaming bool) *Subagent {
-	toolBox := &tools.ToolBox{
-		Tools: []*tools.ToolDefinition{
-			// TODO: Add Glob in the future
-			&tools.ReadFileDefinition,
-			&tools.GrepSearchDefinition,
-			&tools.ListFilesDefinition,
-		},
-	}
-
+func NewSubagent(llm inference.LLMClient, toolBox *tools.ToolBox, streaming bool) *Subagent {
 	err := llm.ToNativeTools(toolBox.Tools)
 	if err != nil {
 		// TODO: Return error instead of panicking

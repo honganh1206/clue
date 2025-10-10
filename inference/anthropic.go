@@ -9,7 +9,6 @@ import (
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/honganh1206/clue/message"
-	"github.com/honganh1206/clue/prompts"
 	"github.com/honganh1206/clue/tools"
 )
 
@@ -24,11 +23,7 @@ type AnthropicClient struct {
 	systemPrompt string
 }
 
-func NewAnthropicClient(client *anthropic.Client, model ModelVersion, maxTokens int64) *AnthropicClient {
-	// TODO: The client should get an argument for this,
-	// since we need subagents to have separate system prompts
-	systemPrompt := prompts.ClaudeSystemPrompt()
-
+func NewAnthropicClient(client *anthropic.Client, model ModelVersion, maxTokens int64, systemPrompt string) *AnthropicClient {
 	return &AnthropicClient{
 		BaseLLMClient: BaseLLMClient{
 			Provider: AnthropicModelName,
