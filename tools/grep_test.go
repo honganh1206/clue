@@ -3,6 +3,7 @@ package tools
 import (
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -308,10 +309,11 @@ func TestGrepSearch_VariousPatterns(t *testing.T) {
 
 // Helper function to check if ripgrep is available
 func isRipgrepAvailable() bool {
-	// Try to run rg --version to check if it's available
-	// This is a simple check - in a real scenario you might want to
-	// actually execute the command, but for tests we'll assume it's available
-	// if this function is called from a test that doesn't skip
+	cmd := exec.Command("rg", "--version")
+	err := cmd.Run()
+	if err != nil {
+		return false
+	}
 	return true
 }
 
