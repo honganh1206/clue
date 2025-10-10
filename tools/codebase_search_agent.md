@@ -1,4 +1,4 @@
-Intelligently search your codebase with an agent that has access to: list_directory, Grep, glob, Read.
+Intelligently search your codebase with an agent that has access to: list_directory, Grep, Read.
 
 The agent acts like your personal search assistant.
 

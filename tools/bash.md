@@ -3,8 +3,8 @@ Executes the given shell command in the user's default shell.
 ## Important notes
 
 1. Directory verification:
-   - If the command will create new directories or files, first use the list_directory tool to verify the parent directory exists and is the correct location
-   - For example, before running a mkdir command, first use list_directory to check if the parent directory exists
+   - If the command will create new directories or files, first use the Read tool to verify the parent directory exists and is the correct location
+   - For example, before running a mkdir command, first use Read to check if the parent directory exists
 
 2. Working directory:
    - If no `cwd` parameter is provided, the working directory is the first workspace root folder.
@@ -14,6 +14,7 @@ Executes the given shell command in the user's default shell.
 3. Multiple independent commands:
    - Do NOT chain multiple independent commands with `;`
    - Do NOT chain multiple independent commands with `&&` when the operating system is Windows
+   - Do NOT use the single `&` operator to run background processes
    - Instead, make multiple separate tool calls for each command you want to run
 
 4. Escaping & Quoting:
@@ -72,6 +73,15 @@ user: yes
 assistant: [uses Bash to 'git add' the unstaged changes from the 'git status' output]
 [uses Bash to run 'git commit -m "commit message"']
 </git-example>
+
+IMPORTANT notes:
+
+- When possible, combine the "git add" and "git commit" commands into a single "git commit -am" command, to speed things up. However, be careful not to stage files (e.g. with git add .) for commits that aren't part of the change, they may have untracked files they want to keep around, but not commit.
+- NEVER update the git config
+- DO NOT push to the remote repository
+- NEVER use git commands with the -i flag (like git rebase -i or git add -i) since they require interactive input which is not supported.
+- If there are no changes to commit (i.e., no untracked files and no modifications), do not create an empty commit
+- Ensure your commit message is meaningful and concise. It should explain the important parts of the changes, not just describe them.
 
 ## Prefer specific tools
 

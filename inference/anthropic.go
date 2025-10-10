@@ -9,7 +9,6 @@ import (
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/honganh1206/clue/message"
-	"github.com/honganh1206/clue/prompts"
 	"github.com/honganh1206/clue/tools"
 )
 
@@ -24,9 +23,7 @@ type AnthropicClient struct {
 	systemPrompt string
 }
 
-func NewAnthropicClient(client *anthropic.Client, model ModelVersion, maxTokens int64) *AnthropicClient {
-	systemPrompt := prompts.ClaudeSystemPrompt()
-
+func NewAnthropicClient(client *anthropic.Client, model ModelVersion, maxTokens int64, systemPrompt string) *AnthropicClient {
 	return &AnthropicClient{
 		BaseLLMClient: BaseLLMClient{
 			Provider: AnthropicModelName,
@@ -72,20 +69,38 @@ func getAnthropicModel(model ModelVersion) anthropic.Model {
 	}
 }
 
-// TODO: Return delta instead of full content string builder?
-func (c *AnthropicClient) RunInferenceStream(ctx context.Context, onDelta func(string)) (*message.Message, error) {
+func (c *AnthropicClient) RunInference(ctx context.Context, onDelta func(string), streaming bool) (*message.Message, error) {
 	if len(c.history) == 0 {
 		return nil, errors.New("anthropic: no messages in conversation history")
 	}
 
-	stream := c.client.Messages.NewStreaming(ctx, anthropic.MessageNewParams{
+	params := anthropic.MessageNewParams{
 		Model:     getAnthropicModel(c.model),
 		MaxTokens: c.maxTokens,
 		Messages:  c.history,
 		Tools:     c.tools,
 		System: []anthropic.TextBlockParam{
 			{Text: c.systemPrompt, CacheControl: c.cache}},
-	})
+	}
+
+	var resp *message.Message
+	var runErr error
+
+	if streaming {
+		resp, runErr = c.runInferenceStream(ctx, params, onDelta)
+	} else {
+		resp, runErr = c.runInferenceSnapshot(ctx, params)
+	}
+
+	if runErr != nil {
+		return nil, runErr
+	}
+
+	return resp, nil
+}
+
+func (c *AnthropicClient) runInferenceStream(ctx context.Context, params anthropic.MessageNewParams, onDelta func(string)) (*message.Message, error) {
+	stream := c.client.Messages.NewStreaming(ctx, params)
 
 	llmresp := anthropic.Message{}
 
@@ -97,7 +112,6 @@ func (c *AnthropicClient) RunInferenceStream(ctx context.Context, onDelta func(s
 		}
 
 		switch ev := event.AsAny().(type) {
-		// Temp formatting
 		case anthropic.ContentBlockStartEvent:
 		case anthropic.ContentBlockStopEvent:
 			fmt.Println()
@@ -110,7 +124,6 @@ func (c *AnthropicClient) RunInferenceStream(ctx context.Context, onDelta func(s
 		case anthropic.ContentBlockDeltaEvent:
 			switch d := ev.Delta.AsAny().(type) {
 			case anthropic.TextDelta:
-				// Emit text deltas when available
 				if d.Text != "" {
 					onDelta(d.Text)
 				}
@@ -119,8 +132,6 @@ func (c *AnthropicClient) RunInferenceStream(ctx context.Context, onDelta func(s
 	}
 
 	if streamErr := stream.Err(); streamErr != nil {
-		// The token must flow.
-		// Return whatever we have with error.
 		var sb strings.Builder
 		for _, blk := range llmresp.Content {
 			switch v := blk.AsAny().(type) {
@@ -136,8 +147,6 @@ func (c *AnthropicClient) RunInferenceStream(ctx context.Context, onDelta func(s
 		return msg, err
 	}
 
-	// TODO: Use respCh, errCh to accumulate delta?
-
 	var sb strings.Builder
 	for _, blk := range llmresp.Content {
 		switch v := blk.AsAny().(type) {
@@ -149,6 +158,20 @@ func (c *AnthropicClient) RunInferenceStream(ctx context.Context, onDelta func(s
 	}
 
 	msg, err := toGenericMessage(llmresp)
+	if err != nil {
+		return nil, err
+	}
+
+	return msg, nil
+}
+
+func (c *AnthropicClient) runInferenceSnapshot(ctx context.Context, params anthropic.MessageNewParams) (*message.Message, error) {
+	response, err := c.client.Messages.New(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("anthropic snapshot call failed: %w", err)
+	}
+
+	msg, err := toGenericMessage(*response)
 	if err != nil {
 		return nil, err
 	}

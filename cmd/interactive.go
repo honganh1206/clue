@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"log"
 
 	"github.com/honganh1206/clue/agent"
@@ -24,9 +25,20 @@ func interactive(ctx context.Context, convID string, llmClient inference.BaseLLM
 			&tools.ListFilesDefinition,
 			&tools.EditFileDefinition,
 			&tools.GrepSearchDefinition,
-			&tools.CodeJudgeDefinition,
+			&tools.CodebaseSearchAgentDefinition, // Now handled by subagent
+			&tools.BashDefinition,
 		},
 	}
+
+	subToolBox := &tools.ToolBox{
+		Tools: []*tools.ToolDefinition{
+			// TODO: Add Glob in the future
+			&tools.ReadFileDefinition,
+			&tools.GrepSearchDefinition,
+			&tools.ListFilesDefinition,
+		},
+	}
+
 	var conv *conversation.Conversation
 
 	if convID != "" {
@@ -41,7 +53,23 @@ func interactive(ctx context.Context, convID string, llmClient inference.BaseLLM
 		}
 	}
 
-	a := agent.New(llm, conv, toolBox, apiClient, mcpConfigs)
+	subllm, err := inference.Init(ctx, inference.BaseLLMClient{
+		Provider:   inference.AnthropicProvider,
+		Model:      string(inference.Claude35Haiku),
+		TokenLimit: 8192,
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to initialize sub-agent LLM: %w", err)
+	}
+
+	a := agent.New(llm, conv, toolBox, apiClient, mcpConfigs, true)
+
+	sub := agent.NewSubagent(subllm, subToolBox, false)
+	a.Sub = sub
+
+	a.RegisterMCPServers()
+	defer a.ShutdownMCPServers()
 
 	err = tui(ctx, a, conv)
 

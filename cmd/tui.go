@@ -13,8 +13,6 @@ import (
 )
 
 func tui(ctx context.Context, agent *agent.Agent, conv *conversation.Conversation) error {
-	defer agent.ShutdownMCPServers()
-
 	app := tview.NewApplication()
 
 	conversationView := tview.NewTextView().
@@ -57,15 +55,13 @@ func tui(ctx context.Context, agent *agent.Agent, conv *conversation.Conversatio
 			questionInput.SetText("", false)
 			questionInput.SetDisabled(true)
 
-			fmt.Fprintf(conversationView, "[blue::]> %s\n\n", content)
+			fmt.Fprintf(conversationView, "\n[blue::]> %s\n\n", content)
 
 			go func() {
 				defer func() {
 					questionInput.SetDisabled(false)
 					app.Draw()
 				}()
-
-				fmt.Fprintf(conversationView, "")
 
 				onDelta := func(delta string) {
 					fmt.Fprintf(conversationView, "[white::]%s", delta)
@@ -77,7 +73,7 @@ func tui(ctx context.Context, agent *agent.Agent, conv *conversation.Conversatio
 					return
 				}
 
-				fmt.Fprintf(conversationView, "\n")
+				fmt.Fprintf(conversationView, "\n\n")
 				conversationView.ScrollToEnd()
 			}()
 
@@ -96,9 +92,9 @@ func formatMessage(msg *message.Message) string {
 	case message.UserRole:
 		// TODO: Skip the user role message with tool result
 		// since it prints out an unnecessary | character
-		result.WriteString("[blue::]> ")
+		result.WriteString("\n[blue::]> ")
 	case message.AssistantRole, message.ModelRole:
-		result.WriteString("[white::]")
+		result.WriteString("\n[white::]")
 	}
 
 	for _, block := range msg.Content {
@@ -106,7 +102,7 @@ func formatMessage(msg *message.Message) string {
 		case message.TextBlock:
 			result.WriteString(b.Text + "\n")
 		case message.ToolUseBlock:
-			result.WriteString(fmt.Sprintf("[green:]\u2713 %s %s\n", b.Name, b.Input))
+			result.WriteString(fmt.Sprintf("\n[green:]\u2713 %s %s\n", b.Name, b.Input))
 		}
 	}
 
@@ -125,7 +121,7 @@ func displayConversationHistory(conversationView *tview.TextView, conv *conversa
 		}
 
 		formattedMsg := formatMessage(msg)
-		fmt.Fprintf(conversationView, "%s\n", formattedMsg)
+		fmt.Fprintf(conversationView, "%s", formattedMsg)
 	}
 
 	conversationView.ScrollToEnd()

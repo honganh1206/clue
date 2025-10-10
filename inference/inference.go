@@ -8,6 +8,7 @@ import (
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/honganh1206/clue/message"
+	"github.com/honganh1206/clue/prompts"
 	"github.com/honganh1206/clue/tools"
 	"google.golang.org/genai"
 )
@@ -15,7 +16,8 @@ import (
 type LLMClient interface {
 	// Stream text deltas while generating the message.
 	// Implementation should call onDelta with incremental text and return the final full text when the stream finishes.
-	RunInferenceStream(ctx context.Context, onDelta func(string)) (*message.Message, error)
+	// If streaming is false, uses snapshot mode and onDelta is ignored.
+	RunInference(ctx context.Context, onDelta func(string), streaming bool) (*message.Message, error)
 	SummarizeHistory(history []*message.Message, threshold int) []*message.Message
 	// ApplySlidingWindow(history []*message.Message, windowSize int) []*message.Message
 	TruncateMessage(msg *message.Message, threshold int) *message.Message
@@ -35,7 +37,8 @@ func Init(ctx context.Context, llm BaseLLMClient) (LLMClient, error) {
 	switch llm.Provider {
 	case AnthropicProvider:
 		client := anthropic.NewClient() // Default to look up ANTHROPIC_API_KEY
-		return NewAnthropicClient(&client, ModelVersion(llm.Model), llm.TokenLimit), nil
+		sysPrompt := prompts.ClaudeSystemPrompt()
+		return NewAnthropicClient(&client, ModelVersion(llm.Model), llm.TokenLimit, sysPrompt), nil
 	case GoogleProvider:
 		client, err := genai.NewClient(ctx, &genai.ClientConfig{
 			APIKey:  os.Getenv("GEMINI_API_KEY"),
@@ -97,7 +100,7 @@ func (b *BaseLLMClient) BaseSummarizeHistory(history []*message.Message, thresho
 	// Keep the system prompt
 	summarizedHistory = append(summarizedHistory, history[0])
 
-	// TODO: Call a smaller agent to summarize old messages?
+	// TODO: Call a subagent to summarize old messages
 
 	// Keep the most recent messages
 	recentMessages := history[len(history)-threshold:]

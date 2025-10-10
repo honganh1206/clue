@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/honganh1206/clue/api"
@@ -21,21 +22,24 @@ type Agent struct {
 	conversation *conversation.Conversation
 	client       *api.Client
 	mcp          mcp.Config
+	streaming    bool
+	// In the future it could be a map of agents, keys are task ID
+	Sub *Subagent
 }
 
-func New(llm inference.LLMClient, conversation *conversation.Conversation, toolBox *tools.ToolBox, client *api.Client, mcpConfigs []mcp.ServerConfig) *Agent {
+func New(llm inference.LLMClient, conversation *conversation.Conversation, toolBox *tools.ToolBox, client *api.Client, mcpConfigs []mcp.ServerConfig, streaming bool) *Agent {
 	agent := &Agent{
 		llm:          llm,
 		toolBox:      toolBox,
 		conversation: conversation,
 		client:       client,
+		streaming:    streaming,
 	}
 
 	agent.mcp.ServerConfigs = mcpConfigs
 	agent.mcp.ActiveServers = []*mcp.Server{}
 	agent.mcp.Tools = []mcp.Tools{}
 	agent.mcp.ToolMap = make(map[string]mcp.ToolDetails)
-	agent.registerMCPServers()
 
 	return agent
 }
@@ -43,9 +47,9 @@ func New(llm inference.LLMClient, conversation *conversation.Conversation, toolB
 // Run handles a single user message and returns the agent's response
 // This method is designed for TUI integration where streaming is handled externally
 func (a *Agent) Run(ctx context.Context, userInput string, onDelta func(string)) error {
-
 	readUserInput := true
 
+	// TODO: Add flag to know when to summarize
 	a.conversation.Messages = a.llm.SummarizeHistory(a.conversation.Messages, 20)
 
 	if len(a.conversation.Messages) != 0 {
@@ -93,6 +97,8 @@ func (a *Agent) Run(ctx context.Context, userInput string, onDelta func(string))
 		}
 
 		if len(toolResults) == 0 {
+			// If we reach this case, it means we have finished processing the tool results
+			// and we are safe to return the text response from the agent and wait for the next input.
 			readUserInput = true
 			break
 		}
@@ -115,7 +121,7 @@ func (a *Agent) Run(ctx context.Context, userInput string, onDelta func(string))
 	return nil
 }
 
-func (a *Agent) registerMCPServers() {
+func (a *Agent) RegisterMCPServers() {
 	// fmt.Printf("Initializing MCP servers based on %d configurations...\n", len(a.mcp.ServerConfigs))
 
 	for _, serverCfg := range a.mcp.ServerConfigs {
@@ -148,7 +154,7 @@ func (a *Agent) registerMCPServers() {
 			continue
 			// return
 		}
-		fmt.Printf("Fetched %d tools from MCP server %s\n", len(tool), server.ID())
+		// fmt.Printf("Fetched %d tools from MCP server %s\n", len(tool), server.ID())
 		a.mcp.Tools = append(a.mcp.Tools, tool)
 
 		for _, t := range tool {
@@ -190,9 +196,9 @@ func (a *Agent) executeTool(id, name string, input json.RawMessage, onDelta func
 	// TODO: Shorten the relative/absolute path and underline it.
 	// For content to edit, remove it from the display?
 	if toolResult, ok := result.(message.ToolResultBlock); ok && toolResult.IsError {
-		onDelta(fmt.Sprintf("[red]\u2717 %s failed\n\n", name))
+		onDelta(fmt.Sprintf("\n[red]\u2717 %s failed\n\n", name))
 	} else {
-		onDelta(fmt.Sprintf("[green]\u2713 %s %s\n\n", name, input))
+		onDelta(fmt.Sprintf("\n[green]\u2713 %s %s\n\n", name, input))
 	}
 
 	return result
@@ -211,7 +217,6 @@ func (a *Agent) executeMCPTool(id, name string, input json.RawMessage, toolDetai
 	}
 
 	result, err := toolDetails.Server.Call(context.Background(), name, args)
-
 	if err != nil {
 		return message.NewToolResultBlock(id, name,
 			fmt.Sprintf("MCP tool %s execution error: %v", name, err), true)
@@ -236,6 +241,7 @@ func (a *Agent) executeMCPTool(id, name string, input json.RawMessage, toolDetai
 func (a *Agent) executeLocalTool(id, name string, input json.RawMessage) message.ContentBlock {
 	var toolDef *tools.ToolDefinition
 	var found bool
+	// TODO: Toolbox should be a map, not a list of tools
 	for _, tool := range a.toolBox.Tools {
 		if tool.Name == name {
 			toolDef = tool
@@ -248,8 +254,32 @@ func (a *Agent) executeLocalTool(id, name string, input json.RawMessage) message
 		errorMsg := "tool not found"
 		return message.NewToolResultBlock(id, name, errorMsg, true)
 	}
+	var response string
+	var err error
 
-	response, err := toolDef.Function(input)
+	if toolDef.IsSubTool {
+		// Make the subagent invoke tools
+		toolResultMsg, err := a.runSubagent(id, name, toolDef.Description, input)
+		if err != nil {
+			return message.NewToolResultBlock(id, name, err.Error(), true)
+		}
+
+		var final strings.Builder
+		// Iterating over block type is quite tiring?
+		for _, content := range toolResultMsg.Content {
+			switch blk := content.(type) {
+			case message.TextBlock:
+				final.WriteString(blk.Text)
+			case message.ToolResultBlock:
+				final.WriteString(blk.Content)
+			}
+		}
+
+		response = final.String()
+	} else {
+		// The main agent invokes tools
+		response, err = toolDef.Function(input)
+	}
 
 	if err != nil {
 		return message.NewToolResultBlock(id, name, err.Error(), true)
@@ -258,11 +288,34 @@ func (a *Agent) executeLocalTool(id, name string, input json.RawMessage) message
 	return message.NewToolResultBlock(id, name, response, false)
 }
 
+func (a *Agent) runSubagent(id, name, toolDescription string, rawInput json.RawMessage) (*message.Message, error) {
+	// The OG input from the user gets processed by the main agent
+	// and the subagent will consume the processed input.
+	// This is for the maybe future of task delegation
+	var input struct {
+		Query string `json:"query"`
+	}
+
+	err := json.Unmarshal(rawInput, &input)
+	if err != nil {
+		// Check errors instead of pretending nothing went wrong
+		return nil, err
+	}
+
+	// Can we pass the original background context of the main agent?
+	// Or should we let each agent has their own context?
+	result, err := a.Sub.Run(context.Background(), toolDescription, input.Query)
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
 func (a *Agent) saveConversation() error {
 	if len(a.conversation.Messages) > 0 {
 		err := a.client.SaveConversation(a.conversation)
 		if err != nil {
-			fmt.Printf("DEBUG: Failed conversation details - ConversationID: %s\n", a.conversation.ID)
 			return err
 		}
 	}
@@ -281,6 +334,7 @@ func (a *Agent) ShutdownMCPServers() {
 		}
 	}
 }
+
 func (a *Agent) streamResponse(ctx context.Context, onDelta func(string)) (*message.Message, error) {
 	var streamErr error
 	var msg *message.Message
@@ -290,7 +344,7 @@ func (a *Agent) streamResponse(ctx context.Context, onDelta func(string)) (*mess
 
 	go func() {
 		defer wg.Done()
-		msg, streamErr = a.llm.RunInferenceStream(ctx, onDelta)
+		msg, streamErr = a.llm.RunInference(ctx, onDelta, a.streaming)
 	}()
 
 	wg.Wait()
