@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/honganh1206/clue/agent"
 	"github.com/honganh1206/clue/message"
+	"github.com/honganh1206/clue/progress"
 	"github.com/honganh1206/clue/server/data/conversation"
 	"github.com/rivo/tview"
 )
@@ -29,9 +31,14 @@ func tui(ctx context.Context, agent *agent.Agent, conv *conversation.Conversatio
 		SetTitleAlign(tview.AlignLeft).
 		SetBorder(true)
 
+	spinnerView := tview.NewTextView().
+		SetDynamicColors(true).
+		SetText("")
+
 	mainLayout := tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(conversationView, 0, 1, false).
-		AddItem(questionInput, 5, 1, true)
+		AddItem(questionInput, 5, 1, true).
+		AddItem(spinnerView, 1, 0, false)
 
 	conversationView.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		switch event.Key() {
@@ -57,13 +64,41 @@ func tui(ctx context.Context, agent *agent.Agent, conv *conversation.Conversatio
 
 			fmt.Fprintf(conversationView, "\n[blue::]> %s\n\n", content)
 
+			// Start spinner
+			spinner := progress.NewSpinner("Running")
+			firstDelta := true
+
+			// Update spinner display
+			go func() {
+				for spinner != nil {
+					if spinner.String() == "" {
+						break
+					}
+					spinnerView.SetText(spinner.String())
+					app.Draw()
+					time.Sleep(50 * time.Millisecond)
+				}
+			}()
+
 			go func() {
 				defer func() {
+					if spinner != nil {
+						spinner.Stop()
+						spinner = nil
+					}
+					spinnerView.SetText("")
 					questionInput.SetDisabled(false)
 					app.Draw()
 				}()
 
 				onDelta := func(delta string) {
+					if firstDelta && spinner != nil {
+						spinner.Stop()
+						spinner = nil
+						spinnerView.SetText("")
+						firstDelta = false
+						app.Draw()
+					}
 					fmt.Fprintf(conversationView, "[white::]%s", delta)
 				}
 

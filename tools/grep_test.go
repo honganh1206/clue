@@ -11,19 +11,6 @@ import (
 )
 
 // Helper functions for grep tests
-func createTestFileForGrep(t *testing.T, filename, content string) string {
-	t.Helper()
-
-	tmpDir := t.TempDir()
-	filePath := filepath.Join(tmpDir, filename)
-
-	err := os.WriteFile(filePath, []byte(content), 0644)
-	if err != nil {
-		t.Fatalf("Failed to create test file: %v", err)
-	}
-
-	return filePath
-}
 
 func createTestDirectoryForGrep(t *testing.T) string {
 	t.Helper()
