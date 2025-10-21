@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# ./scripts/build.sh <version-number>
+# ./scripts/build.sh (reads version from VERSION file)
 build() {
     os=$1
     app_name=$2
@@ -17,7 +17,7 @@ build() {
     echo "Building for $os/$arch (version: $version) -> $output_name"
     # TODO: On darwin/macos we need clang
     # On windows gcc does not recognize -mthreads and it must be -pthread
-    CGO_ENABLED=1 GOOS=$os GOARCH=$arch go build -o "dist/${version}/${output_name}" -ldflags "-X main.sha1ver=$sha1" main.go
+    CGO_ENABLED=1 GOOS=$os GOARCH=$arch go build -o "dist/${version}/${output_name}" -ldflags "-X github.com/honganh1206/clue/cmd.Version=$version -X github.com/honganh1206/clue/cmd.GitCommit=$sha1" main.go
 }
 
 targets=(
@@ -27,12 +27,15 @@ targets=(
 )
 app_name="clue"
 
-if [ $# -eq 0 ]; then
-  echo "Error: Please provide a version number as a command-line argument."
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+version=$(cat "$SCRIPT_DIR/../VERSION" 2>/dev/null)
+
+if [ -z "$version" ]; then
+  echo "Error: Could not read version from VERSION file."
   exit 1
 fi
 
-version=$1
+echo "Building version: $version"
 
 # Clear old build artifacts
 rm -rf dist

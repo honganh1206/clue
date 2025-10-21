@@ -19,6 +19,7 @@ import (
 
 var (
 	llm              inference.BaseLLMClient
+	llmSub           inference.BaseLLMClient
 	verbose          bool
 	continueConv     bool
 	convID           string
@@ -26,7 +27,7 @@ var (
 	mcpServerConfigs []mcp.ServerConfig
 )
 var (
-	Version   = "0.1.0"
+	Version   = "dev"
 	GitCommit = "unknown"
 	BuildTime = "unknown"
 )
@@ -53,17 +54,21 @@ func ChatHandler(cmd *cobra.Command, args []string) error {
 	client := api.NewClient("")
 
 	provider := inference.ProviderName(llm.Provider)
+	llmSub.Provider = llm.Provider
 	if llm.Model == "" {
 		defaultModel := inference.GetDefaultModel(provider)
+		defaultModelSub := inference.GetDefaultModelSubagent(provider)
 		if verbose {
-			fmt.Printf("No model specified, using default: %s\n", defaultModel)
+			fmt.Printf("No model specified, using default model for agent %s and subagent %s\n", defaultModel, defaultModelSub)
 		}
 		llm.Model = string(defaultModel)
+		llmSub.Model = string(defaultModelSub)
 	}
 
 	// Default number of max tokens
 	if llm.TokenLimit == 0 {
 		llm.TokenLimit = 8192
+		llmSub.TokenLimit = 8192
 	}
 
 	var convID string
@@ -80,7 +85,7 @@ func ChatHandler(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	err = interactive(cmd.Context(), convID, llm, client, mcpServerConfigs)
+	err = interactive(cmd.Context(), convID, llm, llmSub, client, mcpServerConfigs)
 	if err != nil {
 		fmt.Printf("Error: %s\n", err.Error())
 	}
@@ -289,7 +294,7 @@ Examples:
 
 	rootCmd.PersistentFlags().StringVar(&llm.Provider, "provider", string(inference.AnthropicProvider), "Provider (anthropic, openai, gemini, ollama, deepseek)")
 	rootCmd.PersistentFlags().StringVar(&llm.Model, "model", "", "Model to use (depends on selected model)")
-	rootCmd.PersistentFlags().Int64Var(&llm.TokenLimit, "max-tokens", 4096, "Maximum number of tokens in response")
+	rootCmd.PersistentFlags().Int64Var(&llm.TokenLimit, "max-tokens", 0, "Maximum number of tokens in response")
 	rootCmd.PersistentFlags().BoolVar(&verbose, "verbose", false, "Enable verbose output")
 	rootCmd.Flags().BoolVarP(&continueConv, "new-conversation", "n", true, "Continue from the latest conversation")
 	rootCmd.Flags().StringVarP(&convID, "id", "i", "", "Conversation ID to ")

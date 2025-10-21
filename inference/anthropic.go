@@ -50,12 +50,18 @@ func (c *AnthropicClient) TruncateMessage(msg *message.Message, threshold int) *
 
 func getAnthropicModel(model ModelVersion) anthropic.Model {
 	switch model {
+	case Claude41Opus:
+		return anthropic.ModelClaudeOpus4_1_20250805
 	case Claude4Opus:
 		return anthropic.ModelClaudeOpus4_0
+	case Claude45Sonnet:
+		return anthropic.ModelClaudeSonnet4_5
 	case Claude4Sonnet:
 		return anthropic.ModelClaudeSonnet4_0
 	case Claude37Sonnet:
 		return anthropic.ModelClaude3_7SonnetLatest
+	case Claude45Haiku:
+		return anthropic.ModelClaudeHaiku4_5
 	case Claude35Sonnet:
 		return anthropic.ModelClaude3_5SonnetLatest
 	case Claude35Haiku:
@@ -126,6 +132,9 @@ func (c *AnthropicClient) runInferenceStream(ctx context.Context, params anthrop
 			case anthropic.TextDelta:
 				if d.Text != "" {
 					onDelta(d.Text)
+				} else {
+					// Break line between the new input and previous LLM response
+					onDelta("\n")
 				}
 			}
 		}

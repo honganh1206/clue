@@ -11,7 +11,8 @@ list/models:
 list/conversations:
 	go run ./main.go conversation -l
 build:
-	go build -ldflags='-s' -o bin/clue main.go
+	$(eval VERSION := $(shell cat VERSION))
+	go build -ldflags="-s -X 'github.com/honganh1206/clue/cmd.Version=$(VERSION)'" -o bin/clue main.go
 coverage:
 	go test ./... -coverprofile=coverage.out
 	go tool cover -html=coverage.out

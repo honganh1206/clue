@@ -13,7 +13,7 @@ import (
 	"github.com/honganh1206/clue/tools"
 )
 
-func interactive(ctx context.Context, convID string, llmClient inference.BaseLLMClient, apiClient *api.Client, mcpConfigs []mcp.ServerConfig) error {
+func interactive(ctx context.Context, convID string, llmClient, llmClientSub inference.BaseLLMClient, apiClient *api.Client, mcpConfigs []mcp.ServerConfig) error {
 	llm, err := inference.Init(ctx, llmClient)
 	if err != nil {
 		log.Fatalf("Failed to initialize model: %s", err.Error())
@@ -53,11 +53,7 @@ func interactive(ctx context.Context, convID string, llmClient inference.BaseLLM
 		}
 	}
 
-	subllm, err := inference.Init(ctx, inference.BaseLLMClient{
-		Provider:   inference.AnthropicProvider,
-		Model:      string(inference.Claude35Haiku),
-		TokenLimit: 8192,
-	})
+	subllm, err := inference.Init(ctx, llmClientSub)
 
 	if err != nil {
 		return fmt.Errorf("failed to initialize sub-agent LLM: %w", err)
