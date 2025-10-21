@@ -175,8 +175,6 @@ func formatMessage(msg *message.Message) string {
 }
 
 func displayWelcomeMessage(conversationView *tview.TextView) {
-	// fmt.Fprintf(conversationView, "%s\n", banner)
-
 	// Add vertical padding to center the info box
 	// This creates empty lines before the content
 	fmt.Fprintf(conversationView, "\n\n\n\n\n\n\n\n")
