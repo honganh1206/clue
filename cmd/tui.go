@@ -19,9 +19,6 @@ import (
 	"github.com/rivo/tview"
 )
 
-//go:embed banner.txt
-var banner string
-
 func tui(ctx context.Context, agent *agent.Agent, conv *conversation.Conversation) error {
 	app := tview.NewApplication()
 
@@ -43,7 +40,7 @@ func tui(ctx context.Context, agent *agent.Agent, conv *conversation.Conversatio
 	relPath := displayRelativePath()
 
 	questionInput := tview.NewTextArea()
-	questionInput.SetTitle("[blue::]Enter to send (ESC to focus conversation, Ctrl+C to quit)").
+	questionInput.SetTitle("[blue::]Enter to send (ESC to focus conversation)").
 		SetTitleAlign(tview.AlignLeft).
 		SetBorder(true).
 		SetDrawFunc(renderRelativePath(relPath))
@@ -185,9 +182,13 @@ func displayWelcomeMessage(conversationView *tview.TextView) {
 	fmt.Fprintf(conversationView, "\n\n\n\n\n\n\n\n")
 
 	fmt.Fprintf(conversationView, "%s\n", utils.RenderBox(
-		"Clue v0.2.2",
+		fmt.Sprintf("Clue v%s", Version),
 		[]string{
-			"What to put here?",
+			"Thank you for using Clue!",
+			"",
+			"Feel free to make a contribution - this app is open source",
+			"",
+			"Press Ctrl+C to exit",
 		},
 	))
 }

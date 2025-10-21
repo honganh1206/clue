@@ -27,7 +27,7 @@ var (
 	mcpServerConfigs []mcp.ServerConfig
 )
 var (
-	Version   = "0.1.0"
+	Version   = "dev"
 	GitCommit = "unknown"
 	BuildTime = "unknown"
 )

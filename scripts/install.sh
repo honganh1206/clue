@@ -39,7 +39,8 @@ case "$ARCH" in
     *) error "Unsupported architecture: $ARCH" ;;
 esac
 
-VERSION="0.2.2"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VERSION=$(cat "$SCRIPT_DIR/../VERSION" 2>/dev/null || echo "0.2.2")
 BASE_URL="https://github.com/honganh1206/clue/releases/download"
 DOWNLOAD_URL="${BASE_URL}/${VERSION}/clue_${VERSION}_${OS}_${ARCH}"
 
