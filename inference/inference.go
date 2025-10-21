@@ -14,9 +14,11 @@ import (
 )
 
 type LLMClient interface {
-	// Stream text deltas while generating the message.
-	// Implementation should call onDelta with incremental text and return the final full text when the stream finishes.
-	// If streaming is false, uses snapshot mode and onDelta is ignored.
+	// TODO: This still needs some rewrites.
+	// We must separate RunInference into 2 signatures: One for snapshot and one for streaming.
+	// The two signatures should share the same params, only differ in return type.
+	// Refer to https://github.com/madebywelch/anthropic-go/blob/main/pkg/anthropic/client/client.go for the design.
+	// The onDelta should be in agent.go, and we need to remove the streaming flag.
 	RunInference(ctx context.Context, onDelta func(string), streaming bool) (*message.Message, error)
 	SummarizeHistory(history []*message.Message, threshold int) []*message.Message
 	// ApplySlidingWindow(history []*message.Message, windowSize int) []*message.Message
@@ -83,9 +85,20 @@ func ListAvailableModels(provider ProviderName) []ModelVersion {
 func GetDefaultModel(provider ProviderName) ModelVersion {
 	switch provider {
 	case AnthropicProvider:
-		return Claude4Sonnet
+		return Claude45Sonnet
 	case GoogleProvider:
 		return Gemini25Pro
+	default:
+		return ""
+	}
+}
+
+func GetDefaultModelSubagent(provider ProviderName) ModelVersion {
+	switch provider {
+	case AnthropicProvider:
+		return Claude45Haiku
+	case GoogleProvider:
+		return Gemini25Flash
 	default:
 		return ""
 	}

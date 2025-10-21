@@ -123,6 +123,8 @@ func (c *GeminiClient) runInferenceStream(ctx context.Context, modelName string,
 			if p.Text != "" {
 				onDelta(p.Text)
 				fullText.WriteString(p.Text)
+			} else {
+				onDelta("\n")
 			}
 			if p.FunctionCall != nil {
 				fc := p.FunctionCall

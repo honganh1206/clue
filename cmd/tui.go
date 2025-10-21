@@ -2,7 +2,11 @@ package cmd
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
+	"math/rand"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -11,8 +15,12 @@ import (
 	"github.com/honganh1206/clue/message"
 	"github.com/honganh1206/clue/progress"
 	"github.com/honganh1206/clue/server/data/conversation"
+	"github.com/honganh1206/clue/utils"
 	"github.com/rivo/tview"
 )
+
+//go:embed banner.txt
+var banner string
 
 func tui(ctx context.Context, agent *agent.Agent, conv *conversation.Conversation) error {
 	app := tview.NewApplication()
@@ -24,12 +32,21 @@ func tui(ctx context.Context, agent *agent.Agent, conv *conversation.Conversatio
 			app.Draw()
 		})
 
-	displayConversationHistory(conversationView, conv)
+	isFirstInput := len(conv.Messages) == 0
+	if isFirstInput {
+		conversationView.SetTextAlign(tview.AlignCenter)
+		displayWelcomeMessage(conversationView)
+	} else {
+		displayConversationHistory(conversationView, conv)
+	}
+
+	relPath := displayRelativePath()
 
 	questionInput := tview.NewTextArea()
 	questionInput.SetTitle("[blue::]Enter to send (ESC to focus conversation, Ctrl+C to quit)").
 		SetTitleAlign(tview.AlignLeft).
-		SetBorder(true)
+		SetBorder(true).
+		SetDrawFunc(renderRelativePath(relPath))
 
 	spinnerView := tview.NewTextView().
 		SetDynamicColors(true).
@@ -49,6 +66,12 @@ func tui(ctx context.Context, agent *agent.Agent, conv *conversation.Conversatio
 	})
 
 	questionInput.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if isFirstInput && event.Key() == tcell.KeyRune {
+			conversationView.Clear()
+			conversationView.SetTextAlign(tview.AlignLeft)
+			isFirstInput = false
+		}
+
 		switch event.Key() {
 		case tcell.KeyESC:
 			if conversationView.GetText(false) != "" {
@@ -62,21 +85,30 @@ func tui(ctx context.Context, agent *agent.Agent, conv *conversation.Conversatio
 			questionInput.SetText("", false)
 			questionInput.SetDisabled(true)
 
-			fmt.Fprintf(conversationView, "\n[blue::]> %s\n\n", content)
+			fmt.Fprintf(conversationView, "[blue::]> %s\n\n", content)
 
-			// Start spinner
-			spinner := progress.NewSpinner("Running")
+			spinner := progress.NewSpinner(getRandomSpinnerMessage())
 			firstDelta := true
+			spinCh := make(chan bool, 1)
 
-			// Update spinner display
 			go func() {
-				for spinner != nil {
-					if spinner.String() == "" {
-						break
+				ticker := time.NewTicker(50 * time.Millisecond)
+				defer ticker.Stop()
+				for {
+					select {
+					case stop := <-spinCh:
+						if stop {
+							// Clear the spinner text to hide it from the UI when the agent finishes processing
+							spinnerView.SetText("")
+							app.Draw()
+							return
+						}
+					case <-ticker.C:
+						if spinner != nil {
+							spinnerView.SetText(spinner.String())
+							app.Draw()
+						}
 					}
-					spinnerView.SetText(spinner.String())
-					app.Draw()
-					time.Sleep(50 * time.Millisecond)
 				}
 			}()
 
@@ -84,21 +116,24 @@ func tui(ctx context.Context, agent *agent.Agent, conv *conversation.Conversatio
 				defer func() {
 					if spinner != nil {
 						spinner.Stop()
-						spinner = nil
 					}
-					spinnerView.SetText("")
+					spinCh <- true
 					questionInput.SetDisabled(false)
 					app.Draw()
 				}()
 
 				onDelta := func(delta string) {
-					if firstDelta && spinner != nil {
+					// Run spinner on tool result delta
+					isToolResult := strings.HasPrefix(delta, "[green]") || strings.Contains(delta, "\u2713")
+
+					if firstDelta && !isToolResult && spinner != nil {
+						// Only stop spinner on actual LLM text response, not tool use
 						spinner.Stop()
-						spinner = nil
-						spinnerView.SetText("")
+						// Signal the spinner goroutine to clear the spinner text (SetText("")) since the LLM has started responding
+						spinCh <- true
 						firstDelta = false
-						app.Draw()
 					}
+
 					fmt.Fprintf(conversationView, "[white::]%s", delta)
 				}
 
@@ -125,8 +160,6 @@ func formatMessage(msg *message.Message) string {
 
 	switch msg.Role {
 	case message.UserRole:
-		// TODO: Skip the user role message with tool result
-		// since it prints out an unnecessary | character
 		result.WriteString("\n[blue::]> ")
 	case message.AssistantRole, message.ModelRole:
 		result.WriteString("\n[white::]")
@@ -137,11 +170,26 @@ func formatMessage(msg *message.Message) string {
 		case message.TextBlock:
 			result.WriteString(b.Text + "\n")
 		case message.ToolUseBlock:
-			result.WriteString(fmt.Sprintf("\n[green:]\u2713 %s %s\n", b.Name, b.Input))
+			result.WriteString(fmt.Sprintf("[green:]\u2713 %s %s\n", b.Name, b.Input))
 		}
 	}
 
 	return result.String()
+}
+
+func displayWelcomeMessage(conversationView *tview.TextView) {
+	// fmt.Fprintf(conversationView, "%s\n", banner)
+
+	// Add vertical padding to center the info box
+	// This creates empty lines before the content
+	fmt.Fprintf(conversationView, "\n\n\n\n\n\n\n\n")
+
+	fmt.Fprintf(conversationView, "%s\n", utils.RenderBox(
+		"Clue v0.2.2",
+		[]string{
+			"What to put here?",
+		},
+	))
 }
 
 func displayConversationHistory(conversationView *tview.TextView, conv *conversation.Conversation) {
@@ -160,4 +208,70 @@ func displayConversationHistory(conversationView *tview.TextView, conv *conversa
 	}
 
 	conversationView.ScrollToEnd()
+}
+
+func getRandomSpinnerMessage() string {
+	messages := []string{
+		"Almost there...",
+		"Hold on...",
+		"Just a moment...",
+		"Figuring it out...",
+		"Communicating with the alien intelligence...",
+		"Beep booping...",
+		"Consulting the machines...",
+	}
+
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	return messages[r.Intn(len(messages))]
+}
+
+// renderRelativePath returns a custom draw function for the question input area
+// that overlays the relative path in the bottom-right corner of the input box
+func renderRelativePath(relPath string) func(screen tcell.Screen, x, y, width, height int) (int, int, int, int) {
+	return func(screen tcell.Screen, x, y, width, height int) (int, int, int, int) {
+		pathText := fmt.Sprintf("[blue::]%s[-]", relPath)
+		pathWidth := len(relPath)
+
+		rightX := x + width - pathWidth - 2
+		bottomY := y + height - 1
+
+		if rightX > x && bottomY >= y {
+			tview.Print(screen, pathText, rightX, bottomY, pathWidth, tview.AlignLeft, tcell.ColorDefault)
+		}
+
+		return x + 1, y + 1, width - 2, height - 2
+	}
+}
+
+func displayRelativePath() string {
+	cwd, err := os.Getwd()
+	if err != nil {
+		// Any chance that this could fail?
+		cwd = "."
+	}
+
+	homeDir, _ := os.UserHomeDir()
+	// What do the negative scenarios imply here?
+	if homeDir == "" || !strings.HasPrefix(cwd, homeDir) {
+		// We are not at home
+		return ""
+	}
+
+	relativePath := strings.TrimPrefix(cwd, homeDir)
+	if relativePath == "" {
+		// In this case cwd == homeDir
+		relativePath = "~"
+	} else {
+		parts := strings.Split(strings.Trim(relativePath, string(filepath.Separator)), string(filepath.Separator))
+		// Pretty obvious from this point
+		if len(parts) > 2 {
+			relativePath = fmt.Sprintf("~/.../%s/%s", parts[len(parts)-2], parts[len(parts)-1])
+		} else if len(parts) == 2 {
+			relativePath = fmt.Sprintf("~/%s/%s", parts[0], parts[1])
+		} else if len(parts) == 1 {
+			relativePath = fmt.Sprintf("~/%s", parts[0])
+		}
+	}
+
+	return relativePath
 }
