@@ -137,3 +137,4 @@ func (c *Client) GetLatestConversationID() (string, error) {
 
 	return conversations[0].ID, nil
 }
+

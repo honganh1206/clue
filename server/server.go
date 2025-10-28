@@ -11,6 +11,8 @@ import (
 	"strings"
 
 	"github.com/honganh1206/clue/server/data/conversation"
+	"github.com/honganh1206/clue/server/data/plan"
+	"github.com/honganh1206/clue/server/db"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -20,19 +22,15 @@ type server struct {
 	models *Models
 }
 
-func initConversationDsn() string {
+func Serve(ln net.Listener) error {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		log.Fatal("Failed to get home directory:", err)
 	}
 
 	dsn := filepath.Join(homeDir, ".clue", "clue.db")
-	return dsn
-}
 
-func Serve(ln net.Listener) error {
-	dsn := initConversationDsn()
-	db, err := conversation.InitDB(dsn)
+	db, err := db.OpenDB(dsn, conversation.Schema, plan.Schema)
 	if err != nil {
 		log.Fatalf("Failed to initialize database: %s", err.Error())
 	}

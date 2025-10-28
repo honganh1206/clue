@@ -10,16 +10,13 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/honganh1206/clue/message"
-	"github.com/honganh1206/clue/server/db"
 	"github.com/honganh1206/clue/utils"
 )
 
 //go:embed schema.sql
-var schemaSQL string
+var Schema string
 
-var (
-	ErrConversationNotFound = errors.New("history: conversation not found")
-)
+var ErrConversationNotFound = errors.New("history: conversation not found")
 
 type Conversation struct {
 	ID        string
@@ -29,22 +26,6 @@ type Conversation struct {
 
 type ConversationModel struct {
 	DB *sql.DB
-}
-
-func InitDB(dsn string) (*sql.DB, error) {
-	dbConfig := db.Config{
-		Dsn:          dsn,
-		MaxOpenConns: 25,
-		MaxIdleConns: 25,
-		MaxIdleTime:  "15m",
-	}
-
-	conversationDb, err := db.OpenDB(dbConfig, schemaSQL)
-	if err != nil {
-		return nil, err
-	}
-
-	return conversationDb, nil
 }
 
 func New() (*Conversation, error) {
@@ -186,7 +167,6 @@ func (cm ConversationModel) List() ([]ConversationMetadata, error) {
 	}
 
 	return metadataList, nil
-
 }
 
 func (cm ConversationModel) LatestID() (string, error) {
@@ -265,5 +245,4 @@ func (cm ConversationModel) Load(id string) (*Conversation, error) {
 	}
 
 	return conv, nil
-
 }

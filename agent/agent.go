@@ -195,13 +195,16 @@ func (a *Agent) executeLocalTool(id, name string, input json.RawMessage) message
 	if toolDef.IsSubTool {
 		// Make the subagent invoke tools
 		toolResultMsg, err := a.runSubagent(id, name, toolDef.Description, input)
+		// TODO: Exceed limit of 200k tool result. Trying truncation
+		// 25k is best practice from Anthropic
+		truncatedResult := a.Sub.llm.TruncateMessage(toolResultMsg, 25000)
 		if err != nil {
 			return message.NewToolResultBlock(id, name, err.Error(), true)
 		}
 
 		var final strings.Builder
 		// Iterating over block type is quite tiring?
-		for _, content := range toolResultMsg.Content {
+		for _, content := range truncatedResult.Content {
 			switch blk := content.(type) {
 			case message.TextBlock:
 				final.WriteString(blk.Text)
