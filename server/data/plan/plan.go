@@ -169,6 +169,34 @@ func (p *Plan) NextStep() *Step {
 	return nil
 }
 
+func (p *Plan) RemoveSteps(stepIDs []string) int {
+	if len(stepIDs) == 0 {
+		return 0 // Nothing to remove
+	}
+	if len(p.Steps) == 0 {
+		return 0 // No steps in the plan to remove from
+	}
+
+	// Create a set of IDs to remove for efficient lookup
+	idsToRemove := make(map[string]struct{})
+	for _, id := range stepIDs {
+		idsToRemove[id] = struct{}{}
+	}
+
+	var newSteps []*Step
+	removedCount := 0
+	for _, step := range p.Steps {
+		if _, found := idsToRemove[step.id]; found {
+			removedCount++
+		} else {
+			newSteps = append(newSteps, step)
+		}
+	}
+
+	p.Steps = newSteps
+	return removedCount
+}
+
 func (s *Step) ID() string {
 	return s.id
 }
@@ -282,7 +310,7 @@ func (pm *PlanModel) List() ([]PlanInfo, error) {
 				p.id,
 				COUNT(s.id),
 				SUM(CASE WHEN s.status = 'DONE' THEN 1 ELSE 0 END)
-		FROM PLAN p
+		FROM plans p
 		LEFT JOIN steps s ON p.id = s.plan_id
 		GROUP BY p.id`)
 	if err != nil {
@@ -340,10 +368,12 @@ func (pm *PlanModel) Save(plan *Plan) error {
 		// than what might come from step synchronization?
 		var checkID string
 		err := tx.QueryRow("SELECT id FROM plans WHERE id = ?", plan.ID).Scan(&checkID)
-		if err == sql.ErrNoRows {
-			return fmt.Errorf("plan with name '%s' not found in database, cannot update", plan.ID)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				return fmt.Errorf("plan with name '%s' not found in database, cannot update", plan.ID)
+			}
+			return fmt.Errorf("failed to verify existence of plan '%s': %w", plan.ID, err)
 		}
-		return fmt.Errorf("failed to verify existence of plan '%s': %w", plan.ID, err)
 	}
 
 	/* Synchronize steps from the DB (if exist) with input steps*/
@@ -388,7 +418,7 @@ func (pm *PlanModel) Save(plan *Plan) error {
 		s.stepOrder = i
 		// Update or create step
 		if dbStepIDs[s.id] {
-			_, err := tx.Exec("UPDATE step SET description = ?, status = ?, step_order = ? WHERE plan_id = ? AND id = ?", s.description, s.status, s.stepOrder, plan.ID, s.id)
+			_, err := tx.Exec("UPDATE steps SET description = ?, status = ?, step_order = ? WHERE plan_id = ? AND id = ?", s.description, s.status, s.stepOrder, plan.ID, s.id)
 			if err != nil {
 				return fmt.Errorf("failed to update step '%s' in plan '%s': %w", s.id, plan.ID, err)
 			}
@@ -496,7 +526,7 @@ func (pm *PlanModel) Compact() error {
 	query := `
 		SELECT p.id
 		FROM plans p
-		LEFT JOIN steps s ON p.id = s_plan_id
+		LEFT JOIN steps s ON p.id = s.plan_id
 		GROUP BY p.id
 		HAVING COUNT(s.id) = 0 OR SUM(CASE WHEN s.status = 'DONE' THEN 1 ELSE 0 END) = COUNT(s.id);
 	`
@@ -550,3 +580,4 @@ func (pm *PlanModel) Compact() error {
 
 	return nil
 }
+

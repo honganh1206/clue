@@ -216,7 +216,7 @@ func (a *Agent) executeLocalTool(id, name string, input json.RawMessage) message
 		response = final.String()
 	} else {
 		// The main agent invokes tools
-		response, err = toolDef.Function(input)
+		response, err = toolDef.Function(input, a.client)
 	}
 
 	if err != nil {

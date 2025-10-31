@@ -3,6 +3,7 @@ package plan
 import (
 	"database/sql"
 	"fmt"
+	"reflect"
 	"testing"
 
 	"github.com/honganh1206/clue/server/data/testutil"
@@ -103,5 +104,122 @@ func TestPlanner_Get_Basic(t *testing.T) {
 	_, err = planner.Get("non-existent-plan")
 	if err == nil {
 		t.Error("Expected error when getting non-existent plan, but got nil")
+	}
+}
+
+func TestPlanner_SaveAndGet(t *testing.T) {
+	planner := createTestModel(t)
+	planName := "test-plan-save-get"
+
+	// 1. Create the initial plan
+	plan, err := planner.Create(planName)
+	if err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+	if !plan.isNew {
+		t.Fatal("Newly created plan should have isNew = true")
+	}
+
+	// 2. Add steps to the in-memory plan
+	plan.AddStep("step1", "First step description", []string{"AC1.1", "AC1.2"})
+	plan.AddStep("step2", "Second step", []string{"AC2.1"})
+
+	// 3. Save the plan
+	err = planner.Save(plan)
+	if err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
+	if plan.isNew { // isNew should be false after a successful save
+		t.Errorf("plan.isNew is true after Save, want false")
+	}
+
+	// 4. Get the plan back
+	retrievedPlan, err := planner.Get(planName)
+	if err != nil {
+		t.Fatalf("Get after Save failed: %v", err)
+	}
+
+	// 5. Verify the retrieved plan
+	if retrievedPlan.ID != planName {
+		t.Errorf("Retrieved plan ID mismatch: got %s, want %s", retrievedPlan.ID, planName)
+	}
+	if len(retrievedPlan.Steps) != 2 {
+		t.Fatalf("Retrieved plan step count mismatch: got %d, want 2", len(retrievedPlan.Steps))
+	}
+
+	// Verify step 1
+	step1 := retrievedPlan.Steps[0]
+	if step1.ID() != "step1" {
+		t.Errorf("Step 1 ID mismatch")
+	}
+	if step1.Description() != "First step description" {
+		t.Errorf("Step 1 Description mismatch")
+	}
+	if step1.Status() != "TODO" {
+		t.Errorf("Step 1 Status mismatch")
+	}
+	if !reflect.DeepEqual(step1.AcceptanceCriteria(), []string{"AC1.1", "AC1.2"}) {
+		t.Errorf("Step 1 Acceptance Criteria mismatch: got %v", step1.AcceptanceCriteria())
+	}
+
+	// Verify step 2
+	step2 := retrievedPlan.Steps[1]
+	if step2.ID() != "step2" {
+		t.Errorf("Step 2 ID mismatch")
+	}
+	if step2.Description() != "Second step" {
+		t.Errorf("Step 2 Description mismatch")
+	}
+	if step2.Status() != "TODO" {
+		t.Errorf("Step 2 Status mismatch")
+	}
+	if !reflect.DeepEqual(step2.AcceptanceCriteria(), []string{"AC2.1"}) {
+		t.Errorf("Step 2 Acceptance Criteria mismatch: got %v", step2.AcceptanceCriteria())
+	}
+
+	// 6. Modify the plan (e.g., remove step, change status, reorder)
+	retrievedPlan.RemoveSteps([]string{"step1"})
+	// retrievedPlan.Steps[0].status = "DONE" // Mark step2 as DONE (it's now at index 0)
+	err = retrievedPlan.MarkStepAsCompleted("step2") // Mark step2 as DONE (it's now at index 0)
+	if err != nil {
+		t.Fatalf("MarkAsCompleted failed: %v", err)
+	}
+	retrievedPlan.AddStep("step3", "Third step", nil)
+
+	// Reorder (step3, step2) - Note: step1 was removed
+	retrievedPlan.ReorderSteps([]string{"step3", "step2"})
+
+	// 7. Save again
+	err = planner.Save(retrievedPlan)
+	if err != nil {
+		t.Fatalf("Second Save failed: %v", err)
+	}
+
+	// 8. Get again
+	finalPlan, err := planner.Get(planName)
+	if err != nil {
+		t.Fatalf("Second Get failed: %v", err)
+	}
+
+	// 9. Verify final state
+	if len(finalPlan.Steps) != 2 {
+		t.Fatalf("Final plan step count mismatch: got %d, want 2", len(finalPlan.Steps))
+	}
+
+	// Check order and content
+	if finalPlan.Steps[0].ID() != "step3" {
+		t.Errorf("Final Step 1 ID mismatch (expected step3)")
+	}
+	if finalPlan.Steps[0].Status() != "TODO" {
+		t.Errorf("Final Step 1 Status mismatch (expected TODO)")
+	}
+	if finalPlan.Steps[1].ID() != "step2" {
+		t.Errorf("Final Step 2 ID mismatch (expected step2)")
+	}
+	if finalPlan.Steps[1].Status() != "DONE" {
+		t.Errorf("Final Step 2 Status mismatch (expected DONE)")
+	}
+	if finalPlan.isNew { // Should be false as it was retrieved from DB
+		t.Errorf("finalPlan.isNew is true after Get, want false")
 	}
 }

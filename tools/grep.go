@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/honganh1206/clue/api"
 	"github.com/honganh1206/clue/schema"
 )
 
@@ -27,7 +28,7 @@ type GrepSearchInput struct {
 
 var GrepSearchInputSchema = schema.Generate[GrepSearchInput]()
 
-func GrepSearch(input json.RawMessage) (string, error) {
+func GrepSearch(input json.RawMessage, _ *api.Client) (string, error) {
 	searchInput := GrepSearchInput{}
 	err := json.Unmarshal(input, &searchInput)
 	if err != nil {
@@ -59,5 +60,4 @@ func GrepSearch(input json.RawMessage) (string, error) {
 
 		return arr, nil
 	}
-
 }

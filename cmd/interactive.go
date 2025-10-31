@@ -27,6 +27,7 @@ func interactive(ctx context.Context, convID string, llmClient, llmClientSub inf
 			&tools.GrepSearchDefinition,
 			&tools.CodebaseSearchAgentDefinition, // Now handled by subagent
 			&tools.BashDefinition,
+			&tools.PlanWriteDefinition,
 		},
 	}
 

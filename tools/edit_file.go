@@ -7,6 +7,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/honganh1206/clue/api"
 	"github.com/honganh1206/clue/schema"
 )
 
@@ -31,7 +32,7 @@ type EditFileInput struct {
 
 var EditFileInputSchema = schema.Generate[EditFileInput]()
 
-func EditFile(input json.RawMessage) (string, error) {
+func EditFile(input json.RawMessage, _ *api.Client) (string, error) {
 	editFileInput := EditFileInput{}
 	err := json.Unmarshal(input, &editFileInput)
 	if err != nil {
