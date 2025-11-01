@@ -26,7 +26,7 @@ func initConversationDsn() string {
 		log.Fatal("Failed to get home directory:", err)
 	}
 
-	dsn := filepath.Join(homeDir, ".local", ".clue", "conversation.db")
+	dsn := filepath.Join(homeDir, ".clue", "clue.db")
 	return dsn
 }
 

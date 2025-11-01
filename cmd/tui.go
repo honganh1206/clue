@@ -82,6 +82,7 @@ func tui(ctx context.Context, agent *agent.Agent, conv *conversation.Conversatio
 			questionInput.SetText("", false)
 			questionInput.SetDisabled(true)
 
+			// User input
 			fmt.Fprintf(conversationView, "[blue::]> %s\n\n", content)
 
 			spinner := progress.NewSpinner(getRandomSpinnerMessage())
@@ -121,7 +122,7 @@ func tui(ctx context.Context, agent *agent.Agent, conv *conversation.Conversatio
 
 				onDelta := func(delta string) {
 					// Run spinner on tool result delta
-					isToolResult := strings.HasPrefix(delta, "[green]") || strings.Contains(delta, "\u2713")
+					isToolResult := strings.Contains(delta, "\u2717") || strings.Contains(delta, "\u2713")
 
 					if firstDelta && !isToolResult && spinner != nil {
 						// Only stop spinner on actual LLM text response, not tool use
@@ -131,6 +132,7 @@ func tui(ctx context.Context, agent *agent.Agent, conv *conversation.Conversatio
 						firstDelta = false
 					}
 
+					// Display LLM response
 					fmt.Fprintf(conversationView, "[white::]%s", delta)
 				}
 
@@ -174,12 +176,8 @@ func formatMessage(msg *message.Message) string {
 	return result.String()
 }
 
-func displayWelcomeMessage(conversationView *tview.TextView) {
-	// Add vertical padding to center the info box
-	// This creates empty lines before the content
-	fmt.Fprintf(conversationView, "\n\n\n\n\n\n\n\n")
-
-	fmt.Fprintf(conversationView, "%s\n", utils.RenderBox(
+func formatWelcomeMessage() string {
+	return utils.RenderBox(
 		fmt.Sprintf("Clue v%s", Version),
 		[]string{
 			"Thank you for using Clue!",
@@ -188,7 +186,15 @@ func displayWelcomeMessage(conversationView *tview.TextView) {
 			"",
 			"Press Ctrl+C to exit",
 		},
-	))
+	)
+}
+
+func displayWelcomeMessage(conversationView *tview.TextView) {
+	// Add vertical padding to center the info box
+	// This creates empty lines before the content
+	fmt.Fprintf(conversationView, "\n\n\n\n\n\n\n\n")
+
+	fmt.Fprintf(conversationView, "%s\n", formatWelcomeMessage())
 }
 
 func displayConversationHistory(conversationView *tview.TextView, conv *conversation.Conversation) {
@@ -274,3 +280,4 @@ func displayRelativePath() string {
 
 	return relativePath
 }
+

@@ -25,7 +25,9 @@ var (
 	convID           string
 	mcpServerCmd     string
 	mcpServerConfigs []mcp.ServerConfig
+	useTUI           bool
 )
+
 var (
 	Version   = "dev"
 	GitCommit = "unknown"
@@ -85,7 +87,7 @@ func ChatHandler(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	err = interactive(cmd.Context(), convID, llm, llmSub, client, mcpServerConfigs)
+	err = interactive(cmd.Context(), convID, llm, llmSub, client, mcpServerConfigs, useTUI)
 	if err != nil {
 		fmt.Printf("Error: %s\n", err.Error())
 	}
@@ -298,6 +300,7 @@ Examples:
 	rootCmd.PersistentFlags().BoolVar(&verbose, "verbose", false, "Enable verbose output")
 	rootCmd.Flags().BoolVarP(&continueConv, "new-conversation", "n", true, "Continue from the latest conversation")
 	rootCmd.Flags().StringVarP(&convID, "id", "i", "", "Conversation ID to ")
+	rootCmd.Flags().BoolVar(&useTUI, "tui", true, "Use TUI (Terminal User Interface) mode")
 
 	rootCmd.AddCommand(versionCmd, modelCmd, conversationCmd, helpCmd, serveCmd, mcpCmd)
 

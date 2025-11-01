@@ -4,6 +4,8 @@ run/latest:
 	go run ./main.go -n=false
 run/gemini:
 	go run ./main.go --provider=google
+debug/cli:
+	go run ./main.go --tui=false
 serve:
 	go run ./main.go serve
 list/models:
