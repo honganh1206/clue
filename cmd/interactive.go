@@ -13,7 +13,7 @@ import (
 	"github.com/honganh1206/clue/tools"
 )
 
-func interactive(ctx context.Context, convID string, llmClient, llmClientSub inference.BaseLLMClient, apiClient *api.Client, mcpConfigs []mcp.ServerConfig) error {
+func interactive(ctx context.Context, convID string, llmClient, llmClientSub inference.BaseLLMClient, apiClient *api.Client, mcpConfigs []mcp.ServerConfig, useTUI bool) error {
 	llm, err := inference.Init(ctx, llmClient)
 	if err != nil {
 		log.Fatalf("Failed to initialize model: %s", err.Error())
@@ -67,7 +67,11 @@ func interactive(ctx context.Context, convID string, llmClient, llmClientSub inf
 	a.RegisterMCPServers()
 	defer a.ShutdownMCPServers()
 
-	err = tui(ctx, a, conv)
+	if useTUI {
+		err = tui(ctx, a, conv)
+	} else {
+		err = cli(ctx, a, conv)
+	}
 
 	if err != nil {
 		return err
