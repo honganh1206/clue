@@ -27,6 +27,7 @@ var (
 	mcpServerConfigs []mcp.ServerConfig
 	useTUI           bool
 )
+
 var (
 	Version   = "dev"
 	GitCommit = "unknown"
@@ -299,7 +300,7 @@ Examples:
 	rootCmd.PersistentFlags().BoolVar(&verbose, "verbose", false, "Enable verbose output")
 	rootCmd.Flags().BoolVarP(&continueConv, "new-conversation", "n", true, "Continue from the latest conversation")
 	rootCmd.Flags().StringVarP(&convID, "id", "i", "", "Conversation ID to ")
-	rootCmd.Flags().BoolVar(&useTUI, "tui", true, "Use TUI (Text User Interface) mode")
+	rootCmd.Flags().BoolVar(&useTUI, "tui", true, "Use TUI (Terminal User Interface) mode")
 
 	rootCmd.AddCommand(versionCmd, modelCmd, conversationCmd, helpCmd, serveCmd, mcpCmd)
 
