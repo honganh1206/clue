@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/honganh1206/clue/api"
 	"github.com/honganh1206/clue/schema"
 )
 
@@ -21,12 +22,12 @@ type ListFilesInput struct {
 
 var ListFilesInputSchema = schema.Generate[ListFilesInput]()
 
-func ListFiles(input json.RawMessage) (string, error) {
+func ListFiles(input json.RawMessage, _ *api.Client) (string, error) {
 	listFilesInput := ListFilesInput{}
 
 	err := json.Unmarshal(input, &listFilesInput)
 	if err != nil {
-		panic(err)
+		return "", err
 	}
 
 	dir := "."
@@ -62,7 +63,6 @@ func ListFiles(input json.RawMessage) (string, error) {
 
 		return nil
 	})
-
 	if err != nil {
 		return "", err
 	}

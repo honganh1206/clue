@@ -201,7 +201,6 @@ func (s *Server) Close() error {
 			if !strings.Contains(waitErr.Error(), "Wait was already called") {
 				firstErr = fmt.Errorf("mcp server: error waiting for server process to exit: %w", waitErr)
 			} else {
-
 				fmt.Fprintf(os.Stderr, "additional error while closing server pipes: %v\n", waitErr)
 			}
 		}
@@ -261,3 +260,4 @@ func (s *Server) ListTools(ctx context.Context) (Tools, error) {
 func (s *Server) ID() string {
 	return s.id
 }
+

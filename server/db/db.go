@@ -10,36 +10,31 @@ import (
 	"time"
 )
 
-type Config struct {
-	Dsn          string
-	MaxOpenConns int
-	MaxIdleConns int
-	MaxIdleTime  string
-}
-
-func OpenDB(cfg Config, schema string) (*sql.DB, error) {
-	dbDir := filepath.Dir(cfg.Dsn)
+func OpenDB(dsn string, schemas ...string) (*sql.DB, error) {
+	dbDir := filepath.Dir(dsn)
 	if _, err := os.Stat(dbDir); os.IsNotExist(err) {
-		err = os.MkdirAll(dbDir, 0755)
+		err = os.MkdirAll(dbDir, 0o755)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	db, err := sql.Open("sqlite3", cfg.Dsn)
+	db, err := sql.Open("sqlite3", dsn)
 	if err != nil {
 		return nil, err
 	}
 
-	if err = initializeSchema(db, schema); err != nil {
-		db.Close()
-		return nil, err
+	for _, schema := range schemas {
+		if err = initializeSchema(db, schema); err != nil {
+			db.Close()
+			return nil, err
+		}
 	}
+	// Yes we are hardcoding the configs here
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(25)
 
-	db.SetMaxIdleConns(cfg.MaxOpenConns)
-	db.SetMaxIdleConns(cfg.MaxIdleConns)
-
-	duration, err := time.ParseDuration(cfg.MaxIdleTime)
+	duration, err := time.ParseDuration("15m")
 	if err != nil {
 		return nil, err
 	}
@@ -49,9 +44,7 @@ func OpenDB(cfg Config, schema string) (*sql.DB, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Verify connection to db is still alive
 	err = db.PingContext(ctx)
-
 	if err != nil {
 		return nil, err
 	}

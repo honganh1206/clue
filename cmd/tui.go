@@ -20,6 +20,9 @@ import (
 )
 
 func tui(ctx context.Context, agent *agent.Agent, conv *conversation.Conversation) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	app := tview.NewApplication()
 
 	conversationView := tview.NewTextView().
@@ -27,7 +30,7 @@ func tui(ctx context.Context, agent *agent.Agent, conv *conversation.Conversatio
 		SetWordWrap(true).
 		SetChangedFunc(func() {
 			app.Draw()
-		})
+		}).ScrollToEnd()
 
 	isFirstInput := len(conv.Messages) == 0
 	if isFirstInput {
@@ -36,7 +39,6 @@ func tui(ctx context.Context, agent *agent.Agent, conv *conversation.Conversatio
 	} else {
 		displayConversationHistory(conversationView, conv)
 	}
-
 	relPath := displayRelativePath()
 
 	questionInput := tview.NewTextArea()
@@ -44,6 +46,12 @@ func tui(ctx context.Context, agent *agent.Agent, conv *conversation.Conversatio
 		SetTitleAlign(tview.AlignLeft).
 		SetBorder(true).
 		SetDrawFunc(renderRelativePath(relPath))
+	questionInput.SetFocusFunc(func() {
+		questionInput.SetBorderColor(tcell.ColorGreen)
+	})
+	questionInput.SetBlurFunc(func() {
+		questionInput.SetBorderColor(tcell.ColorWhite)
+	})
 
 	spinnerView := tview.NewTextView().
 		SetDynamicColors(true).
@@ -94,6 +102,8 @@ func tui(ctx context.Context, agent *agent.Agent, conv *conversation.Conversatio
 				defer ticker.Stop()
 				for {
 					select {
+					case <-ctx.Done():
+						return
 					case stop := <-spinCh:
 						if stop {
 							// Clear the spinner text to hide it from the UI when the agent finishes processing
@@ -151,7 +161,11 @@ func tui(ctx context.Context, agent *agent.Agent, conv *conversation.Conversatio
 		return event
 	})
 
-	return app.SetRoot(mainLayout, true).SetFocus(questionInput).Run()
+	if err := app.SetRoot(mainLayout, true).EnableMouse(true).SetFocus(questionInput).Run(); err != nil {
+		panic(err)
+	}
+
+	return nil
 }
 
 func formatMessage(msg *message.Message) string {

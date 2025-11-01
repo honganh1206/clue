@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/honganh1206/clue/api"
 	"github.com/honganh1206/clue/inference"
 	"github.com/honganh1206/clue/message"
 	"github.com/honganh1206/clue/tools"
@@ -112,8 +113,9 @@ func (s *Subagent) executeTool(id, name string, input json.RawMessage) message.C
 		return message.NewToolResultBlock(id, name, errorMsg, true)
 	}
 
-	response, err := toolDef.Function(input)
+	client := api.NewClient("") // TODO: Very temp
 
+	response, err := toolDef.Function(input, client)
 	if err != nil {
 		return message.NewToolResultBlock(id, name, err.Error(), true)
 	}

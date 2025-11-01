@@ -1,40 +1,17 @@
 package conversation
 
 import (
-	"database/sql"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/honganh1206/clue/message"
+	"github.com/honganh1206/clue/server/data/testutil"
 	_ "github.com/mattn/go-sqlite3"
 )
 
-func createTestDB(t *testing.T) *sql.DB {
-	t.Helper()
-
-	tempDir, err := os.MkdirTemp("", "conversation_test")
-	if err != nil {
-		t.Fatalf("Failed to create temp directory: %v", err)
-	}
-
-	t.Cleanup(func() {
-		os.RemoveAll(tempDir)
-	})
-
-	testDBPath := filepath.Join(tempDir, "test.db")
-
-	db, err := InitDB(testDBPath)
-	if err != nil {
-		t.Fatalf("Failed to initialize test database: %v", err)
-	}
-
-	t.Cleanup(func() {
-		db.Close()
-	})
-
-	return db
+func createTestModel(t *testing.T) *ConversationModel {
+	testDB := testutil.CreateTestDB(t, Schema)
+	return &ConversationModel{DB: testDB}
 }
 
 func TestConversation_Append(t *testing.T) {
@@ -90,8 +67,7 @@ func TestConversation_Append(t *testing.T) {
 }
 
 func TestConversation_SaveTo(t *testing.T) {
-	db := createTestDB(t)
-	cm := ConversationModel{DB: db}
+	cm := createTestModel(t)
 
 	conv, err := New()
 	if err != nil {
@@ -118,7 +94,7 @@ func TestConversation_SaveTo(t *testing.T) {
 
 	var savedID string
 	var savedCreatedAt time.Time
-	err = db.QueryRow("SELECT id, created_at FROM conversations WHERE id = ?", conv.ID).
+	err = cm.DB.QueryRow("SELECT id, created_at FROM conversations WHERE id = ?", conv.ID).
 		Scan(&savedID, &savedCreatedAt)
 	if err != nil {
 		t.Fatalf("Failed to query saved conversation: %v", err)
@@ -128,7 +104,7 @@ func TestConversation_SaveTo(t *testing.T) {
 		t.Errorf("Expected ID %s, got %s", conv.ID, savedID)
 	}
 
-	rows, err := db.Query("SELECT sequence_number, payload FROM messages WHERE conversation_id = ? ORDER BY sequence_number", conv.ID)
+	rows, err := cm.DB.Query("SELECT sequence_number, payload FROM messages WHERE conversation_id = ? ORDER BY sequence_number", conv.ID)
 	if err != nil {
 		t.Fatalf("Failed to query saved messages: %v", err)
 	}
@@ -155,8 +131,7 @@ func TestConversation_SaveTo(t *testing.T) {
 }
 
 func TestConversation_SaveTo_DuplicateConversation(t *testing.T) {
-	db := createTestDB(t)
-	cm := ConversationModel{DB: db}
+	cm := createTestModel(t)
 
 	conv, err := New()
 	if err != nil {
@@ -189,7 +164,7 @@ func TestConversation_SaveTo_DuplicateConversation(t *testing.T) {
 
 	// Verify only one conversation record exists
 	var count int
-	err = db.QueryRow("SELECT COUNT(*) FROM conversations WHERE id = ?", conv.ID).Scan(&count)
+	err = cm.DB.QueryRow("SELECT COUNT(*) FROM conversations WHERE id = ?", conv.ID).Scan(&count)
 	if err != nil {
 		t.Fatalf("Failed to count conversations: %v", err)
 	}
@@ -198,7 +173,7 @@ func TestConversation_SaveTo_DuplicateConversation(t *testing.T) {
 	}
 
 	// Verify correct number of messages
-	err = db.QueryRow("SELECT COUNT(*) FROM messages WHERE conversation_id = ?", conv.ID).Scan(&count)
+	err = cm.DB.QueryRow("SELECT COUNT(*) FROM messages WHERE conversation_id = ?", conv.ID).Scan(&count)
 	if err != nil {
 		t.Fatalf("Failed to count messages: %v", err)
 	}
@@ -208,8 +183,7 @@ func TestConversation_SaveTo_DuplicateConversation(t *testing.T) {
 }
 
 func TestList(t *testing.T) {
-	db := createTestDB(t)
-	cm := ConversationModel{DB: db}
+	cm := createTestModel(t)
 
 	// Test empty database
 	metadataList, err := cm.List()
@@ -299,8 +273,7 @@ func TestList(t *testing.T) {
 }
 
 func TestList_EmptyConversation(t *testing.T) {
-	db := createTestDB(t)
-	cm := ConversationModel{DB: db}
+	cm := createTestModel(t)
 
 	// Create conversation without messages
 	conv, err := New()
@@ -309,7 +282,7 @@ func TestList_EmptyConversation(t *testing.T) {
 	}
 
 	// Save empty conversation directly to database
-	_, err = db.Exec("INSERT INTO conversations (id, created_at) VALUES (?, ?)", conv.ID, conv.CreatedAt)
+	_, err = cm.DB.Exec("INSERT INTO conversations (id, created_at) VALUES (?, ?)", conv.ID, conv.CreatedAt)
 	if err != nil {
 		t.Fatalf("Failed to insert empty conversation: %v", err)
 	}
@@ -335,8 +308,7 @@ func TestList_EmptyConversation(t *testing.T) {
 }
 
 func TestLatestID(t *testing.T) {
-	db := createTestDB(t)
-	cm := ConversationModel{DB: db}
+	cm := createTestModel(t)
 
 	// Test empty database
 	_, err := cm.LatestID()
@@ -379,8 +351,7 @@ func TestLatestID(t *testing.T) {
 }
 
 func TestLoad(t *testing.T) {
-	db := createTestDB(t)
-	cm := ConversationModel{DB: db}
+	cm := createTestModel(t)
 
 	// Test loading non-existent conversation
 	_, err := cm.Load("non-existent-id")
@@ -530,8 +501,7 @@ func TestLoad(t *testing.T) {
 }
 
 func TestLoad_EmptyConversation(t *testing.T) {
-	db := createTestDB(t)
-	cm := ConversationModel{DB: db}
+	cm := createTestModel(t)
 
 	// Create conversation without messages
 	conv, err := New()
