@@ -76,7 +76,7 @@ func (pm *PlanModel) Get(name string) (*Plan, error) {
 	plan := &Plan{
 		ID:    planID,
 		Steps: []*Step{},
-		isNew: false, // Explicitly set isNew to false for a plan loaded from DB
+		isNew: false,
 	}
 
 	rows, err := pm.DB.Query("SELECT id, description, status, step_order FROM steps WHERE plan_id = ? ORDER BY step_order ASC", planID)
@@ -580,4 +580,3 @@ func (pm *PlanModel) Compact() error {
 
 	return nil
 }
-

@@ -8,7 +8,6 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/honganh1206/clue/api"
 	"github.com/honganh1206/clue/schema"
 )
 
@@ -28,7 +27,7 @@ var BashDefinition = ToolDefinition{
 	Function:    Bash,
 }
 
-func Bash(input json.RawMessage, _ *api.Client) (string, error) {
+func Bash(input json.RawMessage) (string, error) {
 	// Parse the JSON input into a BashInput struct
 	bashInput := BashInput{}
 	err := json.Unmarshal(input, &bashInput)

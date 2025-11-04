@@ -75,6 +75,7 @@ func (s *server) createPlan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// We got the in-mem plan object, but we return only the ID
 	p, err := s.models.Plans.Create(req.Name)
 	if err != nil {
 		handleError(w, &HTTPError{

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"os"
 
-	"github.com/honganh1206/clue/api"
 	"github.com/honganh1206/clue/schema"
 )
 
@@ -25,7 +24,7 @@ var ReadFileDefinition = ToolDefinition{
 	Function:    ReadFile,
 }
 
-func ReadFile(input json.RawMessage, _ *api.Client) (string, error) {
+func ReadFile(input json.RawMessage) (string, error) {
 	readFileInput := ReadFileInput{}
 	err := json.Unmarshal(input, &readFileInput)
 	if err != nil {

@@ -7,6 +7,7 @@ import (
 
 	"github.com/honganh1206/clue/api"
 	"github.com/honganh1206/clue/schema"
+	"github.com/honganh1206/clue/server/data/plan"
 )
 
 var PlanWriteDefinition = ToolDefinition{
@@ -53,7 +54,10 @@ type PlanWriteInput struct {
 
 var PlanWriteInputSchema = schema.Generate[PlanWriteInput]()
 
-func PlanWrite(input json.RawMessage, client *api.Client) (string, error) {
+// TODO: We might be using the same client with the agent here
+// so when we create a transaction, the agent is already using the client to save conversation
+func PlanWrite(input json.RawMessage) (string, error) {
+	client := api.NewClient("") // TODO: Very temp
 	planWriteInput := PlanWriteInput{}
 
 	err := json.Unmarshal(input, &planWriteInput)
@@ -69,16 +73,6 @@ func PlanWrite(input json.RawMessage, client *api.Client) (string, error) {
 
 	switch planWriteInput.Action {
 	case ActionSetStatus:
-		// if planWriteInput.StepID == "" {
-		// 	return "", fmt.Errorf("plan_write: 'set_status' requires 'step_id'")
-		// }
-		// if planWriteInput.Status == "" {
-		// 	return "", fmt.Errorf("plan_write: 'set_status' requires 'status' (DONE or TODO)")
-		// }
-		// if planWriteInput.Status != StatusDone && planWriteInput.Status != StatusTodo {
-		// 	return "", fmt.Errorf("plan_write: invalid status '%s', must be 'DONE' or 'TODO'", planWriteInput.Status)
-		// }
-		//
 		stepID := planWriteInput.StepID
 		status := planWriteInput.Status
 
@@ -106,10 +100,12 @@ func PlanWrite(input json.RawMessage, client *api.Client) (string, error) {
 	case ActionAddSteps:
 		stepsToAdd := planWriteInput.StepsToAdd
 
-		plan, err := client.GetPlan(planName)
+		p, err := client.GetPlan(planName)
 		if err != nil {
 			if strings.Contains(strings.ToLower(err.Error()), "not found") {
-				plan, err = client.CreatePlan(planName)
+				// We need to reuse the same PlanModel object here??
+				pm := &plan.PlanModel{}
+				p, err = pm.Create(planName)
 				if err != nil {
 					return "", fmt.Errorf("plan_write: failed to create new plan '%s' for adding steps: %w", planName, err)
 				}
@@ -135,11 +131,12 @@ func PlanWrite(input json.RawMessage, client *api.Client) (string, error) {
 				criteria = append(criteria, criterion)
 			}
 
-			plan.AddStep(id, description, criteria)
+			p.AddStep(id, description, criteria)
 			addedCount++
 		}
 
-		if err := client.SavePlan(plan); err != nil {
+		if err := client.SavePlan(p); err != nil {
+			// 500 here? is it because of create plan and add steps in the same transaction??
 			return "", fmt.Errorf("plan_write: failed to save updated plan '%s': %w", planName, err)
 		}
 		return fmt.Sprintf("Added %d steps to plan '%s'.", addedCount, planName), nil

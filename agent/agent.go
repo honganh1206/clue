@@ -216,7 +216,7 @@ func (a *Agent) executeLocalTool(id, name string, input json.RawMessage) message
 		response = final.String()
 	} else {
 		// The main agent invokes tools
-		response, err = toolDef.Function(input, a.client)
+		response, err = toolDef.Function(input)
 	}
 
 	if err != nil {
@@ -281,4 +281,3 @@ func (a *Agent) streamResponse(ctx context.Context, onDelta func(string)) (*mess
 
 	return msg, nil
 }
-

@@ -7,7 +7,6 @@ import (
 	"path"
 	"strings"
 
-	"github.com/honganh1206/clue/api"
 	"github.com/honganh1206/clue/schema"
 )
 
@@ -32,7 +31,7 @@ type EditFileInput struct {
 
 var EditFileInputSchema = schema.Generate[EditFileInput]()
 
-func EditFile(input json.RawMessage, _ *api.Client) (string, error) {
+func EditFile(input json.RawMessage) (string, error) {
 	editFileInput := EditFileInput{}
 	err := json.Unmarshal(input, &editFileInput)
 	if err != nil {
@@ -59,7 +58,7 @@ func EditFile(input json.RawMessage, _ *api.Client) (string, error) {
 		return "", fmt.Errorf("old_str not found in file")
 	}
 
-	err = os.WriteFile(editFileInput.Path, []byte(newContent), 0644)
+	err = os.WriteFile(editFileInput.Path, []byte(newContent), 0o644)
 	if err != nil {
 		return "", err
 	}
@@ -71,14 +70,14 @@ func createNewFile(filePath, content string) (string, error) {
 	dir := path.Dir(filePath)
 	if dir != "." {
 		// Default permission for dir
-		err := os.MkdirAll(dir, 0755)
+		err := os.MkdirAll(dir, 0o755)
 		if err != nil {
 			return "", fmt.Errorf("failed to create directory: %w", err)
 		}
 	}
 
 	// Permission to read and write file
-	err := os.WriteFile(filePath, []byte(content), 0644)
+	err := os.WriteFile(filePath, []byte(content), 0o644)
 	if err != nil {
 		return "", fmt.Errorf("failed to create file: %w", err)
 	}
