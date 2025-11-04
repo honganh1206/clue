@@ -5,9 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/honganh1206/clue/api"
 	"github.com/honganh1206/clue/schema"
-	"github.com/honganh1206/clue/server/data/plan"
+	"github.com/honganh1206/clue/server/api"
 )
 
 var PlanWriteDefinition = ToolDefinition{
@@ -104,8 +103,7 @@ func PlanWrite(input json.RawMessage) (string, error) {
 		if err != nil {
 			if strings.Contains(strings.ToLower(err.Error()), "not found") {
 				// We need to reuse the same PlanModel object here??
-				pm := &plan.PlanModel{}
-				p, err = pm.Create(planName)
+				p, err = client.CreatePlan(planName)
 				if err != nil {
 					return "", fmt.Errorf("plan_write: failed to create new plan '%s' for adding steps: %w", planName, err)
 				}
@@ -144,4 +142,3 @@ func PlanWrite(input json.RawMessage) (string, error) {
 		return "", fmt.Errorf("plan_write: unknown action '%s'", planWriteInput.Action)
 	}
 }
-

@@ -14,12 +14,12 @@ import (
 	"github.com/honganh1206/clue/agent"
 	"github.com/honganh1206/clue/message"
 	"github.com/honganh1206/clue/progress"
-	"github.com/honganh1206/clue/server/data/conversation"
+	"github.com/honganh1206/clue/server/data"
 	"github.com/honganh1206/clue/utils"
 	"github.com/rivo/tview"
 )
 
-func tui(ctx context.Context, agent *agent.Agent, conv *conversation.Conversation) error {
+func tui(ctx context.Context, agent *agent.Agent, conv *data.Conversation) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -211,7 +211,7 @@ func displayWelcomeMessage(conversationView *tview.TextView) {
 	fmt.Fprintf(conversationView, "%s\n", formatWelcomeMessage())
 }
 
-func displayConversationHistory(conversationView *tview.TextView, conv *conversation.Conversation) {
+func displayConversationHistory(conversationView *tview.TextView, conv *data.Conversation) {
 	if len(conv.Messages) == 0 {
 		return
 	}
@@ -294,4 +294,3 @@ func displayRelativePath() string {
 
 	return relativePath
 }
-

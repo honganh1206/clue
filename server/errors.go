@@ -5,8 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/honganh1206/clue/server/data/conversation"
-	"github.com/honganh1206/clue/server/data/plan"
+	"github.com/honganh1206/clue/server/data"
 )
 
 var (
@@ -35,7 +34,7 @@ func handleError(w http.ResponseWriter, err error) {
 		return
 	}
 
-	if errors.Is(err, conversation.ErrConversationNotFound) || errors.Is(err, plan.ErrPlanNotFound) {
+	if errors.Is(err, data.ErrConversationNotFound) || errors.Is(err, data.ErrPlanNotFound) {
 		writeError(w, http.StatusNotFound, "Resource not found")
 		return
 	}

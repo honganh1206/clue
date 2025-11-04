@@ -6,10 +6,10 @@ import (
 	"log"
 
 	"github.com/honganh1206/clue/agent"
-	"github.com/honganh1206/clue/api"
 	"github.com/honganh1206/clue/inference"
 	"github.com/honganh1206/clue/mcp"
-	"github.com/honganh1206/clue/server/data/conversation"
+	"github.com/honganh1206/clue/server/api"
+	"github.com/honganh1206/clue/server/data"
 	"github.com/honganh1206/clue/tools"
 )
 
@@ -40,7 +40,7 @@ func interactive(ctx context.Context, convID string, llmClient, llmClientSub inf
 		},
 	}
 
-	var conv *conversation.Conversation
+	var conv *data.Conversation
 
 	if convID != "" {
 		conv, err = apiClient.GetConversation(convID)

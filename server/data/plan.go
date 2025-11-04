@@ -1,4 +1,4 @@
-package plan
+package data
 
 import (
 	"database/sql"
@@ -8,8 +8,8 @@ import (
 	"strings"
 )
 
-//go:embed schema.sql
-var Schema string
+//go:embed plan_schema.sql
+var PlanSchema string
 
 var ErrPlanNotFound = errors.New("plan not found")
 
@@ -49,18 +49,23 @@ func (pm *PlanModel) Close() error {
 // Create returns an in-memory Plan object.
 // The ID of the plan is set to its name.
 // The plan is not persisted to the database until Save is called.
-func (pm *PlanModel) Create(name string) (*Plan, error) {
-	if name == "" {
-		return nil, fmt.Errorf("plan name cannot be empty")
+func (pm *PlanModel) Create(plan *Plan) error {
+	if plan.ID == "" {
+		return fmt.Errorf("plan name cannot be empty")
 	}
-	// TODO: Check if a plan with this name already exists in the DB if we want to prevent overwriting on Save.
-	// For now, Create will always return a new plan object, and Save will handle insertion or update.
 
-	return &Plan{
-		ID:    name,
-		Steps: []*Step{},
-		isNew: true,
-	}, nil
+	query := `
+	INSERT INTO plans (id) VALUES (?)
+	`
+
+	return pm.DB.QueryRow(query, plan.ID).Scan(&plan.ID)
+	// if err != nil {
+	// 	// Check if the error is due to a unique constraint violation (plan already exists)
+	// 	// if strings.Contains(, "UNIQUE constraint failed") {
+	// 	// 	return fmt.Errorf("plan with name '%s' already exists in database, cannot save as new", plan.ID)
+	// 	// }
+	// 	return fmt.Errorf("failed to insert new plan '%s' into database: %w", plan.ID, err)
+	// }
 }
 
 func (pm *PlanModel) Get(name string) (*Plan, error) {

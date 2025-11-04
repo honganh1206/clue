@@ -1,16 +1,14 @@
-package plan
+package data
 
 import (
 	"database/sql"
 	"fmt"
 	"reflect"
 	"testing"
-
-	"github.com/honganh1206/clue/server/data/testutil"
 )
 
 func createTestModel(t *testing.T) PlanModel {
-	testDB := testutil.CreateTestDB(t, Schema)
+	testDB := testutil.CreateTestDB(t, PlanSchema)
 	return PlanModel{DB: testDB}
 }
 

@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/honganh1206/clue/api"
 	"github.com/honganh1206/clue/inference"
 	"github.com/honganh1206/clue/mcp"
 	"github.com/honganh1206/clue/server"
+	"github.com/honganh1206/clue/server/api"
 	"github.com/honganh1206/clue/utils"
 	"github.com/spf13/cobra"
 )

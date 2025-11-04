@@ -9,7 +9,7 @@ import (
 
 	"github.com/honganh1206/clue/agent"
 	"github.com/honganh1206/clue/message"
-	"github.com/honganh1206/clue/server/data/conversation"
+	"github.com/honganh1206/clue/server/data"
 )
 
 const (
@@ -19,7 +19,7 @@ const (
 	colorRed   = "\033[31m"
 )
 
-func cli(ctx context.Context, agent *agent.Agent, conv *conversation.Conversation) error {
+func cli(ctx context.Context, agent *agent.Agent, conv *data.Conversation) error {
 	isFirstInput := len(conv.Messages) == 0
 
 	if isFirstInput {
@@ -71,7 +71,7 @@ func printWelcome() {
 	fmt.Println(formatWelcomeMessage())
 }
 
-func printConversationHistory(conv *conversation.Conversation) {
+func printConversationHistory(conv *data.Conversation) {
 	if len(conv.Messages) == 0 {
 		return
 	}
@@ -107,4 +107,3 @@ func formatMessagePlain(msg *message.Message) string {
 
 	return result.String()
 }
-

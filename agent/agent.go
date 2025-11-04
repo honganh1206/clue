@@ -7,18 +7,18 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/honganh1206/clue/api"
 	"github.com/honganh1206/clue/inference"
 	"github.com/honganh1206/clue/mcp"
 	"github.com/honganh1206/clue/message"
-	"github.com/honganh1206/clue/server/data/conversation"
+	"github.com/honganh1206/clue/server/api"
+	"github.com/honganh1206/clue/server/data"
 	"github.com/honganh1206/clue/tools"
 )
 
 type Agent struct {
 	llm          inference.LLMClient
 	toolBox      *tools.ToolBox
-	conversation *conversation.Conversation
+	conversation *data.Conversation
 	client       *api.Client
 	mcp          mcp.Config
 	streaming    bool
@@ -26,7 +26,7 @@ type Agent struct {
 	Sub *Subagent
 }
 
-func New(llm inference.LLMClient, conversation *conversation.Conversation, toolBox *tools.ToolBox, client *api.Client, mcpConfigs []mcp.ServerConfig, streaming bool) *Agent {
+func New(llm inference.LLMClient, conversation *data.Conversation, toolBox *tools.ToolBox, client *api.Client, mcpConfigs []mcp.ServerConfig, streaming bool) *Agent {
 	agent := &Agent{
 		llm:          llm,
 		toolBox:      toolBox,

@@ -1,4 +1,4 @@
-package conversation
+package data
 
 import (
 	"database/sql"
@@ -13,10 +13,10 @@ import (
 	"github.com/honganh1206/clue/utils"
 )
 
-//go:embed schema.sql
-var Schema string
-
 var ErrConversationNotFound = errors.New("history: conversation not found")
+
+//go:embed conversation_schema.sql
+var ConversationSchema string
 
 type Conversation struct {
 	ID        string
@@ -28,7 +28,7 @@ type ConversationModel struct {
 	DB *sql.DB
 }
 
-func New() (*Conversation, error) {
+func NewConversation() (*Conversation, error) {
 	id, err := uuid.NewRandom()
 	if err != nil {
 		return nil, err
