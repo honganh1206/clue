@@ -26,15 +26,9 @@ const (
 	ActionReorderSteps WriteAction = "reorder_steps"
 )
 
-type Status string
-
-const (
-	StatusDone Status = "DONE"
-	StatusTodo Status = "TODO"
-)
-
 type PlanStepInput struct {
 	ID                 string   `json:"id" jsonschema_description:"A short, unique identifier for the step (e.g., 'add-tests')."`
+	Status             string   `json:"status" jsonschema_description:"The status to set: 'DONE' or 'TODO'."`
 	Description        string   `json:"description" jsonschema_description:"A detailed description of the step's task."`
 	AcceptanceCriteria []string `json:"acceptance_criteria,omitempty" jsonschema_description:"A list of criteria that must be met for the step to be considered DONE."`
 }
@@ -45,7 +39,7 @@ type PlanWriteInput struct {
 	PlanName        string          `json:"plan_name" jsonschema_description:"The name of the plan to manage (e.g., 'main', 'feature-x'). This corresponds to the unique ID in the plans database."`
 	Action          WriteAction     `json:"write_action" jsonschema_description:"The write operation to perform: 'add_steps', 'set_status', 'remove_steps', 'reorder_steps', or 'compact_plan'."`
 	StepID          string          `json:"step_id,omitempty" jsonschema_description:"The ID of the step to target (required for 'set_status')."`
-	Status          Status          `json:"status,omitempty" jsonschema_description:"The status to set: 'DONE' or 'TODO' (required for 'set_status')."`
+	Status          string          `json:"status,omitempty" jsonschema_description:"The status to set: 'DONE' or 'TODO' (required for 'set_status')."`
 	StepsToAdd      []PlanStepInput `json:"steps_to_add,omitempty" jsonschema_description:"A list of step objects to add to the plan (required for 'add_steps'), creating it if necessary."`
 	StepIDsToRemove []string        `json:"step_ids_to_remove,omitempty" jsonschema_description:"A list of step IDs to remove from the plan (required for 'remove_steps')."`
 	NewStepOrder    []string        `json:"new_step_order,omitempty" jsonschema_description:"A list of step IDs representing the desired new order (required for 'reorder_steps'). Steps not in this list are appended at the end."`
@@ -80,7 +74,7 @@ func PlanWrite(input json.RawMessage) (string, error) {
 			return "", fmt.Errorf("plan_write: failed to get plan '%s' for set_status: %w", planName, err)
 		}
 
-		if status == StatusDone {
+		if status == "DONE" {
 			err = plan.MarkStepAsCompleted(stepID)
 		} else {
 			err = plan.MarkStepAsIncomplete(stepID)

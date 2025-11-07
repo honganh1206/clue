@@ -32,10 +32,10 @@ type PlanInfo struct {
 }
 
 type Step struct {
-	id          string   `json:"id"`
-	description string   `json:"description"`
-	status      string   `json:"status"` // "DONE" or "TODO"
-	acceptance  []string `json:"acceptance"`
+	ID          string   `json:"id"`
+	Description string   `json:"description"`
+	Status      string   `json:"status"` // "DONE" or "TODO"
+	Acceptance  []string `json:"acceptance"`
 	stepOrder   int
 }
 
@@ -56,16 +56,27 @@ func (pm *PlanModel) Create(plan *Plan) error {
 
 	query := `
 	INSERT INTO plans (id) VALUES (?)
+	RETURNING id
 	`
 
-	return pm.DB.QueryRow(query, plan.ID).Scan(&plan.ID)
-	// if err != nil {
-	// 	// Check if the error is due to a unique constraint violation (plan already exists)
-	// 	// if strings.Contains(, "UNIQUE constraint failed") {
-	// 	// 	return fmt.Errorf("plan with name '%s' already exists in database, cannot save as new", plan.ID)
-	// 	// }
-	// 	return fmt.Errorf("failed to insert new plan '%s' into database: %w", plan.ID, err)
-	// }
+	err := pm.DB.QueryRow(query, plan.ID).Scan(&plan.ID)
+	// TODO: Is this the right way? Or should I handle it in server.go?
+	if err != nil {
+		// Check if the error is due to a unique constraint violation (plan already exists)
+		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+			return fmt.Errorf("plan with name '%s' already exists in database, cannot save as new", plan.ID)
+		}
+		// Issue sql: no rows in result set
+		return fmt.Errorf("failed to insert new plan '%s' into database: %w", plan.ID, err)
+	}
+
+	// Initialize Steps slice and mark as persisted (not new anymore)
+	if plan.Steps == nil {
+		plan.Steps = []*Step{}
+	}
+	plan.isNew = false
+
+	return nil
 }
 
 func (pm *PlanModel) Get(name string) (*Plan, error) {
@@ -95,14 +106,14 @@ func (pm *PlanModel) Get(name string) (*Plan, error) {
 
 	for rows.Next() {
 		step := &Step{}
-		err := rows.Scan(&step.id, &step.description, &step.status, &step.stepOrder)
+		err := rows.Scan(&step.ID, &step.Description, &step.Status, &step.stepOrder)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan step for plan '%s': %w", name, err)
 		}
 		// Store acceptance criteria
-		step.acceptance = []string{}
+		step.Acceptance = []string{}
 		plan.Steps = append(plan.Steps, step)
-		stepsByID[step.id] = step
+		stepsByID[step.ID] = step
 	}
 
 	if err = rows.Err(); err != nil {
@@ -112,9 +123,9 @@ func (pm *PlanModel) Get(name string) (*Plan, error) {
 	// Fetch acceptance criteria for each step.
 	// Maintain order of steps from the query.
 	for _, step := range plan.Steps {
-		acRows, err := pm.DB.Query("SELECT criterion FROM step_acceptance_criteria WHERE step_id = ? AND plan_id = ? ORDER BY criterion_order ASC", step.id, planID)
+		acRows, err := pm.DB.Query("SELECT criterion FROM step_acceptance_criteria WHERE step_id = ? AND plan_id = ? ORDER BY criterion_order ASC", step.ID, planID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to query acceptance criteria for step '%s' in plan '%s': %w", step.id, name, err)
+			return nil, fmt.Errorf("failed to query acceptance criteria for step '%s' in plan '%s': %w", step.ID, name, err)
 		}
 		// Close each acRow in each iteration to prevent resource leak,
 		// especially for long running loop, where resources are kept open,
@@ -124,13 +135,13 @@ func (pm *PlanModel) Get(name string) (*Plan, error) {
 			err := acRows.Scan(&acDescription)
 			if err != nil {
 				acRows.Close()
-				return nil, fmt.Errorf("failed to scan acceptance criterion for step '%s' in plan '%s': %w", step.id, name, err)
+				return nil, fmt.Errorf("failed to scan acceptance criterion for step '%s' in plan '%s': %w", step.ID, name, err)
 			}
-			step.acceptance = append(step.acceptance, acDescription)
+			step.Acceptance = append(step.Acceptance, acDescription)
 		}
 		if err = acRows.Err(); err != nil {
 			acRows.Close()
-			return nil, fmt.Errorf("error iterating acceptance criteria for step '%s' in plan '%s': %w", step.id, name, err)
+			return nil, fmt.Errorf("error iterating acceptance criteria for step '%s' in plan '%s': %w", step.ID, name, err)
 		}
 		acRows.Close() // Manual close instead of defer
 	}
@@ -143,18 +154,18 @@ func (p *Plan) Inspect() string {
 
 	for i, step := range p.Steps {
 		// Headline: includes step number, status, and ID.
-		header := fmt.Sprintf("## %d. [%s] %s\n", i+1, strings.ToUpper(step.status), step.id) // Use fields
+		header := fmt.Sprintf("## %d. [%s] %s\n", i+1, strings.ToUpper(step.Status), step.ID)
 		builder.WriteString(header)
 
-		if step.description != "" {
-			builder.WriteString("\n" + step.description + "\n") // Add blank lines around description
+		if step.Description != "" {
+			builder.WriteString("\n" + step.Description + "\n") // Add blank lines around description
 		}
 		builder.WriteString("\n") // Ensure a blank line after header or description
 
 		// Acceptance criteria numbered list
-		if len(step.acceptance) > 0 {
+		if len(step.Acceptance) > 0 {
 			builder.WriteString("Acceptance Criteria:\n")
-			for j, criterion := range step.acceptance {
+			for j, criterion := range step.Acceptance {
 				builder.WriteString(fmt.Sprintf("%d. %s\n", j+1, criterion))
 			}
 			builder.WriteString("\n")
@@ -167,7 +178,7 @@ func (p *Plan) Inspect() string {
 func (p *Plan) NextStep() *Step {
 	for _, step := range p.Steps {
 		// Case-insensitive comparison just in case
-		if strings.ToUpper(step.status) != "DONE" {
+		if strings.ToUpper(step.Status) != "DONE" {
 			return step
 		}
 	}
@@ -191,7 +202,7 @@ func (p *Plan) RemoveSteps(stepIDs []string) int {
 	var newSteps []*Step
 	removedCount := 0
 	for _, step := range p.Steps {
-		if _, found := idsToRemove[step.id]; found {
+		if _, found := idsToRemove[step.ID]; found {
 			removedCount++
 		} else {
 			newSteps = append(newSteps, step)
@@ -202,28 +213,28 @@ func (p *Plan) RemoveSteps(stepIDs []string) int {
 	return removedCount
 }
 
-func (s *Step) ID() string {
-	return s.id
+func (s *Step) GetID() string {
+	return s.ID
 }
 
-func (s *Step) Status() string {
-	return strings.ToUpper(s.status)
+func (s *Step) GetStatus() string {
+	return strings.ToUpper(s.Status)
 }
 
-func (s *Step) Description() string {
-	return s.description
+func (s *Step) GetDescription() string {
+	return s.Description
 }
 
-func (s *Step) AcceptanceCriteria() []string {
+func (s *Step) GetAcceptanceCriteria() []string {
 	// Just a return, no need for a copy
-	return s.acceptance
+	return s.Acceptance
 }
 
 // Set the status of the step with the given stepID to "DONE" in-memory.
 func (p *Plan) MarkStepAsCompleted(stepID string) error {
 	for _, step := range p.Steps {
-		if step.id == stepID {
-			step.status = "DONE"
+		if step.ID == stepID {
+			step.Status = "DONE"
 			return nil
 		}
 	}
@@ -233,8 +244,8 @@ func (p *Plan) MarkStepAsCompleted(stepID string) error {
 // Sets the status of the step with the given stepID to "TODO" in-memory.
 func (p *Plan) MarkStepAsIncomplete(stepID string) error {
 	for _, step := range p.Steps {
-		if step.id == stepID {
-			step.status = "TODO"
+		if step.ID == stepID {
+			step.Status = "TODO"
 			return nil
 		}
 	}
@@ -245,10 +256,10 @@ func (p *Plan) MarkStepAsIncomplete(stepID string) error {
 // The new step is initialized with status "TODO".
 func (p *Plan) AddStep(id, description string, acceptanceCriteria []string) {
 	newStep := &Step{
-		id:          id,
-		description: description,
-		status:      "TODO", // Default status for new steps
-		acceptance:  acceptanceCriteria,
+		ID:          id,
+		Description: description,
+		Status:      "TODO", // Default status for new steps
+		Acceptance:  acceptanceCriteria,
 	}
 	p.Steps = append(p.Steps, newStep)
 }
@@ -266,7 +277,7 @@ func (p *Plan) ReorderSteps(newStepOrder []string) {
 
 	originalStepMap := make(map[string]*Step, len(p.Steps))
 	for _, step := range p.Steps {
-		originalStepMap[step.id] = step
+		originalStepMap[step.ID] = step
 	}
 
 	var reorderedSteps []*Step
@@ -294,10 +305,10 @@ func (p *Plan) ReorderSteps(newStepOrder []string) {
 	// Append remaining steps from original step order
 	// Remaining = not part of or duplicated with newStepOrder
 	for _, originalStep := range p.Steps {
-		if _, wasPlaced := placedStepIDs[originalStep.id]; !wasPlaced {
+		if _, wasPlaced := placedStepIDs[originalStep.ID]; !wasPlaced {
 			reorderedSteps = append(reorderedSteps, originalStep)
 			// Marked as placed
-			placedStepIDs[originalStep.id] = struct{}{}
+			placedStepIDs[originalStep.ID] = struct{}{}
 		}
 	}
 
@@ -406,7 +417,7 @@ func (pm *PlanModel) Save(plan *Plan) error {
 	// Compare incoming plan with plan from DB
 	planStepIDs := make(map[string]bool)
 	for _, s := range plan.Steps {
-		planStepIDs[s.id] = true
+		planStepIDs[s.ID] = true
 	}
 
 	for dbStepID := range dbStepIDs {
@@ -421,28 +432,41 @@ func (pm *PlanModel) Save(plan *Plan) error {
 
 	for i, s := range plan.Steps {
 		s.stepOrder = i
+
+		// Validate step before persisting
+		if s.ID == "" {
+			return fmt.Errorf("step ID cannot be empty")
+		}
+		if s.Status == "" {
+			s.Status = "TODO" // Default to TODO if not set
+		}
+		s.Status = strings.ToUpper(s.Status)
+		if s.Status != "TODO" && s.Status != "DONE" {
+			return fmt.Errorf("step '%s' has invalid status '%s': must be TODO or DONE", s.ID, s.Status)
+		}
+
 		// Update or create step
-		if dbStepIDs[s.id] {
-			_, err := tx.Exec("UPDATE steps SET description = ?, status = ?, step_order = ? WHERE plan_id = ? AND id = ?", s.description, s.status, s.stepOrder, plan.ID, s.id)
+		if dbStepIDs[s.ID] {
+			_, err := tx.Exec("UPDATE steps SET description = ?, status = ?, step_order = ? WHERE plan_id = ? AND id = ?", s.Description, s.Status, s.stepOrder, plan.ID, s.ID)
 			if err != nil {
-				return fmt.Errorf("failed to update step '%s' in plan '%s': %w", s.id, plan.ID, err)
+				return fmt.Errorf("failed to update step '%s' in plan '%s': %w", s.ID, plan.ID, err)
 			}
 		} else {
-			_, err := tx.Exec("INSERT INTO steps(id, plan_id, description, status, step_order) VALUES(?, ?, ?, ?, ?)", s.id, plan.ID, s.description, s.status, s.stepOrder)
+			_, err := tx.Exec("INSERT INTO steps(id, plan_id, description, status, step_order) VALUES(?, ?, ?, ?, ?)", s.ID, plan.ID, s.Description, s.Status, s.stepOrder)
 			if err != nil {
-				return fmt.Errorf("failed to insert step '%s' into plan '%s': %w", s.id, plan.ID, err)
+				return fmt.Errorf("failed to insert step '%s' into plan '%s': %w", s.ID, plan.ID, err)
 			}
 		}
 		// Delete ACs here just to make sure clean ACs when we update a plan?
-		_, err = tx.Exec("DELETE FROM step_acceptance_criteria WHERE plan_id = ? AND step_id = ?", plan.ID, s.id)
+		_, err = tx.Exec("DELETE FROM step_acceptance_criteria WHERE plan_id = ? AND step_id = ?", plan.ID, s.ID)
 		if err != nil {
-			return fmt.Errorf("failed to delete old acceptance criteria for step '%s' in plan '%s': %w", s.id, plan.ID, err)
+			return fmt.Errorf("failed to delete old acceptance criteria for step '%s' in plan '%s': %w", s.ID, plan.ID, err)
 		}
 
-		for j, acText := range s.acceptance {
-			_, err = tx.Exec("INSERT INTO step_acceptance_criteria (plan_id, step_id, criterion_order, criterion) VALUES (?, ?, ?, ?)", plan.ID, s.id, j, acText)
+		for j, acText := range s.Acceptance {
+			_, err = tx.Exec("INSERT INTO step_acceptance_criteria (plan_id, step_id, criterion_order, criterion) VALUES (?, ?, ?, ?)", plan.ID, s.ID, j, acText)
 			if err != nil {
-				return fmt.Errorf("failed to insert acceptance criterion for step '%s' in plan '%s': %w", s.id, plan.ID, err)
+				return fmt.Errorf("failed to insert acceptance criterion for step '%s' in plan '%s': %w", s.ID, plan.ID, err)
 			}
 		}
 	}

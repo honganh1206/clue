@@ -105,6 +105,8 @@ func (c *Client) CreatePlan(name string) (*data.Plan, error) {
 
 	return &data.Plan{
 		ID: result["id"],
+		// TODO: Is this necessary?
+		Steps: []*data.Step{},
 	}, nil
 }
 

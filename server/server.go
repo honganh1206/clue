@@ -255,8 +255,9 @@ func (s *server) createPlan(w http.ResponseWriter, r *http.Request) {
 	err := s.models.Plans.Create(plan)
 	if err != nil {
 		handleError(w, &HTTPError{
-			Code:    http.StatusInternalServerError,
-			Message: "Failed to create plan",
+			Code: http.StatusInternalServerError,
+			// Failed 500 here
+			Message: err.Error(),
 			Err:     err,
 		})
 		return
@@ -310,7 +311,15 @@ func (s *server) savePlan(w http.ResponseWriter, r *http.Request, planName strin
 	}
 
 	if err := s.models.Plans.Save(&p); err != nil {
-		handleError(w, err)
+		// The code definitely broke down here
+		// how do we get the detailed error?
+		// handleError(w, err)
+		handleError(w, &HTTPError{
+			Code:    http.StatusInternalServerError,
+			Message: err.Error(),
+			Err:     nil,
+		})
+
 		return
 	}
 
@@ -366,3 +375,4 @@ func (s *server) deletePlans(w http.ResponseWriter, r *http.Request) {
 		"results": results,
 	})
 }
+

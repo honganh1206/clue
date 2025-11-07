@@ -147,32 +147,32 @@ func TestPlanner_SaveAndGet(t *testing.T) {
 
 	// Verify step 1
 	step1 := retrievedPlan.Steps[0]
-	if step1.ID() != "step1" {
+	if step1.GetID() != "step1" {
 		t.Errorf("Step 1 ID mismatch")
 	}
-	if step1.Description() != "First step description" {
+	if step1.GetDescription() != "First step description" {
 		t.Errorf("Step 1 Description mismatch")
 	}
-	if step1.Status() != "TODO" {
+	if step1.GetStatus() != "TODO" {
 		t.Errorf("Step 1 Status mismatch")
 	}
-	if !reflect.DeepEqual(step1.AcceptanceCriteria(), []string{"AC1.1", "AC1.2"}) {
-		t.Errorf("Step 1 Acceptance Criteria mismatch: got %v", step1.AcceptanceCriteria())
+	if !reflect.DeepEqual(step1.GetAcceptanceCriteria(), []string{"AC1.1", "AC1.2"}) {
+		t.Errorf("Step 1 Acceptance Criteria mismatch: got %v", step1.GetAcceptanceCriteria())
 	}
 
 	// Verify step 2
 	step2 := retrievedPlan.Steps[1]
-	if step2.ID() != "step2" {
+	if step2.GetID() != "step2" {
 		t.Errorf("Step 2 ID mismatch")
 	}
-	if step2.Description() != "Second step" {
+	if step2.GetDescription() != "Second step" {
 		t.Errorf("Step 2 Description mismatch")
 	}
-	if step2.Status() != "TODO" {
+	if step2.GetStatus() != "TODO" {
 		t.Errorf("Step 2 Status mismatch")
 	}
-	if !reflect.DeepEqual(step2.AcceptanceCriteria(), []string{"AC2.1"}) {
-		t.Errorf("Step 2 Acceptance Criteria mismatch: got %v", step2.AcceptanceCriteria())
+	if !reflect.DeepEqual(step2.GetAcceptanceCriteria(), []string{"AC2.1"}) {
+		t.Errorf("Step 2 Acceptance Criteria mismatch: got %v", step2.GetAcceptanceCriteria())
 	}
 
 	// 6. Modify the plan (e.g., remove step, change status, reorder)
