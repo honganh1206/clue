@@ -19,13 +19,13 @@ const (
 	colorRed   = "\033[31m"
 )
 
-func cli(ctx context.Context, agent *agent.Agent, conv *data.Conversation) error {
-	isFirstInput := len(conv.Messages) == 0
+func cli(ctx context.Context, agent *agent.Agent) error {
+	isFirstInput := len(agent.Conv.Messages) == 0
 
 	if isFirstInput {
 		printWelcome()
 	} else {
-		printConversationHistory(conv)
+		printConversationHistory(agent.Conv)
 	}
 
 	scanner := bufio.NewScanner(os.Stdin)

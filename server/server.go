@@ -112,10 +112,10 @@ func (s *server) createConversation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.models.Conversations.SaveTo(conv); err != nil {
+	if err := s.models.Conversations.Create(conv); err != nil {
 		handleError(w, &HTTPError{
 			Code:    http.StatusInternalServerError,
-			Message: "Failed to save conversation",
+			Message: "Failed to create conversation",
 			Err:     err,
 		})
 		return
@@ -168,7 +168,7 @@ func (s *server) saveConversation(w http.ResponseWriter, r *http.Request, conver
 		return
 	}
 
-	if err := s.models.Conversations.SaveTo(&conv); err != nil {
+	if err := s.models.Conversations.Save(&conv); err != nil {
 		handleError(w, &HTTPError{
 			Code:    http.StatusInternalServerError,
 			Message: "Failed to save conversation",
@@ -181,22 +181,28 @@ func (s *server) saveConversation(w http.ResponseWriter, r *http.Request, conver
 }
 
 func (s *server) planHandler(w http.ResponseWriter, r *http.Request) {
-	planName, hasName := parsePlanName(r.URL.Path)
+	planID, hasID := parsePlanID(r.URL.Path)
 
 	switch r.Method {
 	case http.MethodPost:
 		s.createPlan(w, r)
 	case http.MethodGet:
-		if hasName {
-			s.getPlan(w, r, planName)
+		if hasID {
+			s.getPlan(w, r, planID)
 		} else {
-			s.listPlans(w, r)
+			// Check if looking up by name
+			planName := r.URL.Query().Get("name")
+			s.getPlanByName(w, r, planName)
+			// if planName != "" && conversationID != "" {
+			// } else {
+			// 	s.listPlans(w, r)
+			// }
 		}
 	case http.MethodPut:
-		s.savePlan(w, r, planName)
+		s.savePlan(w, r, planID)
 	case http.MethodDelete:
-		if hasName {
-			s.deletePlan(w, r, planName)
+		if hasID {
+			s.deletePlan(w, r, planID)
 		} else {
 			s.deletePlans(w, r)
 		}
@@ -205,7 +211,7 @@ func (s *server) planHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func parsePlanName(path string) (string, bool) {
+func parsePlanID(path string) (string, bool) {
 	path = strings.TrimSuffix(path, "/")
 
 	if path == "/plans" {
@@ -216,18 +222,19 @@ func parsePlanName(path string) (string, bool) {
 		return "", false
 	}
 
-	name := strings.TrimPrefix(path, "/plans/")
+	id := strings.TrimPrefix(path, "/plans/")
 
-	if strings.Contains(name, "/") {
+	if strings.Contains(id, "/") {
 		return "", false
 	}
 
-	return name, true
+	return id, true
 }
 
 func (s *server) createPlan(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Name string `json:"name"`
+		Name           string `json:"name"`
+		ConversationID string `json:"conversation_id"`
 	}
 
 	if err := decodeJSON(r, &req); err != nil {
@@ -248,15 +255,29 @@ func (s *server) createPlan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	plan := &data.Plan{
-		ID: req.Name,
+	if req.ConversationID == "" {
+		handleError(w, &HTTPError{
+			Code:    http.StatusBadRequest,
+			Message: "Conversation ID is required",
+			Err:     nil,
+		})
+		return
 	}
 
-	err := s.models.Plans.Create(plan)
+	plan, err := data.NewPlan(req.ConversationID, req.Name)
 	if err != nil {
 		handleError(w, &HTTPError{
-			Code: http.StatusInternalServerError,
-			// Failed 500 here
+			Code:    http.StatusInternalServerError,
+			Message: err.Error(),
+			Err:     err,
+		})
+		return
+	}
+
+	err = s.models.Plans.Create(plan)
+	if err != nil {
+		handleError(w, &HTTPError{
+			Code:    http.StatusInternalServerError,
 			Message: err.Error(),
 			Err:     err,
 		})
@@ -280,8 +301,8 @@ func (s *server) listPlans(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, plans)
 }
 
-func (s *server) getPlan(w http.ResponseWriter, r *http.Request, name string) {
-	p, err := s.models.Plans.Get(name)
+func (s *server) getPlan(w http.ResponseWriter, r *http.Request, id string) {
+	p, err := s.models.Plans.GetByID(id)
 	if err != nil {
 		handleError(w, err)
 		return
@@ -290,7 +311,17 @@ func (s *server) getPlan(w http.ResponseWriter, r *http.Request, name string) {
 	writeJSON(w, http.StatusOK, p)
 }
 
-func (s *server) savePlan(w http.ResponseWriter, r *http.Request, planName string) {
+func (s *server) getPlanByName(w http.ResponseWriter, r *http.Request, planName string) {
+	p, err := s.models.Plans.GetByName(planName)
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, p)
+}
+
+func (s *server) savePlan(w http.ResponseWriter, r *http.Request, planID string) {
 	var p data.Plan
 	if err := decodeJSON(r, &p); err != nil {
 		handleError(w, &HTTPError{
@@ -301,35 +332,31 @@ func (s *server) savePlan(w http.ResponseWriter, r *http.Request, planName strin
 		return
 	}
 
-	if p.ID != planName {
+	if p.ID != planID {
 		handleError(w, &HTTPError{
 			Code:    http.StatusBadRequest,
-			Message: "Plan name mismatch",
+			Message: "Plan ID mismatch",
 			Err:     nil,
 		})
 		return
 	}
 
 	if err := s.models.Plans.Save(&p); err != nil {
-		// The code definitely broke down here
-		// how do we get the detailed error?
-		// handleError(w, err)
 		handleError(w, &HTTPError{
 			Code:    http.StatusInternalServerError,
 			Message: err.Error(),
-			Err:     nil,
+			Err:     err,
 		})
-
 		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "plan saved"})
 }
 
-func (s *server) deletePlan(w http.ResponseWriter, r *http.Request, name string) {
-	results := s.models.Plans.Remove([]string{name})
+func (s *server) deletePlan(w http.ResponseWriter, r *http.Request, id string) {
+	results := s.models.Plans.Remove([]string{id})
 
-	if err, exists := results[name]; exists && err != nil {
+	if err, exists := results[id]; exists && err != nil {
 		handleError(w, err)
 		return
 	}
@@ -348,7 +375,7 @@ func (s *server) deletePlan(w http.ResponseWriter, r *http.Request, name string)
 
 func (s *server) deletePlans(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Names []string `json:"names"`
+		IDs []string `json:"ids"`
 	}
 
 	if err := decodeJSON(r, &req); err != nil {
@@ -360,16 +387,16 @@ func (s *server) deletePlans(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(req.Names) == 0 {
+	if len(req.IDs) == 0 {
 		handleError(w, &HTTPError{
 			Code:    http.StatusBadRequest,
-			Message: "No plan names provided",
+			Message: "No plan IDs provided",
 			Err:     nil,
 		})
 		return
 	}
 
-	results := s.models.Plans.Remove(req.Names)
+	results := s.models.Plans.Remove(req.IDs)
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"results": results,

@@ -112,7 +112,8 @@ func (s *Subagent) executeTool(id, name string, input json.RawMessage) message.C
 		return message.NewToolResultBlock(id, name, errorMsg, true)
 	}
 
-	response, err := toolDef.Function(input)
+	meta := tools.ToolMetadata{} // TODO: placeholder
+	response, err := toolDef.Function(input, meta)
 	if err != nil {
 		return message.NewToolResultBlock(id, name, err.Error(), true)
 	}

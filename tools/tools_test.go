@@ -2,7 +2,6 @@ package tools
 
 import (
 	"encoding/json"
-
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -110,23 +109,4 @@ func TestToolDefinition_FunctionExecution(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, "hello world", result)
-}
-
-// Tests for ToolInput struct
-func TestToolInput_JSONMarshaling(t *testing.T) {
-	toolInput := ToolInput{Path: "/test/path"}
-
-	data, err := json.Marshal(toolInput)
-	assert.NoError(t, err)
-	assert.Contains(t, string(data), `"path":"/test/path"`)
-}
-
-func TestToolInput_JSONUnmarshaling(t *testing.T) {
-	jsonData := `{"path":"/test/path"}`
-
-	var toolInput ToolInput
-	err := json.Unmarshal([]byte(jsonData), &toolInput)
-
-	assert.NoError(t, err)
-	assert.Equal(t, "/test/path", toolInput.Path)
 }

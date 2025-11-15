@@ -96,17 +96,21 @@ func (c *Client) GetLatestConversationID() (string, error) {
 	return conversations[0].ID, nil
 }
 
-func (c *Client) CreatePlan(name string) (*data.Plan, error) {
-	reqBody := map[string]string{"name": name}
+func (c *Client) CreatePlan(name, conversationID string) (*data.Plan, error) {
+	reqBody := map[string]string{
+		"name":            name,
+		"conversation_id": conversationID,
+	}
 	var result map[string]string
 	if err := c.doRequest(http.MethodPost, "/plans", reqBody, &result); err != nil {
 		return nil, err
 	}
 
 	return &data.Plan{
-		ID: result["id"],
-		// TODO: Is this necessary?
-		Steps: []*data.Step{},
+		ID:             result["id"],
+		PlanName:       name,
+		ConversationID: conversationID,
+		Steps:          []*data.Step{},
 	}, nil
 }
 
@@ -119,9 +123,23 @@ func (c *Client) ListPlans() ([]data.PlanInfo, error) {
 	return plans, nil
 }
 
-func (c *Client) GetPlan(name string) (*data.Plan, error) {
+func (c *Client) GetPlan(id string) (*data.Plan, error) {
 	var p data.Plan
-	if err := c.doRequest(http.MethodGet, "/plans/"+name, nil, &p); err != nil {
+	if err := c.doRequest(http.MethodGet, "/plans/"+id, nil, &p); err != nil {
+		var httpErr *HTTPError
+		if errors.As(err, &httpErr) && httpErr.StatusCode == http.StatusNotFound {
+			return nil, data.ErrPlanNotFound
+		}
+		return nil, err
+	}
+
+	return &p, nil
+}
+
+func (c *Client) GetPlanByName(planName string) (*data.Plan, error) {
+	var p data.Plan
+	path := fmt.Sprintf("/plans?name=%s", planName)
+	if err := c.doRequest(http.MethodGet, path, nil, &p); err != nil {
 		var httpErr *HTTPError
 		if errors.As(err, &httpErr) && httpErr.StatusCode == http.StatusNotFound {
 			return nil, data.ErrPlanNotFound
@@ -145,8 +163,8 @@ func (c *Client) SavePlan(p *data.Plan) error {
 	return nil
 }
 
-func (c *Client) DeletePlan(name string) error {
-	path := fmt.Sprintf("/plans/%s", name)
+func (c *Client) DeletePlan(id string) error {
+	path := fmt.Sprintf("/plans/%s", id)
 	if err := c.doRequest(http.MethodDelete, path, nil, nil); err != nil {
 		var httpErr *HTTPError
 		if errors.As(err, &httpErr) && httpErr.StatusCode == http.StatusNotFound {
@@ -158,8 +176,8 @@ func (c *Client) DeletePlan(name string) error {
 	return nil
 }
 
-func (c *Client) DeletePlans(names []string) (map[string]error, error) {
-	reqBody := map[string][]string{"names": names}
+func (c *Client) DeletePlans(ids []string) (map[string]error, error) {
+	reqBody := map[string][]string{"ids": ids}
 	var response struct {
 		Results map[string]interface{} `json:"results"`
 	}
@@ -169,11 +187,11 @@ func (c *Client) DeletePlans(names []string) (map[string]error, error) {
 	}
 
 	results := make(map[string]error)
-	for name, errMsg := range response.Results {
+	for id, errMsg := range response.Results {
 		if errMsg != nil {
-			results[name] = fmt.Errorf("%v", errMsg)
+			results[id] = fmt.Errorf("%v", errMsg)
 		} else {
-			results[name] = nil
+			results[id] = nil
 		}
 	}
 
@@ -221,3 +239,4 @@ func (c *Client) doRequest(method, path string, body, result any) error {
 
 	return nil
 }
+

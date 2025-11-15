@@ -5,15 +5,17 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
+
+	"github.com/honganh1206/clue/server/utils"
 )
 
-func createTestModel(t *testing.T) PlanModel {
-	testDB := testutil.CreateTestDB(t, PlanSchema)
+func createPlanTestModel(t *testing.T) PlanModel {
+	testDB := utils.CreateTestDB(t, PlanSchema)
 	return PlanModel{DB: testDB}
 }
 
 func TestNewPlanner(t *testing.T) {
-	model := createTestModel(t)
+	model := createPlanTestModel(t)
 
 	// Check if tables were created (basic check by trying to query them)
 	tables := []string{"plans", "steps", "step_acceptance_criteria"}
@@ -29,93 +31,115 @@ func TestNewPlanner(t *testing.T) {
 }
 
 func TestPlanner_Create(t *testing.T) {
-	planner := createTestModel(t)
+	planner := createPlanTestModel(t)
 
 	planName := "test-plan-create"
-	plan, err := planner.Create(planName)
+	conversationID := "test-conversation-id"
+	plan, err := NewPlan(conversationID, planName)
+	if err != nil {
+		t.Fatalf("NewPlan failed: %v", err)
+	}
+
+	err = planner.Create(plan)
 	if err != nil {
 		t.Fatalf("Create failed: %v", err)
 	}
 
-	if plan == nil {
-		t.Fatal("Create returned a nil plan")
+	if plan.ID == "" {
+		t.Error("Create returned plan with empty ID")
 	}
-	if plan.ID != planName {
-		t.Errorf("Create returned plan with wrong ID: got %s, want %s", plan.ID, planName)
+	if plan.PlanName != planName {
+		t.Errorf("Create returned plan with wrong name: got %s, want %s", plan.PlanName, planName)
 	}
 	if len(plan.Steps) != 0 {
 		t.Errorf("Create returned plan with non-empty steps: got %d, want 0", len(plan.Steps))
 	}
-	if !plan.isNew { // Verify isNew flag is true
-		t.Errorf("Create returned plan with isNew = false, want true")
-	}
 
-	// Verify NOT in DB yet
+	// Verify in DB now
 	var count int
-	err = planner.DB.QueryRow("SELECT COUNT(*) FROM plans WHERE id = ?", planName).Scan(&count)
-	if err != nil && err != sql.ErrNoRows { // sql.ErrNoRows is expected if not found, other errors are DB issues
-		t.Fatalf("Failed to query DB after Create (expected no rows or 0 count): %v", err)
+	err = planner.DB.QueryRow("SELECT COUNT(*) FROM plans WHERE id = ?", plan.ID).Scan(&count)
+	if err != nil {
+		t.Fatalf("Failed to query DB after Create: %v", err)
 	}
-	if count != 0 { // Should be 0 as it's not saved yet
-		t.Errorf("Plan count in DB is wrong after Create: got %d, want 0", count)
+	if count != 1 {
+		t.Errorf("Plan count in DB is wrong after Create: got %d, want 1", count)
 	}
 
-	// Test creating a plan with the same name (should not error, as it's in-memory only until save)
-	// The old test expected an error because Create also saved to DB and hit a UNIQUE constraint.
-	// Now, Create only makes an in-memory object.
-	// The responsibility of checking for existing plans shifts to the Save method (or a pre-check if desired).
-	_, err = planner.Create(planName)
+	// Test creating a second plan with the same name (should succeed since plan_name is not unique)
+	plan2, err := NewPlan(conversationID, planName)
 	if err != nil {
-		t.Errorf("Creating a second in-memory plan with the same name should not error: %v", err)
+		t.Fatalf("NewPlan failed: %v", err)
+	}
+	err = planner.Create(plan2)
+	if err != nil {
+		t.Errorf("Creating a second plan with the same name should succeed: %v", err)
+	}
+
+	// Verify both plans exist
+	var totalCount int
+	err = planner.DB.QueryRow("SELECT COUNT(*) FROM plans WHERE plan_name = ?", planName).Scan(&totalCount)
+	if err != nil {
+		t.Fatalf("Failed to query DB for plan count: %v", err)
+	}
+	if totalCount != 2 {
+		t.Errorf("Expected 2 plans with name '%s', got %d", planName, totalCount)
 	}
 }
 
 func TestPlanner_Get_Basic(t *testing.T) {
-	planner := createTestModel(t)
+	planner := createPlanTestModel(t)
 
 	planName := "test-plan-get"
-	createdPlan, err := planner.Create(planName)
+	conversationID := "test-conversation-id"
+	createdPlan, err := NewPlan(conversationID, planName)
+	if err != nil {
+		t.Fatalf("NewPlan failed: %v", err)
+	}
+
+	err = planner.Create(createdPlan)
 	if err != nil {
 		t.Fatalf("Setup failed: Could not create plan: %v", err)
 	}
-	err = planner.Save(createdPlan)
-	if err != nil {
-		t.Fatalf("Setup failed: Could not save plan: %v", err)
-	}
 
-	plan, err := planner.Get(planName)
+	plan, err := planner.GetByID(createdPlan.ID)
 	if err != nil {
-		t.Fatalf("Get failed: %v", err)
+		t.Fatalf("GetByID failed: %v", err)
 	}
 
 	if plan == nil {
-		t.Fatal("Get returned a nil plan")
+		t.Fatal("GetByID returned a nil plan")
 	}
-	if plan.ID != planName {
-		t.Errorf("Get returned plan with wrong ID: got %s, want %s", plan.ID, planName)
+	if plan.ID != createdPlan.ID {
+		t.Errorf("GetByID returned plan with wrong ID: got %s, want %s", plan.ID, createdPlan.ID)
+	}
+	if plan.PlanName != planName {
+		t.Errorf("GetByID returned plan with wrong name: got %s, want %s", plan.PlanName, planName)
 	}
 	if len(plan.Steps) != 0 {
-		t.Errorf("Get returned plan with non-empty steps initially: got %d, want 0", len(plan.Steps))
+		t.Errorf("GetByID returned plan with non-empty steps initially: got %d, want 0", len(plan.Steps))
 	}
 
 	// Test getting non-existent plan
-	_, err = planner.Get("non-existent-plan")
+	_, err = planner.GetByID("non-existent-plan-id")
 	if err == nil {
 		t.Error("Expected error when getting non-existent plan, but got nil")
 	}
 }
 
 func TestPlanner_SaveAndGet(t *testing.T) {
-	planner := createTestModel(t)
+	planner := createPlanTestModel(t)
 	planName := "test-plan-save-get"
+	conversationID := "test-conversation-id"
 
 	// 1. Create the initial plan
-	plan, err := planner.Create(planName)
+	plan, err := NewPlan(conversationID, planName)
+	if err != nil {
+		t.Fatalf("NewPlan failed: %v", err)
+	}
+
+	err = planner.Create(plan)
 	if err != nil {
 		t.Fatalf("Create failed: %v", err)
-	}
-	if !plan.isNew {
-		t.Fatal("Newly created plan should have isNew = true")
 	}
 
 	// 2. Add steps to the in-memory plan
@@ -127,19 +151,19 @@ func TestPlanner_SaveAndGet(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Save failed: %v", err)
 	}
-	if plan.isNew { // isNew should be false after a successful save
-		t.Errorf("plan.isNew is true after Save, want false")
-	}
 
 	// 4. Get the plan back
-	retrievedPlan, err := planner.Get(planName)
+	retrievedPlan, err := planner.GetByID(plan.ID)
 	if err != nil {
-		t.Fatalf("Get after Save failed: %v", err)
+		t.Fatalf("GetByID after Save failed: %v", err)
 	}
 
 	// 5. Verify the retrieved plan
-	if retrievedPlan.ID != planName {
-		t.Errorf("Retrieved plan ID mismatch: got %s, want %s", retrievedPlan.ID, planName)
+	if retrievedPlan.ID != plan.ID {
+		t.Errorf("Retrieved plan ID mismatch: got %s, want %s", retrievedPlan.ID, plan.ID)
+	}
+	if retrievedPlan.PlanName != planName {
+		t.Errorf("Retrieved plan name mismatch: got %s, want %s", retrievedPlan.PlanName, planName)
 	}
 	if len(retrievedPlan.Steps) != 2 {
 		t.Fatalf("Retrieved plan step count mismatch: got %d, want 2", len(retrievedPlan.Steps))
@@ -177,8 +201,7 @@ func TestPlanner_SaveAndGet(t *testing.T) {
 
 	// 6. Modify the plan (e.g., remove step, change status, reorder)
 	retrievedPlan.RemoveSteps([]string{"step1"})
-	// retrievedPlan.Steps[0].status = "DONE" // Mark step2 as DONE (it's now at index 0)
-	err = retrievedPlan.MarkStepAsCompleted("step2") // Mark step2 as DONE (it's now at index 0)
+	err = retrievedPlan.MarkStepAsCompleted("step2")
 	if err != nil {
 		t.Fatalf("MarkAsCompleted failed: %v", err)
 	}
@@ -194,9 +217,9 @@ func TestPlanner_SaveAndGet(t *testing.T) {
 	}
 
 	// 8. Get again
-	finalPlan, err := planner.Get(planName)
+	finalPlan, err := planner.GetByID(plan.ID)
 	if err != nil {
-		t.Fatalf("Second Get failed: %v", err)
+		t.Fatalf("Second GetByID failed: %v", err)
 	}
 
 	// 9. Verify final state
@@ -205,19 +228,16 @@ func TestPlanner_SaveAndGet(t *testing.T) {
 	}
 
 	// Check order and content
-	if finalPlan.Steps[0].ID() != "step3" {
+	if finalPlan.Steps[0].GetID() != "step3" {
 		t.Errorf("Final Step 1 ID mismatch (expected step3)")
 	}
-	if finalPlan.Steps[0].Status() != "TODO" {
+	if finalPlan.Steps[0].GetStatus() != "TODO" {
 		t.Errorf("Final Step 1 Status mismatch (expected TODO)")
 	}
-	if finalPlan.Steps[1].ID() != "step2" {
+	if finalPlan.Steps[1].GetID() != "step2" {
 		t.Errorf("Final Step 2 ID mismatch (expected step2)")
 	}
-	if finalPlan.Steps[1].Status() != "DONE" {
+	if finalPlan.Steps[1].GetStatus() != "DONE" {
 		t.Errorf("Final Step 2 Status mismatch (expected DONE)")
-	}
-	if finalPlan.isNew { // Should be false as it was retrieved from DB
-		t.Errorf("finalPlan.isNew is true after Get, want false")
 	}
 }

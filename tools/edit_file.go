@@ -13,7 +13,7 @@ import (
 // TODO: Embed markdown tool prompt
 // Apparently Claude loves replacing strings (known through experiments?)
 var EditFileDefinition = ToolDefinition{
-	Name: "edit_file",
+	Name: ToolNameEditFile,
 	Description: `Make edits to a text file.
 
 	Replace 'old_str' with 'new_str' in the given file. 'old_str' and 'new_str' MUST be different from each other.
@@ -31,7 +31,7 @@ type EditFileInput struct {
 
 var EditFileInputSchema = schema.Generate[EditFileInput]()
 
-func EditFile(input json.RawMessage) (string, error) {
+func EditFile(input json.RawMessage, _ ToolMetadata) (string, error) {
 	editFileInput := EditFileInput{}
 	err := json.Unmarshal(input, &editFileInput)
 	if err != nil {

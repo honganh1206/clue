@@ -16,29 +16,29 @@ import (
 )
 
 type Agent struct {
-	llm          inference.LLMClient
-	toolBox      *tools.ToolBox
-	conversation *data.Conversation
-	client       *api.Client
-	mcp          mcp.Config
-	streaming    bool
+	LLM       inference.LLMClient
+	ToolBox   *tools.ToolBox
+	Conv      *data.Conversation
+	Client    *api.Client
+	MCP       mcp.Config
+	streaming bool
 	// In the future it could be a map of agents, keys are task ID
 	Sub *Subagent
 }
 
 func New(llm inference.LLMClient, conversation *data.Conversation, toolBox *tools.ToolBox, client *api.Client, mcpConfigs []mcp.ServerConfig, streaming bool) *Agent {
 	agent := &Agent{
-		llm:          llm,
-		toolBox:      toolBox,
-		conversation: conversation,
-		client:       client,
-		streaming:    streaming,
+		LLM:       llm,
+		ToolBox:   toolBox,
+		Conv:      conversation,
+		Client:    client,
+		streaming: streaming,
 	}
 
-	agent.mcp.ServerConfigs = mcpConfigs
-	agent.mcp.ActiveServers = []*mcp.Server{}
-	agent.mcp.Tools = []mcp.Tools{}
-	agent.mcp.ToolMap = make(map[string]mcp.ToolDetails)
+	agent.MCP.ServerConfigs = mcpConfigs
+	agent.MCP.ActiveServers = []*mcp.Server{}
+	agent.MCP.Tools = []mcp.Tools{}
+	agent.MCP.ToolMap = make(map[string]mcp.ToolDetails)
 
 	return agent
 }
@@ -49,13 +49,13 @@ func (a *Agent) Run(ctx context.Context, userInput string, onDelta func(string))
 	readUserInput := true
 
 	// TODO: Add flag to know when to summarize
-	a.conversation.Messages = a.llm.SummarizeHistory(a.conversation.Messages, 20)
+	a.Conv.Messages = a.LLM.SummarizeHistory(a.Conv.Messages, 20)
 
-	if len(a.conversation.Messages) != 0 {
-		a.llm.ToNativeHistory(a.conversation.Messages)
+	if len(a.Conv.Messages) != 0 {
+		a.LLM.ToNativeHistory(a.Conv.Messages)
 	}
 
-	a.llm.ToNativeTools(a.toolBox.Tools)
+	a.LLM.ToNativeTools(a.ToolBox.Tools)
 
 	for {
 		if readUserInput {
@@ -64,12 +64,12 @@ func (a *Agent) Run(ctx context.Context, userInput string, onDelta func(string))
 				Content: []message.ContentBlock{message.NewTextBlock(userInput)},
 			}
 
-			err := a.llm.ToNativeMessage(userMsg)
+			err := a.LLM.ToNativeMessage(userMsg)
 			if err != nil {
 				return err
 			}
 
-			a.conversation.Append(userMsg)
+			a.Conv.Append(userMsg)
 			a.saveConversation()
 		}
 
@@ -78,12 +78,12 @@ func (a *Agent) Run(ctx context.Context, userInput string, onDelta func(string))
 			return err
 		}
 
-		err = a.llm.ToNativeMessage(agentMsg)
+		err = a.LLM.ToNativeMessage(agentMsg)
 		if err != nil {
 			return err
 		}
 
-		a.conversation.Append(agentMsg)
+		a.Conv.Append(agentMsg)
 		a.saveConversation()
 
 		toolResults := []message.ContentBlock{}
@@ -109,12 +109,12 @@ func (a *Agent) Run(ctx context.Context, userInput string, onDelta func(string))
 			Content: toolResults,
 		}
 
-		err = a.llm.ToNativeMessage(toolResultMsg)
+		err = a.LLM.ToNativeMessage(toolResultMsg)
 		if err != nil {
 			return err
 		}
 
-		a.conversation.Append(toolResultMsg)
+		a.Conv.Append(toolResultMsg)
 		a.saveConversation()
 	}
 	return nil
@@ -122,7 +122,7 @@ func (a *Agent) Run(ctx context.Context, userInput string, onDelta func(string))
 
 func (a *Agent) executeTool(id, name string, input json.RawMessage, onDelta func(string)) message.ContentBlock {
 	var result message.ContentBlock
-	if execDetails, isMCPTool := a.mcp.ToolMap[name]; isMCPTool {
+	if execDetails, isMCPTool := a.MCP.ToolMap[name]; isMCPTool {
 		result = a.executeMCPTool(id, name, input, execDetails)
 	} else {
 		result = a.executeLocalTool(id, name, input)
@@ -177,7 +177,7 @@ func (a *Agent) executeLocalTool(id, name string, input json.RawMessage) message
 	var toolDef *tools.ToolDefinition
 	var found bool
 	// TODO: Toolbox should be a map, not a list of tools
-	for _, tool := range a.toolBox.Tools {
+	for _, tool := range a.ToolBox.Tools {
 		if tool.Name == name {
 			toolDef = tool
 			found = true
@@ -195,8 +195,7 @@ func (a *Agent) executeLocalTool(id, name string, input json.RawMessage) message
 	if toolDef.IsSubTool {
 		// Make the subagent invoke tools
 		toolResultMsg, err := a.runSubagent(id, name, toolDef.Description, input)
-		// TODO: Exceed limit of 200k tool result. Trying truncation
-		// 25k is best practice from Anthropic
+		// 25k tokens is best practice from Anthropic
 		truncatedResult := a.Sub.llm.TruncateMessage(toolResultMsg, 25000)
 		if err != nil {
 			return message.NewToolResultBlock(id, name, err.Error(), true)
@@ -216,7 +215,15 @@ func (a *Agent) executeLocalTool(id, name string, input json.RawMessage) message
 		response = final.String()
 	} else {
 		// The main agent invokes tools
-		response, err = toolDef.Function(input)
+		var meta tools.ToolMetadata
+		if toolDef.Name == tools.ToolNamePlanWrite {
+			// Update to the input var to include conversation ID?
+			meta = tools.ToolMetadata{
+				ConversationID: a.Conv.ID,
+			}
+		}
+		// TODO: A lot of formatting like path to file formatting
+		response, err = toolDef.Function(input, meta)
 	}
 
 	if err != nil {
@@ -251,8 +258,8 @@ func (a *Agent) runSubagent(id, name, toolDescription string, rawInput json.RawM
 }
 
 func (a *Agent) saveConversation() error {
-	if len(a.conversation.Messages) > 0 {
-		err := a.client.SaveConversation(a.conversation)
+	if len(a.Conv.Messages) > 0 {
+		err := a.Client.SaveConversation(a.Conv)
 		if err != nil {
 			return err
 		}
@@ -270,7 +277,7 @@ func (a *Agent) streamResponse(ctx context.Context, onDelta func(string)) (*mess
 
 	go func() {
 		defer wg.Done()
-		msg, streamErr = a.llm.RunInference(ctx, onDelta, a.streaming)
+		msg, streamErr = a.LLM.RunInference(ctx, onDelta, a.streaming)
 	}()
 
 	wg.Wait()

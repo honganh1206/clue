@@ -10,7 +10,7 @@ import (
 var codebaseSearchAgentPrompt string
 
 var CodebaseSearchAgentDefinition = ToolDefinition{
-	Name:        "codebase_search_agent",
+	Name:        ToolNameCodebaseSearchAgent,
 	Description: codebaseSearchAgentPrompt,
 	InputSchema: CodebaseSearchAgentInputSchema,
 	IsSubTool:   true,

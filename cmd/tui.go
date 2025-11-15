@@ -19,7 +19,7 @@ import (
 	"github.com/rivo/tview"
 )
 
-func tui(ctx context.Context, agent *agent.Agent, conv *data.Conversation) error {
+func tui(ctx context.Context, agent *agent.Agent) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -32,12 +32,12 @@ func tui(ctx context.Context, agent *agent.Agent, conv *data.Conversation) error
 			app.Draw()
 		}).ScrollToEnd()
 
-	isFirstInput := len(conv.Messages) == 0
+	isFirstInput := len(agent.Conv.Messages) == 0
 	if isFirstInput {
 		conversationView.SetTextAlign(tview.AlignCenter)
 		displayWelcomeMessage(conversationView)
 	} else {
-		displayConversationHistory(conversationView, conv)
+		displayConversationHistory(conversationView, agent.Conv)
 	}
 	relPath := displayRelativePath()
 

@@ -12,7 +12,7 @@ import (
 func (a *Agent) RegisterMCPServers() {
 	// fmt.Printf("Initializing MCP servers based on %d configurations...\n", len(a.mcp.ServerConfigs))
 
-	for _, serverCfg := range a.mcp.ServerConfigs {
+	for _, serverCfg := range a.MCP.ServerConfigs {
 		// fmt.Printf("Attempting to create MCP server instance for ID %s (command: %s)\n", serverCfg.ID, serverCfg.Command)
 		server, err := mcp.NewServer(serverCfg.ID, serverCfg.Command)
 		if err != nil {
@@ -31,7 +31,7 @@ func (a *Agent) RegisterMCPServers() {
 		}
 
 		// fmt.Printf("MCP Server %s started successfully.\n", serverCfg.ID)
-		a.mcp.ActiveServers = append(a.mcp.ActiveServers, server)
+		a.MCP.ActiveServers = append(a.MCP.ActiveServers, server)
 
 		// fmt.Printf("Fetching tools from MCP server %s...\n", server.ID())
 		tool, err := server.ListTools(context.Background()) // Using context.Background() for now
@@ -43,7 +43,7 @@ func (a *Agent) RegisterMCPServers() {
 			// return
 		}
 		// fmt.Printf("Fetched %d tools from MCP server %s\n", len(tool), server.ID())
-		a.mcp.Tools = append(a.mcp.Tools, tool)
+		a.MCP.Tools = append(a.MCP.Tools, tool)
 
 		for _, t := range tool {
 			toolName := fmt.Sprintf("%s_%s", server.ID(), t.Name)
@@ -54,9 +54,9 @@ func (a *Agent) RegisterMCPServers() {
 				InputSchema: t.InputSchema,
 			}
 
-			a.toolBox.Tools = append(a.toolBox.Tools, decl)
+			a.ToolBox.Tools = append(a.ToolBox.Tools, decl)
 
-			a.mcp.ToolMap[toolName] = mcp.ToolDetails{
+			a.MCP.ToolMap[toolName] = mcp.ToolDetails{
 				Server: server,
 				Name:   t.Name,
 			}
@@ -64,9 +64,9 @@ func (a *Agent) RegisterMCPServers() {
 	}
 
 	// Print all MCP tools that were added
-	if len(a.mcp.ToolMap) > 0 {
+	if len(a.MCP.ToolMap) > 0 {
 		var mcpToolNames []string
-		for toolName := range a.mcp.ToolMap {
+		for toolName := range a.MCP.ToolMap {
 			mcpToolNames = append(mcpToolNames, toolName)
 		}
 		// fmt.Printf("Added MCP tools to agent toolbox: %v\n", mcpToolNames)
@@ -75,7 +75,7 @@ func (a *Agent) RegisterMCPServers() {
 
 func (a *Agent) ShutdownMCPServers() {
 	fmt.Println("shutting down MCP servers...")
-	for _, s := range a.mcp.ActiveServers {
+	for _, s := range a.MCP.ActiveServers {
 		fmt.Printf("closing MCP server: %s\n", s.ID())
 		if err := s.Close(); err != nil {
 			fmt.Fprintf(os.Stderr, "error closing MCP server %s: %v\n", s.ID(), err)

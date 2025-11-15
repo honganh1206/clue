@@ -51,8 +51,22 @@ func (c *Conversation) Append(msg *message.Message) {
 	c.Messages = append(c.Messages, msg)
 }
 
-// TODO: Should this be a model method?
-func (cm ConversationModel) SaveTo(c *Conversation) error {
+func (cm ConversationModel) Create(c *Conversation) error {
+	query := `
+	INSERT INTO conversations (id, created_at)
+	VALUES(?, ?)
+	RETURNING id
+	`
+
+	err := cm.DB.QueryRow(query, c.ID, c.CreatedAt).Scan(&c.ID)
+	if err != nil {
+		return fmt.Errorf("failed to insert new conversation into database: %w", err)
+	}
+
+	return nil
+}
+
+func (cm ConversationModel) Save(c *Conversation) error {
 	// Begin a transaction
 	tx, err := cm.DB.Begin()
 	if err != nil {
@@ -246,3 +260,4 @@ func (cm ConversationModel) Load(id string) (*Conversation, error) {
 
 	return conv, nil
 }
+

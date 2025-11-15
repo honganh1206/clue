@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/google/uuid"
 )
 
 //go:embed plan_schema.sql
@@ -14,9 +16,11 @@ var PlanSchema string
 var ErrPlanNotFound = errors.New("plan not found")
 
 type Plan struct {
-	ID    string  `json:"id"`
-	Steps []*Step `json:"steps"`
-	isNew bool
+	ID             string  `json:"id"`
+	PlanName       string  `json:"plan_name"`
+	ConversationID string  `json:"conversation_id"`
+	Steps          []*Step `json:"steps"`
+	isNew          bool
 }
 
 type PlanModel struct {
@@ -25,7 +29,9 @@ type PlanModel struct {
 
 // Hold summary of a plan. Used by List() method
 type PlanInfo struct {
+	ID             string `json:"id"`
 	Name           string `json:"name"`
+	ConversationID string `json:"conversation_id"`
 	Status         string `json:"status"` // "DONE" or "TODO"
 	TotalTasks     int    `json:"total_tasks"`
 	CompletedTasks int    `json:"completed_tasks"`
@@ -39,6 +45,28 @@ type Step struct {
 	stepOrder   int
 }
 
+func NewPlan(conversationID, planName string) (*Plan, error) {
+	if conversationID == "" {
+		return nil, fmt.Errorf("conversation ID cannot be empty")
+	}
+	if planName == "" {
+		return nil, fmt.Errorf("plan name cannot be empty")
+	}
+
+	id, err := uuid.NewRandom()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate UUID: %w", err)
+	}
+
+	return &Plan{
+		ID:             id.String(),
+		PlanName:       planName,
+		ConversationID: conversationID,
+		Steps:          []*Step{},
+		isNew:          true,
+	}, nil
+}
+
 func (pm *PlanModel) Close() error {
 	if pm.DB != nil {
 		return pm.DB.Close()
@@ -46,28 +74,25 @@ func (pm *PlanModel) Close() error {
 	return nil
 }
 
-// Create returns an in-memory Plan object.
-// The ID of the plan is set to its name.
-// The plan is not persisted to the database until Save is called.
+// Create persists a new plan to the database.
+// The plan must have ID and PlanName set.
 func (pm *PlanModel) Create(plan *Plan) error {
-	if plan.ID == "" {
+	// Can there be a scenario where plan ID is null??
+	if plan.PlanName == "" {
 		return fmt.Errorf("plan name cannot be empty")
 	}
 
 	query := `
-	INSERT INTO plans (id) VALUES (?)
+	INSERT INTO plans (id, plan_name, conversation_id) VALUES (?, ?, ?)
 	RETURNING id
 	`
 
-	err := pm.DB.QueryRow(query, plan.ID).Scan(&plan.ID)
-	// TODO: Is this the right way? Or should I handle it in server.go?
+	err := pm.DB.QueryRow(query, plan.ID, plan.PlanName, plan.ConversationID).Scan(&plan.ID)
 	if err != nil {
-		// Check if the error is due to a unique constraint violation (plan already exists)
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
-			return fmt.Errorf("plan with name '%s' already exists in database, cannot save as new", plan.ID)
+			return fmt.Errorf("plan with name '%s' already exists in conversation '%s'", plan.PlanName, plan.ConversationID)
 		}
-		// Issue sql: no rows in result set
-		return fmt.Errorf("failed to insert new plan '%s' into database: %w", plan.ID, err)
+		return fmt.Errorf("failed to insert new plan '%s' into database: %w", plan.PlanName, err)
 	}
 
 	// Initialize Steps slice and mark as persisted (not new anymore)
@@ -79,71 +104,127 @@ func (pm *PlanModel) Create(plan *Plan) error {
 	return nil
 }
 
-func (pm *PlanModel) Get(name string) (*Plan, error) {
-	var planID string
-	err := pm.DB.QueryRow("SELECT id FROM plans WHERE id = ?", name).Scan(&planID)
+func (pm *PlanModel) GetByID(id string) (*Plan, error) {
+	var planID, planName, conversationID string
+	err := pm.DB.QueryRow("SELECT id, plan_name, conversation_id FROM plans WHERE id = ?", id).Scan(&planID, &planName, &conversationID)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("plan with name '%s' not found", name)
+			return nil, fmt.Errorf("plan with ID '%s' not found", id)
 		}
-		return nil, fmt.Errorf("failed to query plan '%s': %w", name, err)
+		return nil, fmt.Errorf("failed to query plan '%s': %w", id, err)
 	}
 
 	plan := &Plan{
-		ID:    planID,
-		Steps: []*Step{},
-		isNew: false,
+		ID:             planID,
+		PlanName:       planName,
+		ConversationID: conversationID,
+		Steps:          []*Step{},
+		isNew:          false,
 	}
 
 	rows, err := pm.DB.Query("SELECT id, description, status, step_order FROM steps WHERE plan_id = ? ORDER BY step_order ASC", planID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query steps for plan '%s': %w", name, err)
+		return nil, fmt.Errorf("failed to query steps for plan '%s': %w", id, err)
 	}
 	defer rows.Close()
-
-	// Temp store step by ID for lookup when adding acceptance criteria
-	stepsByID := make(map[string]*Step)
 
 	for rows.Next() {
 		step := &Step{}
 		err := rows.Scan(&step.ID, &step.Description, &step.Status, &step.stepOrder)
 		if err != nil {
-			return nil, fmt.Errorf("failed to scan step for plan '%s': %w", name, err)
+			return nil, fmt.Errorf("failed to scan step for plan '%s': %w", id, err)
 		}
-		// Store acceptance criteria
 		step.Acceptance = []string{}
 		plan.Steps = append(plan.Steps, step)
-		stepsByID[step.ID] = step
 	}
 
 	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating steps for plan '%s': %w", name, err)
+		return nil, fmt.Errorf("error iterating steps for plan '%s': %w", id, err)
 	}
 
-	// Fetch acceptance criteria for each step.
-	// Maintain order of steps from the query.
+	// Fetch acceptance criteria for each step
 	for _, step := range plan.Steps {
 		acRows, err := pm.DB.Query("SELECT criterion FROM step_acceptance_criteria WHERE step_id = ? AND plan_id = ? ORDER BY criterion_order ASC", step.ID, planID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to query acceptance criteria for step '%s' in plan '%s': %w", step.ID, name, err)
+			return nil, fmt.Errorf("failed to query acceptance criteria for step '%s' in plan '%s': %w", step.ID, id, err)
 		}
-		// Close each acRow in each iteration to prevent resource leak,
-		// especially for long running loop, where resources are kept open,
-		// and will not be closed until the function contains the loop returns.
 		for acRows.Next() {
 			var acDescription string
 			err := acRows.Scan(&acDescription)
 			if err != nil {
 				acRows.Close()
-				return nil, fmt.Errorf("failed to scan acceptance criterion for step '%s' in plan '%s': %w", step.ID, name, err)
+				return nil, fmt.Errorf("failed to scan acceptance criterion for step '%s' in plan '%s': %w", step.ID, id, err)
 			}
 			step.Acceptance = append(step.Acceptance, acDescription)
 		}
 		if err = acRows.Err(); err != nil {
 			acRows.Close()
-			return nil, fmt.Errorf("error iterating acceptance criteria for step '%s' in plan '%s': %w", step.ID, name, err)
+			return nil, fmt.Errorf("error iterating acceptance criteria for step '%s' in plan '%s': %w", step.ID, id, err)
 		}
-		acRows.Close() // Manual close instead of defer
+		acRows.Close()
+	}
+
+	return plan, nil
+}
+
+func (pm *PlanModel) GetByName(planName string) (*Plan, error) {
+	var planID, conversationID string
+	err := pm.DB.QueryRow("SELECT id, plan_name, conversation_id FROM plans WHERE plan_name = ?", planName).Scan(&planID, &conversationID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("plan with name '%s' not found in conversation '%s'", planName, conversationID)
+		}
+		return nil, fmt.Errorf("failed to query plan '%s' in conversation '%s': %w", planName, conversationID, err)
+	}
+
+	plan := &Plan{
+		ID:             planID,
+		PlanName:       planName,
+		ConversationID: conversationID,
+		Steps:          []*Step{},
+		isNew:          false,
+	}
+
+	rows, err := pm.DB.Query("SELECT id, description, status, step_order FROM steps WHERE plan_id = ? ORDER BY step_order ASC", planID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query steps for plan '%s': %w", planName, err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		step := &Step{}
+		err := rows.Scan(&step.ID, &step.Description, &step.Status, &step.stepOrder)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan step for plan '%s': %w", planName, err)
+		}
+		step.Acceptance = []string{}
+		plan.Steps = append(plan.Steps, step)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating steps for plan '%s': %w", planName, err)
+	}
+
+	// Fetch acceptance criteria for each step
+	for _, step := range plan.Steps {
+		acRows, err := pm.DB.Query("SELECT criterion FROM step_acceptance_criteria WHERE step_id = ? AND plan_id = ? ORDER BY criterion_order ASC", step.ID, planID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to query acceptance criteria for step '%s' in plan '%s': %w", step.ID, planName, err)
+		}
+		for acRows.Next() {
+			var acDescription string
+			err := acRows.Scan(&acDescription)
+			if err != nil {
+				acRows.Close()
+				return nil, fmt.Errorf("failed to scan acceptance criterion for step '%s' in plan '%s': %w", step.ID, planName, err)
+			}
+			step.Acceptance = append(step.Acceptance, acDescription)
+		}
+		if err = acRows.Err(); err != nil {
+			acRows.Close()
+			return nil, fmt.Errorf("error iterating acceptance criteria for step '%s' in plan '%s': %w", step.ID, planName, err)
+		}
+		acRows.Close()
 	}
 
 	return plan, nil
@@ -324,11 +405,13 @@ func (pm *PlanModel) List() ([]PlanInfo, error) {
 	rows, err := pm.DB.Query(
 		`SELECT
 				p.id,
+				p.plan_name,
+				p.conversation_id,
 				COUNT(s.id),
 				SUM(CASE WHEN s.status = 'DONE' THEN 1 ELSE 0 END)
 		FROM plans p
 		LEFT JOIN steps s ON p.id = s.plan_id
-		GROUP BY p.id`)
+		GROUP BY p.id, p.plan_name, p.conversation_id`)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query plan summaries: %w", err)
 	}
@@ -341,7 +424,7 @@ func (pm *PlanModel) List() ([]PlanInfo, error) {
 		var totalTasks sql.NullInt64 // For COUNT which can be 0 -> NULL
 		var completedTasks sql.NullInt64
 
-		if err := rows.Scan(&info.Name, &totalTasks, &completedTasks); err != nil {
+		if err := rows.Scan(&info.ID, &info.Name, &info.ConversationID, &totalTasks, &completedTasks); err != nil {
 			return nil, fmt.Errorf("failed to scan plan summary: %w", err)
 		}
 
@@ -371,13 +454,13 @@ func (pm *PlanModel) Save(plan *Plan) error {
 	defer tx.Rollback()
 
 	if plan.isNew {
-		_, err := tx.Exec("INSERT INTO plans (id) VALUES (?)", plan.ID)
+		_, err := tx.Exec("INSERT INTO plans (id, plan_name, conversation_id) VALUES (?, ?, ?)", plan.ID, plan.PlanName, plan.ConversationID)
 		if err != nil {
 			// Check if the error is due to a unique constraint violation (plan already exists)
 			if strings.Contains(err.Error(), "UNIQUE constraint failed") {
-				return fmt.Errorf("plan with name '%s' already exists in database, cannot save as new", plan.ID)
+				return fmt.Errorf("plan with name '%s' already exists in database, cannot save as new", plan.PlanName)
 			}
-			return fmt.Errorf("failed to insert new plan '%s' into database: %w", plan.ID, err)
+			return fmt.Errorf("failed to insert new plan '%s' into database: %w", plan.PlanName, err)
 		}
 	} else {
 		// Even if it isn't a new plan, we still verify it to get a cleaner error
@@ -422,10 +505,10 @@ func (pm *PlanModel) Save(plan *Plan) error {
 
 	for dbStepID := range dbStepIDs {
 		if !planStepIDs[dbStepID] {
-			// Deprecated steps from DB, remove by constraints
-			_, err := tx.Exec("DELETE FROM step_acceptance_criteria WHERE plan_id = ? AND step_id = ?", plan.ID, dbStepID)
+			// Deprecated steps from DB, remove step (acceptance criteria will be removed by CASCADE)
+			_, err := tx.Exec("DELETE FROM steps WHERE plan_id = ? AND id = ?", plan.ID, dbStepID)
 			if err != nil {
-				return fmt.Errorf("failed to delete old acceptance criteria for step '%s' in plan '%s': %w", dbStepID, plan.ID, err)
+				return fmt.Errorf("failed to delete old step '%s' in plan '%s': %w", dbStepID, plan.ID, err)
 			}
 		}
 	}
@@ -609,3 +692,4 @@ func (pm *PlanModel) Compact() error {
 
 	return nil
 }
+

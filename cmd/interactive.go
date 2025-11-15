@@ -68,9 +68,9 @@ func interactive(ctx context.Context, convID string, llmClient, llmClientSub inf
 	defer a.ShutdownMCPServers()
 
 	if useTUI {
-		err = tui(ctx, a, conv)
+		err = tui(ctx, a)
 	} else {
-		err = cli(ctx, a, conv)
+		err = cli(ctx, a)
 	}
 
 	if err != nil {

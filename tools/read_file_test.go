@@ -38,7 +38,7 @@ func TestReadFile_Success(t *testing.T) {
 	input := ReadFileInput{Path: filePath}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := ReadFile(inputJSON)
+	result, err := ReadFile(inputJSON, ToolMetadata{})
 
 	assert.NoError(t, err)
 	assert.Equal(t, content, result)
@@ -48,7 +48,7 @@ func TestReadFile_NonexistentFile(t *testing.T) {
 	input := ReadFileInput{Path: "/nonexistent/file.txt"}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := ReadFile(inputJSON)
+	result, err := ReadFile(inputJSON, ToolMetadata{})
 
 	assert.Error(t, err)
 	assert.Empty(t, result)
@@ -61,7 +61,7 @@ func TestReadFile_EmptyFile(t *testing.T) {
 	input := ReadFileInput{Path: filePath}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := ReadFile(inputJSON)
+	result, err := ReadFile(inputJSON, ToolMetadata{})
 
 	assert.NoError(t, err)
 	assert.Empty(t, result)
@@ -79,7 +79,7 @@ func TestReadFile_LargeFile(t *testing.T) {
 	input := ReadFileInput{Path: filePath}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := ReadFile(inputJSON)
+	result, err := ReadFile(inputJSON, ToolMetadata{})
 
 	assert.NoError(t, err)
 	assert.Equal(t, largeContent, result)
@@ -95,7 +95,7 @@ func TestReadFile_InvalidJSON(t *testing.T) {
 		}
 	}()
 
-	ReadFile(invalidJSON)
+	ReadFile(invalidJSON, ToolMetadata{})
 	t.Error("Expected panic but didn't get one")
 }
 
@@ -111,7 +111,7 @@ func TestReadFile_BinaryFile(t *testing.T) {
 	input := ReadFileInput{Path: filePath}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := ReadFile(inputJSON)
+	result, err := ReadFile(inputJSON, ToolMetadata{})
 
 	assert.NoError(t, err)
 	assert.Equal(t, string(binaryData), result)
@@ -123,7 +123,7 @@ func TestReadFile_Directory(t *testing.T) {
 	input := ReadFileInput{Path: dirPath}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := ReadFile(inputJSON)
+	result, err := ReadFile(inputJSON, ToolMetadata{})
 
 	assert.Error(t, err)
 	assert.Empty(t, result)
@@ -147,7 +147,7 @@ func TestReadFile_PermissionDenied(t *testing.T) {
 	input := ReadFileInput{Path: filePath}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := ReadFile(inputJSON)
+	result, err := ReadFile(inputJSON, ToolMetadata{})
 
 	assert.Error(t, err)
 	assert.Empty(t, result)
@@ -203,7 +203,7 @@ func TestReadFileIntegration_MultipleFiles(t *testing.T) {
 	// Test reading first file
 	input1 := ReadFileInput{Path: file1Path}
 	inputJSON1, _ := json.Marshal(input1)
-	result1, err1 := ReadFile(inputJSON1)
+	result1, err1 := ReadFile(inputJSON1, ToolMetadata{})
 
 	assert.NoError(t, err1)
 	assert.Equal(t, "Content of file 1", result1)
@@ -211,7 +211,7 @@ func TestReadFileIntegration_MultipleFiles(t *testing.T) {
 	// Test reading second file
 	input2 := ReadFileInput{Path: file2Path}
 	inputJSON2, _ := json.Marshal(input2)
-	result2, err2 := ReadFile(inputJSON2)
+	result2, err2 := ReadFile(inputJSON2, ToolMetadata{})
 
 	assert.NoError(t, err2)
 	assert.Equal(t, "Content of file 2", result2)
@@ -258,7 +258,7 @@ func TestReadFile_VariousFileTypes(t *testing.T) {
 			input := ReadFileInput{Path: filePath}
 			inputJSON, _ := json.Marshal(input)
 
-			result, err := ReadFile(inputJSON)
+			result, err := ReadFile(inputJSON, ToolMetadata{})
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -282,7 +282,7 @@ func BenchmarkReadFile_SmallFile(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ReadFile(inputJSON)
+		ReadFile(inputJSON, ToolMetadata{})
 	}
 }
 
@@ -302,6 +302,6 @@ func BenchmarkReadFile_LargeFile(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ReadFile(inputJSON)
+		ReadFile(inputJSON, ToolMetadata{})
 	}
 }

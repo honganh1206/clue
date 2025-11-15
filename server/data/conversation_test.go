@@ -5,19 +5,19 @@ import (
 	"time"
 
 	"github.com/honganh1206/clue/message"
-	"github.com/honganh1206/clue/server/data/testutil"
+	"github.com/honganh1206/clue/server/utils"
 	_ "github.com/mattn/go-sqlite3"
 )
 
 func createTestModel(t *testing.T) *ConversationModel {
-	testDB := testutil.CreateTestDB(t, Schema)
+	testDB := utils.CreateTestDB(t, ConversationSchema)
 	return &ConversationModel{DB: testDB}
 }
 
 func TestConversation_Append(t *testing.T) {
-	conv, err := New()
+	conv, err := NewConversation()
 	if err != nil {
-		t.Fatalf("New() failed: %v", err)
+		t.Fatalf("NewConversation() failed: %v", err)
 	}
 
 	msg := &message.Message{
@@ -69,9 +69,9 @@ func TestConversation_Append(t *testing.T) {
 func TestConversation_SaveTo(t *testing.T) {
 	cm := createTestModel(t)
 
-	conv, err := New()
+	conv, err := NewConversation()
 	if err != nil {
-		t.Fatalf("New() failed: %v", err)
+		t.Fatalf("NewConversation() failed: %v", err)
 	}
 
 	conv.Append(&message.Message{
@@ -88,7 +88,7 @@ func TestConversation_SaveTo(t *testing.T) {
 		},
 	})
 
-	if err := cm.SaveTo(conv); err != nil {
+	if err := cm.Save(conv); err != nil {
 		t.Fatalf("SaveTo() failed: %v", err)
 	}
 
@@ -130,12 +130,12 @@ func TestConversation_SaveTo(t *testing.T) {
 	}
 }
 
-func TestConversation_SaveTo_DuplicateConversation(t *testing.T) {
+func TestConversation_Save_DuplicateConversation(t *testing.T) {
 	cm := createTestModel(t)
 
-	conv, err := New()
+	conv, err := NewConversation()
 	if err != nil {
-		t.Fatalf("New() failed: %v", err)
+		t.Fatalf("NewConversation() failed: %v", err)
 	}
 
 	conv.Append(&message.Message{
@@ -146,8 +146,8 @@ func TestConversation_SaveTo_DuplicateConversation(t *testing.T) {
 	})
 
 	// Save conversation first time
-	if err := cm.SaveTo(conv); err != nil {
-		t.Fatalf("First SaveTo() failed: %v", err)
+	if err := cm.Save(conv); err != nil {
+		t.Fatalf("First Save() failed: %v", err)
 	}
 
 	// Add another message and save again
@@ -158,8 +158,8 @@ func TestConversation_SaveTo_DuplicateConversation(t *testing.T) {
 		},
 	})
 
-	if err := cm.SaveTo(conv); err != nil {
-		t.Fatalf("Second SaveTo() failed: %v", err)
+	if err := cm.Save(conv); err != nil {
+		t.Fatalf("Second Save() failed: %v", err)
 	}
 
 	// Verify only one conversation record exists
@@ -195,9 +195,9 @@ func TestList(t *testing.T) {
 	}
 
 	// Create and save conversations
-	conv1, err := New()
+	conv1, err := NewConversation()
 	if err != nil {
-		t.Fatalf("New() failed: %v", err)
+		t.Fatalf("NewConversation() failed: %v", err)
 	}
 	conv1.Append(&message.Message{
 		Role: message.UserRole,
@@ -206,9 +206,9 @@ func TestList(t *testing.T) {
 		},
 	})
 
-	conv2, err := New()
+	conv2, err := NewConversation()
 	if err != nil {
-		t.Fatalf("New() failed: %v", err)
+		t.Fatalf("NewConversation() failed: %v", err)
 	}
 	conv2.Append(&message.Message{
 		Role: message.UserRole,
@@ -224,15 +224,15 @@ func TestList(t *testing.T) {
 	})
 
 	// Save conversations
-	if err := cm.SaveTo(conv1); err != nil {
-		t.Fatalf("SaveTo() failed for conv1: %v", err)
+	if err := cm.Save(conv1); err != nil {
+		t.Fatalf("Save() failed for conv1: %v", err)
 	}
 
 	// Add a small delay to ensure different timestamps
 	time.Sleep(1 * time.Millisecond)
 
-	if err := cm.SaveTo(conv2); err != nil {
-		t.Fatalf("SaveTo() failed for conv2: %v", err)
+	if err := cm.Save(conv2); err != nil {
+		t.Fatalf("Save() failed for conv2: %v", err)
 	}
 
 	// Test List function
@@ -276,13 +276,13 @@ func TestList_EmptyConversation(t *testing.T) {
 	cm := createTestModel(t)
 
 	// Create conversation without messages
-	conv, err := New()
+	conv, err := NewConversation()
 	if err != nil {
-		t.Fatalf("New() failed: %v", err)
+		t.Fatalf("NewConversation() failed: %v", err)
 	}
 
 	// Save empty conversation directly to database
-	_, err = cm.DB.Exec("INSERT INTO conversations (id, created_at) VALUES (?, ?)", conv.ID, conv.CreatedAt)
+	_, err = cm.DB.Exec("INSERT INTO conversations (id, created_at, plan_id) VALUES (?, ?, ?)", conv.ID, conv.CreatedAt, nil)
 	if err != nil {
 		t.Fatalf("Failed to insert empty conversation: %v", err)
 	}
@@ -317,26 +317,26 @@ func TestLatestID(t *testing.T) {
 	}
 
 	// Create conversations with different creation times
-	conv1, err := New()
+	conv1, err := NewConversation()
 	if err != nil {
-		t.Fatalf("New() failed: %v", err)
+		t.Fatalf("NewConversation() failed: %v", err)
 	}
 
 	// Manually set creation time to ensure ordering
 	conv1.CreatedAt = time.Now().Add(-1 * time.Hour)
 
-	conv2, err := New()
+	conv2, err := NewConversation()
 	if err != nil {
-		t.Fatalf("New() failed: %v", err)
+		t.Fatalf("NewConversation() failed: %v", err)
 	}
 	conv2.CreatedAt = time.Now()
 
 	// Save conversations
-	if err := cm.SaveTo(conv1); err != nil {
-		t.Fatalf("SaveTo() failed for conv1: %v", err)
+	if err := cm.Save(conv1); err != nil {
+		t.Fatalf("Save() failed for conv1: %v", err)
 	}
-	if err := cm.SaveTo(conv2); err != nil {
-		t.Fatalf("SaveTo() failed for conv2: %v", err)
+	if err := cm.Save(conv2); err != nil {
+		t.Fatalf("Save() failed for conv2: %v", err)
 	}
 
 	// Test LatestID function
@@ -360,9 +360,9 @@ func TestLoad(t *testing.T) {
 	}
 
 	// Create and save a conversation with multiple message types
-	conv, err := New()
+	conv, err := NewConversation()
 	if err != nil {
-		t.Fatalf("New() failed: %v", err)
+		t.Fatalf("NewConversation() failed: %v", err)
 	}
 
 	// Add text message
@@ -391,8 +391,8 @@ func TestLoad(t *testing.T) {
 	})
 
 	// Save conversation
-	if err := cm.SaveTo(conv); err != nil {
-		t.Fatalf("SaveTo() failed: %v", err)
+	if err := cm.Save(conv); err != nil {
+		t.Fatalf("Save() failed: %v", err)
 	}
 
 	// Load conversation
@@ -504,14 +504,14 @@ func TestLoad_EmptyConversation(t *testing.T) {
 	cm := createTestModel(t)
 
 	// Create conversation without messages
-	conv, err := New()
+	conv, err := NewConversation()
 	if err != nil {
-		t.Fatalf("New() failed: %v", err)
+		t.Fatalf("NewConversation() failed: %v", err)
 	}
 
 	// Save empty conversation
-	if err := cm.SaveTo(conv); err != nil {
-		t.Fatalf("SaveTo() failed: %v", err)
+	if err := cm.Save(conv); err != nil {
+		t.Fatalf("Save() failed: %v", err)
 	}
 
 	// Load conversation

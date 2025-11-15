@@ -10,8 +10,8 @@ import (
 )
 
 var PlanWriteDefinition = ToolDefinition{
-	Name:        "plan_write",
-	Description: "Update development plans. Use this tool to create, modify, and query the status of plans and their steps. Always specify the plan name.",
+	Name:        ToolNamePlanWrite,
+	Description: "Update the plan for the current session. To be used proactively and often to track progress and pending steps.",
 	InputSchema: PlanWriteInputSchema,
 	Function:    PlanWrite,
 }
@@ -49,7 +49,7 @@ var PlanWriteInputSchema = schema.Generate[PlanWriteInput]()
 
 // TODO: We might be using the same client with the agent here
 // so when we create a transaction, the agent is already using the client to save conversation
-func PlanWrite(input json.RawMessage) (string, error) {
+func PlanWrite(input json.RawMessage, meta ToolMetadata) (string, error) {
 	client := api.NewClient("") // TODO: Very temp
 	planWriteInput := PlanWriteInput{}
 
@@ -66,73 +66,86 @@ func PlanWrite(input json.RawMessage) (string, error) {
 
 	switch planWriteInput.Action {
 	case ActionSetStatus:
-		stepID := planWriteInput.StepID
-		status := planWriteInput.Status
-
-		plan, err := client.GetPlan(planName)
-		if err != nil {
-			return "", fmt.Errorf("plan_write: failed to get plan '%s' for set_status: %w", planName, err)
-		}
-
-		if status == "DONE" {
-			err = plan.MarkStepAsCompleted(stepID)
-		} else {
-			err = plan.MarkStepAsIncomplete(stepID)
-		}
-
-		if err != nil {
-			return "", fmt.Errorf("plan_write: failed to set status for step '%s' in plan '%s': %w", stepID, planName, err)
-		}
-
-		// Persist the change to the plan (including the updated step status)
-		if err = client.SavePlan(plan); err != nil {
-			return "", fmt.Errorf("plan_write: failed to save plan '%s' after setting status: %w", planName, err)
-		}
-
-		return fmt.Sprintf("Step '%s' in plan '%s' set to '%s'.", stepID, planName, string(status)), nil
+		return handleSetStatus(client, &planWriteInput, planName, meta)
 	case ActionAddSteps:
-		stepsToAdd := planWriteInput.StepsToAdd
-
-		p, err := client.GetPlan(planName)
-		if err != nil {
-			if strings.Contains(strings.ToLower(err.Error()), "not found") {
-				// We need to reuse the same PlanModel object here??
-				p, err = client.CreatePlan(planName)
-				if err != nil {
-					return "", fmt.Errorf("plan_write: failed to create new plan '%s' for adding steps: %w", planName, err)
-				}
-			} else {
-				return "", fmt.Errorf("plan_write: failed to get plan '%s': %w", planName, err)
-			}
-		}
-
-		addedCount := 0
-		for i, s := range stepsToAdd {
-			id := s.ID
-			if id == "" {
-				return "", fmt.Errorf("plan_write: missing 'id' in step at index %d", i)
-			}
-
-			description := s.Description
-			if description == "" {
-				return "", fmt.Errorf("plan_write: missing 'description' in step '%s' at index %d", id, i)
-			}
-
-			var criteria []string
-			for _, criterion := range s.AcceptanceCriteria {
-				criteria = append(criteria, criterion)
-			}
-
-			p.AddStep(id, description, criteria)
-			addedCount++
-		}
-
-		if err := client.SavePlan(p); err != nil {
-			// 500 here? is it because of create plan and add steps in the same transaction??
-			return "", fmt.Errorf("plan_write: failed to save updated plan '%s': %w", planName, err)
-		}
-		return fmt.Sprintf("Added %d steps to plan '%s'.", addedCount, planName), nil
+		return handleAddSteps(client, &planWriteInput, planName, meta)
 	default:
 		return "", fmt.Errorf("plan_write: unknown action '%s'", planWriteInput.Action)
 	}
 }
+
+func handleSetStatus(client *api.Client, input *PlanWriteInput, planName string, meta ToolMetadata) (string, error) {
+	// TODO: If we tell the agent to mark all steps as done here (meaning not tell it explicitly the names of the steps to mark)
+	// then the agent will generate new step names.
+	// This leads to mismatches between those names and step names from the DB, and eventually an error.
+	// Can the context window of the agent handle that?
+	stepID := input.StepID
+	status := input.Status
+	p, err := client.GetPlanByName(planName)
+	if err != nil {
+		return "", fmt.Errorf("plan_write: failed to get plan '%s' for set_status: %w", planName, err)
+	}
+
+	if status == "DONE" {
+		err = p.MarkStepAsCompleted(stepID)
+	} else {
+		err = p.MarkStepAsIncomplete(stepID)
+	}
+
+	if err != nil {
+		return "", fmt.Errorf("plan_write: failed to set status for step '%s' in plan '%s': %w", stepID, planName, err)
+	}
+
+	// Persist the change to the plan (including the updated step status)
+	if err = client.SavePlan(p); err != nil {
+		return "", fmt.Errorf("plan_write: failed to save plan '%s' after setting status: %w", planName, err)
+	}
+
+	return fmt.Sprintf("Step '%s' in plan '%s' set to '%s'.", stepID, planName, string(status)), nil
+}
+
+func handleAddSteps(client *api.Client, input *PlanWriteInput, planName string, meta ToolMetadata) (string, error) {
+	stepsToAdd := input.StepsToAdd
+
+	p, err := client.GetPlan(planName)
+	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "not found") {
+			// TODO: Fetch the current conversation from client object to write a plan to it
+			// should we reuse the same client object?
+			p, err = client.CreatePlan(planName, meta.ConversationID)
+			if err != nil {
+				return "", fmt.Errorf("plan_write: failed to create new plan '%s' for adding steps: %w", planName, err)
+			}
+		} else {
+			return "", fmt.Errorf("plan_write: failed to get plan '%s': %w", planName, err)
+		}
+	}
+
+	addedCount := 0
+	for i, s := range stepsToAdd {
+		id := s.ID
+		if id == "" {
+			return "", fmt.Errorf("plan_write: missing 'id' in step at index %d", i)
+		}
+
+		description := s.Description
+		if description == "" {
+			return "", fmt.Errorf("plan_write: missing 'description' in step '%s' at index %d", id, i)
+		}
+
+		var criteria []string
+		for _, criterion := range s.AcceptanceCriteria {
+			criteria = append(criteria, criterion)
+		}
+
+		p.AddStep(id, description, criteria)
+		addedCount++
+	}
+
+	if err := client.SavePlan(p); err != nil {
+		// 500 here? is it because of create plan and add steps in the same transaction??
+		return "", fmt.Errorf("plan_write: failed to save updated plan '%s': %w", planName, err)
+	}
+	return fmt.Sprintf("Added %d steps to plan '%s'.", addedCount, planName), nil
+}
+

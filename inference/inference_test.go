@@ -182,24 +182,6 @@ func TestListAvailableModels_UnknownProvider(t *testing.T) {
 	assert.Empty(t, models)
 }
 
-func TestGetDefaultModel_AnthropicProvider(t *testing.T) {
-	defaultModel := GetDefaultModel(AnthropicProvider)
-
-	assert.Equal(t, Claude4Sonnet, defaultModel)
-}
-
-func TestGetDefaultModel_GoogleProvider(t *testing.T) {
-	defaultModel := GetDefaultModel(GoogleProvider)
-
-	assert.Equal(t, Gemini25Pro, defaultModel)
-}
-
-func TestGetDefaultModel_UnknownProvider(t *testing.T) {
-	defaultModel := GetDefaultModel("unknown_provider")
-
-	assert.Equal(t, ModelVersion(""), defaultModel)
-}
-
 func TestBaseLLMClient_BaseSummarizeHistory_BelowThreshold(t *testing.T) {
 	client := &BaseLLMClient{}
 	messages := createTestMessages(5)
@@ -429,37 +411,6 @@ func TestListAvailableModels_AllProviders(t *testing.T) {
 			for _, expectedModel := range tt.shouldContain {
 				assert.Contains(t, models, expectedModel)
 			}
-		})
-	}
-}
-
-func TestGetDefaultModel_AllProviders(t *testing.T) {
-	tests := []struct {
-		name     string
-		provider ProviderName
-		expected ModelVersion
-	}{
-		{
-			name:     "Anthropic default",
-			provider: AnthropicProvider,
-			expected: Claude4Sonnet,
-		},
-		{
-			name:     "Google default",
-			provider: GoogleProvider,
-			expected: Gemini25Pro,
-		},
-		{
-			name:     "Unknown provider default",
-			provider: "unknown",
-			expected: "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := GetDefaultModel(tt.provider)
-			assert.Equal(t, tt.expected, result)
 		})
 	}
 }

@@ -14,7 +14,7 @@ import (
 var grepSearchPrompt string
 
 var GrepSearchDefinition = ToolDefinition{
-	Name:        "grep_search",
+	Name:        ToolNameGrepSearch,
 	Description: grepSearchPrompt,
 	InputSchema: GrepSearchInputSchema,
 	Function:    GrepSearch,
@@ -27,7 +27,7 @@ type GrepSearchInput struct {
 
 var GrepSearchInputSchema = schema.Generate[GrepSearchInput]()
 
-func GrepSearch(input json.RawMessage) (string, error) {
+func GrepSearch(input json.RawMessage, _ ToolMetadata) (string, error) {
 	searchInput := GrepSearchInput{}
 	err := json.Unmarshal(input, &searchInput)
 	if err != nil {
