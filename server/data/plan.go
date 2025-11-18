@@ -104,9 +104,9 @@ func (pm *PlanModel) Create(plan *Plan) error {
 	return nil
 }
 
-func (pm *PlanModel) GetByID(id string) (*Plan, error) {
-	var planID, planName, conversationID string
-	err := pm.DB.QueryRow("SELECT id, plan_name, conversation_id FROM plans WHERE id = ?", id).Scan(&planID, &planName, &conversationID)
+func (pm *PlanModel) GetByConversationID(id string) (*Plan, error) {
+	var planID, planName string
+	err := pm.DB.QueryRow("SELECT id, plan_name FROM plans WHERE conversation_id = ?", id).Scan(&planID, &planName)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("plan with ID '%s' not found", id)
@@ -117,7 +117,7 @@ func (pm *PlanModel) GetByID(id string) (*Plan, error) {
 	plan := &Plan{
 		ID:             planID,
 		PlanName:       planName,
-		ConversationID: conversationID,
+		ConversationID: id,
 		Steps:          []*Step{},
 		isNew:          false,
 	}

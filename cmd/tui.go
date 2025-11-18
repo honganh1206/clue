@@ -57,9 +57,36 @@ func tui(ctx context.Context, agent *agent.Agent) error {
 		SetDynamicColors(true).
 		SetText("")
 
+	planView := tview.NewTextView().
+		SetDynamicColors(true)
+	planView.SetBorder(true)
+
+	inputFlex := tview.NewFlex()
+
+	// Default height
+	inputHeight := 5
+	updateInputLayout := func() {
+		inputFlex.Clear()
+
+		// TODO: Display the plan when it is done created and saved to the database via tool calling
+		if agent.Plan == nil || len(agent.Plan.Steps) == 0 {
+			inputFlex.AddItem(questionInput, 0, 1, true)
+			inputHeight = 5
+		} else {
+			planView.SetText(formatPlanSteps(agent.Plan))
+			inputFlex.
+				AddItem(questionInput, 0, 2, true).
+				AddItem(planView, 0, 1, false)
+
+			inputHeight = max(5, len(agent.Plan.Steps)+2)
+		}
+	}
+
+	updateInputLayout()
+
 	mainLayout := tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(conversationView, 0, 1, false).
-		AddItem(questionInput, 5, 1, true).
+		AddItem(inputFlex, inputHeight, 0, true).
 		AddItem(spinnerView, 1, 0, false)
 
 	conversationView.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
@@ -293,4 +320,24 @@ func displayRelativePath() string {
 	}
 
 	return relativePath
+}
+
+func formatPlanSteps(plan *data.Plan) string {
+	if plan == nil || len(plan.Steps) == 0 {
+		return ""
+	}
+
+	var result strings.Builder
+
+	for i, step := range plan.Steps {
+		statusColor := "white"
+		statusSymbol := "○"
+		if strings.ToUpper(step.Status) == "DONE" {
+			statusColor = "green"
+			statusSymbol = "✓"
+		}
+		result.WriteString(fmt.Sprintf("[%s::]%s %d. %s[-]\n", statusColor, statusSymbol, i+1, step.Description))
+	}
+
+	return result.String()
 }

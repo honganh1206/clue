@@ -152,7 +152,7 @@ lexer_test.go, eval_test.go]</response>
 
 <example>
 <user>write tests for new feature</user>
-<response>[uses the Grep and codebase_search_agent tools to find tests
+<response>[uses the Grep and finder tools to find tests
 that already exist and could be similar, then uses concurrent Read
 tool use blocks in one tool call to read the relevant files at the
 same time, finally uses edit_file tool to add new tests]</response>
@@ -162,7 +162,7 @@ same time, finally uses edit_file tool to add new tests]</response>
 <example>
 <user>how does the Controller component work?</user>
 <response>[uses Grep tool to locate the definition, and then Read tool
-to read the full file, then the codebase_search_agent tool to
+to read the full file, then the finder tool to
 understand related concepts and finally gives an answer]</response>
 </example>
 
@@ -180,7 +180,7 @@ Here is a summary of the markdown files:
 
 <example>
 <user>explain how this part of the system works</user>
-<response>[uses Grep, codebase_search_agent, and Read to understand
+<response>[uses Grep, finder, and Read to understand
 the code, then proactively creates a diagram using mermaid]
 
 This component handles API requests through three stages:
@@ -194,7 +194,7 @@ components]</response>
 
 <example>
 <user>how are the different services connected?</user>
-<response>[uses codebase_search_agent and Read to analyze the codebase
+<response>[uses finder and Read to analyze the codebase
 architecture]
 
 The system uses a microservice architecture with message queues

@@ -31,3 +31,15 @@ I'm also thinking of adding a `plan_id` column to the `conversations` table, sin
 1. Change the current `id` field to `plan_name`, and the `id` of the plan will be automatically generated as a GUID/UUID by the server.
 2. Update the `plan_id` of `steps` table to now refer to the PK of the `plans` table.
 3. Update the `step_acceptance_criteria` accordingly
+
+At the moment, the handlers for plans are pretty much badly _desinged_: I have two handlers for `GET` plans, one to fetch the plan based on the plan's name, and one to use conversation ID to fetch the associated plan. I think the better way would be to make one handler and make it detect whether the request has an ID or a plan name.
+
+---
+
+The current approach is to populate the `Plan` field of the `Agent` struct, since each conversation has a plan associated with it.
+
+When a plan is created, we need a way to immediately fetch it for display on the TUI. How should we fetch it to the TUI? Via goroutines? It seems to be the most viable option right now.
+
+To interact with the plan the agent needs to do the tool call `plan_read`. However, there might be a problem: **Then plan might be fetched and refetched multiple times to the context window, meanwhile it should be handled via the `Plan` object of the agent**. But that should be minimal, since the agent needs a way to interact with the plan (and thus to allocate steps to subagents).
+
+We also need to know how to modify it. There is an in-memory object of the plan, so the current approach should be to modify it at the start of the plan implementation, and update it again after the plan is done. We then save it to the database. (Normal CRUD stuff please!)

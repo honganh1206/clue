@@ -19,6 +19,7 @@ type Agent struct {
 	LLM       inference.LLMClient
 	ToolBox   *tools.ToolBox
 	Conv      *data.Conversation
+	Plan      *data.Plan
 	Client    *api.Client
 	MCP       mcp.Config
 	streaming bool
@@ -26,11 +27,12 @@ type Agent struct {
 	Sub *Subagent
 }
 
-func New(llm inference.LLMClient, conversation *data.Conversation, toolBox *tools.ToolBox, client *api.Client, mcpConfigs []mcp.ServerConfig, streaming bool) *Agent {
+func New(llm inference.LLMClient, conversation *data.Conversation, toolBox *tools.ToolBox, client *api.Client, mcpConfigs []mcp.ServerConfig, plan *data.Plan, streaming bool) *Agent {
 	agent := &Agent{
 		LLM:       llm,
 		ToolBox:   toolBox,
 		Conv:      conversation,
+		Plan:      plan,
 		Client:    client,
 		streaming: streaming,
 	}

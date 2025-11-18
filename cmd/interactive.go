@@ -13,6 +13,7 @@ import (
 	"github.com/honganh1206/clue/tools"
 )
 
+// TODO: All these parameters should go into a struct
 func interactive(ctx context.Context, convID string, llmClient, llmClientSub inference.BaseLLMClient, apiClient *api.Client, mcpConfigs []mcp.ServerConfig, useTUI bool) error {
 	llm, err := inference.Init(ctx, llmClient)
 	if err != nil {
@@ -25,9 +26,10 @@ func interactive(ctx context.Context, convID string, llmClient, llmClientSub inf
 			&tools.ListFilesDefinition,
 			&tools.EditFileDefinition,
 			&tools.GrepSearchDefinition,
-			&tools.CodebaseSearchAgentDefinition, // Now handled by subagent
+			&tools.FinderDefinition,
 			&tools.BashDefinition,
 			&tools.PlanWriteDefinition,
+			&tools.PlanReadDefinition,
 		},
 	}
 
@@ -41,9 +43,14 @@ func interactive(ctx context.Context, convID string, llmClient, llmClientSub inf
 	}
 
 	var conv *data.Conversation
+	var plan *data.Plan
 
 	if convID != "" {
 		conv, err = apiClient.GetConversation(convID)
+		if err != nil {
+			return err
+		}
+		plan, err = apiClient.GetPlan(convID)
 		if err != nil {
 			return err
 		}
@@ -59,7 +66,7 @@ func interactive(ctx context.Context, convID string, llmClient, llmClientSub inf
 		return fmt.Errorf("failed to initialize sub-agent LLM: %w", err)
 	}
 
-	a := agent.New(llm, conv, toolBox, apiClient, mcpConfigs, true)
+	a := agent.New(llm, conv, toolBox, apiClient, mcpConfigs, plan, true)
 
 	sub := agent.NewSubagent(subllm, subToolBox, false)
 	a.Sub = sub

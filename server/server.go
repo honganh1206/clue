@@ -190,13 +190,8 @@ func (s *server) planHandler(w http.ResponseWriter, r *http.Request) {
 		if hasID {
 			s.getPlan(w, r, planID)
 		} else {
-			// Check if looking up by name
 			planName := r.URL.Query().Get("name")
 			s.getPlanByName(w, r, planName)
-			// if planName != "" && conversationID != "" {
-			// } else {
-			// 	s.listPlans(w, r)
-			// }
 		}
 	case http.MethodPut:
 		s.savePlan(w, r, planID)
@@ -302,7 +297,7 @@ func (s *server) listPlans(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) getPlan(w http.ResponseWriter, r *http.Request, id string) {
-	p, err := s.models.Plans.GetByID(id)
+	p, err := s.models.Plans.GetByConversationID(id)
 	if err != nil {
 		handleError(w, err)
 		return
@@ -402,4 +397,3 @@ func (s *server) deletePlans(w http.ResponseWriter, r *http.Request) {
 		"results": results,
 	})
 }
-

@@ -14,7 +14,7 @@ const (
 	ToolNameListFiles           = "list_files"
 	ToolNamePlanRead            = "plan_read"
 	ToolNamePlanWrite           = "plan_write"
-	ToolNameCodebaseSearchAgent = "codebase_search_agent"
+	ToolNameFinder = "finder"
 )
 
 type ToolBox struct {

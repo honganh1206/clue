@@ -10,7 +10,7 @@ import (
 	"github.com/honganh1206/clue/tools"
 )
 
-// Subagent is a lightweight agent for executing sub-tasks like codebase_search_agent
+// Subagent is a lightweight agent for executing sub-tasks like finder
 // Unlike the main Agent, it:
 // - Has limited tools (only read operations)
 // - Doesn't save conversations
