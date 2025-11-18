@@ -15,19 +15,17 @@ var PlanReadDefinition = ToolDefinition{
 	Function:    PlanRead,
 }
 
-type ReadAction int
+type ReadAction string
 
 const (
-	// Get Markdown representation of the plan
-	ActionInspect ReadAction = iota
-	ActionGetNextStep
-	ActionIsCompleted
-	ActionListPlans
+	ActionInspect     ReadAction = "inspect"
+	ActionGetNextStep ReadAction = "get_next_step"
+	ActionIsCompleted ReadAction = "is_completed"
 )
 
 type PlanReadInput struct {
 	PlanName string     `json:"plan_name" jsonschema_description:"The name of the plan to manage (e.g., 'main', 'feature-x'). This corresponds to the unique ID in the plans database."`
-	Action   ReadAction `json:"read_action" jsonschema_description:"The read operation to perform on the plan."`
+	Action   ReadAction `json:"read_action" jsonschema_description:"The read operation to perform on the plan: 'inspect', 'get_next_step' or 'is_completed'."`
 }
 
 var PlanReadInputSchema = schema.Generate[PlanReadInput]()
@@ -50,17 +48,66 @@ func PlanRead(input json.RawMessage, meta ToolMetadata) (string, error) {
 	switch planReadInput.Action {
 	case ActionInspect:
 		return handleInspect(client, planName)
+	case ActionGetNextStep:
+		return handleGetNextStep(client, planName)
+	case ActionIsCompleted:
+		return handleIsCompleted(client, planName)
 	default:
 		return "", fmt.Errorf("plan_read: unknown action '%s'", planReadInput.Action)
 	}
 }
 
 func handleInspect(client *api.Client, planName string) (string, error) {
-	// TODO: This means the agent in conversation A session can read the plan from conversation B given the opportunity.
+	// This means the agent in conversation A session can read the plan from conversation B given the opportunity.
 	// Do we want this?
 	plan, err := client.GetPlanByName(planName)
 	if err != nil {
 		return "", fmt.Errorf("plan_read: failed to get plan '%s': %w", planName, err)
 	}
 	return plan.Inspect(), nil
+}
+
+func handleGetNextStep(client *api.Client, planName string) (string, error) {
+	plan, err := client.GetPlanByName(planName)
+	if err != nil {
+		return "", fmt.Errorf("plan_read: failed to get plan '%s': %w", planName, err)
+	}
+	next := plan.NextStep()
+	if next == nil {
+		return "plan is completed", nil
+	} else {
+		// Are we going to format it to JSON or just string?
+		resp := map[string]any{
+			"next_step": map[string]any{
+				"id":                  next.GetID(),
+				"status":              next.GetStatus(),
+				"description":         next.GetDescription(),
+				"acceptance_criteria": next.GetAcceptanceCriteria(),
+			},
+		}
+
+		b, err := json.Marshal(resp) // or json.MarshalIndent(resp, "", "  ") for pretty output
+		if err != nil {
+			return "", fmt.Errorf("plan_read: failed to marshal response to JSON: %w", err)
+		}
+		return string(b), nil
+	}
+}
+
+func handleIsCompleted(client *api.Client, planName string) (string, error) {
+	plan, err := client.GetPlanByName(planName)
+	if err != nil {
+		return "", fmt.Errorf("plan_read: failed to get plan '%s': %w", planName, err)
+	}
+	isCompleted := plan.IsCompleted()
+	// Are we going to format it to JSON or just string?
+	resp := map[string]any{
+		"is_completed": isCompleted,
+	}
+
+	b, err := json.Marshal(resp) // or json.MarshalIndent(resp, "", "  ") for pretty output
+	if err != nil {
+		return "", fmt.Errorf("plan_read: failed to marshal response to JSON: %w", err)
+	}
+	return string(b), nil
 }

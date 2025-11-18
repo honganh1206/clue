@@ -169,7 +169,7 @@ func (pm *PlanModel) GetByConversationID(id string) (*Plan, error) {
 
 func (pm *PlanModel) GetByName(planName string) (*Plan, error) {
 	var planID, conversationID string
-	err := pm.DB.QueryRow("SELECT id, plan_name, conversation_id FROM plans WHERE plan_name = ?", planName).Scan(&planID, &conversationID)
+	err := pm.DB.QueryRow("SELECT id, conversation_id FROM plans WHERE plan_name = ?", planName).Scan(&planID, &conversationID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("plan with name '%s' not found in conversation '%s'", planName, conversationID)
@@ -692,4 +692,3 @@ func (pm *PlanModel) Compact() error {
 
 	return nil
 }
-

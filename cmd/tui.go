@@ -77,8 +77,14 @@ func tui(ctx context.Context, agent *agent.Agent) error {
 		return event
 	})
 
+	// TODO: Can we move this to a separate function?
+	// Persisted channel
+	planCh := make(chan *data.Plan, 1)
+	// var wg sync.WaitGroup
+
+	// wg.Add(1)
 	go func() {
-		planCh := agent.PublishPlan()
+		// defer wg.Done()
 		for {
 			select {
 			case <-ctx.Done():
@@ -101,9 +107,12 @@ func tui(ctx context.Context, agent *agent.Agent) error {
 						mainLayout.ResizeItem(inputFlex, newHeight, 0)
 					}
 				})
+			default:
+				planCh <- agent.Plan
 			}
 		}
 	}()
+	// wg.Wait()
 
 	questionInput.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if isFirstInput && event.Key() == tcell.KeyRune {
