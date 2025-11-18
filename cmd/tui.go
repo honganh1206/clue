@@ -63,27 +63,7 @@ func tui(ctx context.Context, agent *agent.Agent) error {
 
 	inputFlex := tview.NewFlex()
 
-	// Default height
 	inputHeight := 5
-	updateInputLayout := func() {
-		inputFlex.Clear()
-
-		// TODO: Display the plan when it is done created and saved to the database via tool calling
-		if agent.Plan == nil || len(agent.Plan.Steps) == 0 {
-			inputFlex.AddItem(questionInput, 0, 1, true)
-			inputHeight = 5
-		} else {
-			planView.SetText(formatPlanSteps(agent.Plan))
-			inputFlex.
-				AddItem(questionInput, 0, 2, true).
-				AddItem(planView, 0, 1, false)
-
-			inputHeight = max(5, len(agent.Plan.Steps)+2)
-		}
-	}
-
-	updateInputLayout()
-
 	mainLayout := tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(conversationView, 0, 1, false).
 		AddItem(inputFlex, inputHeight, 0, true).
@@ -96,6 +76,34 @@ func tui(ctx context.Context, agent *agent.Agent) error {
 		}
 		return event
 	})
+
+	go func() {
+		planCh := agent.PublishPlan()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case currentPlan := <-planCh:
+				app.QueueUpdateDraw(func() {
+					inputFlex.Clear()
+
+					if currentPlan == nil || len(currentPlan.Steps) == 0 {
+						inputFlex.AddItem(questionInput, 0, 1, true)
+						mainLayout.ResizeItem(inputFlex, 5, 0)
+					} else {
+						planView.SetText(formatPlanSteps(currentPlan))
+						planView.SetTitle(fmt.Sprintf(" %s ", currentPlan.PlanName))
+						inputFlex.
+							AddItem(questionInput, 0, 2, true).
+							AddItem(planView, 0, 1, false)
+
+						newHeight := max(5, len(currentPlan.Steps)+2)
+						mainLayout.ResizeItem(inputFlex, newHeight, 0)
+					}
+				})
+			}
+		}
+	}()
 
 	questionInput.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if isFirstInput && event.Key() == tcell.KeyRune {
@@ -341,3 +349,4 @@ func formatPlanSteps(plan *data.Plan) string {
 
 	return result.String()
 }
+

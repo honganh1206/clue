@@ -51,6 +51,7 @@ func interactive(ctx context.Context, convID string, llmClient, llmClientSub inf
 			return err
 		}
 		plan, err = apiClient.GetPlan(convID)
+		// TODO: There could be a case where there is no plan for a conversation
 		if err != nil {
 			return err
 		}

@@ -24,7 +24,8 @@ type Agent struct {
 	MCP       mcp.Config
 	streaming bool
 	// In the future it could be a map of agents, keys are task ID
-	Sub *Subagent
+	Sub    *Subagent
+	planCh chan *data.Plan
 }
 
 func New(llm inference.LLMClient, conversation *data.Conversation, toolBox *tools.ToolBox, client *api.Client, mcpConfigs []mcp.ServerConfig, plan *data.Plan, streaming bool) *Agent {
@@ -35,6 +36,9 @@ func New(llm inference.LLMClient, conversation *data.Conversation, toolBox *tool
 		Plan:      plan,
 		Client:    client,
 		streaming: streaming,
+		// This is the persisted channel
+		// to communicate between the agent and TUI
+		planCh: make(chan *data.Plan, 1),
 	}
 
 	agent.MCP.ServerConfigs = mcpConfigs
@@ -226,6 +230,10 @@ func (a *Agent) executeLocalTool(id, name string, input json.RawMessage) message
 		}
 		// TODO: A lot of formatting like path to file formatting
 		response, err = toolDef.Function(input, meta)
+
+		// Refresh and publish plan updates
+		a.Plan, _ = a.Client.GetPlan(meta.ConversationID)
+		a.publishPlanUpdate()
 	}
 
 	if err != nil {
@@ -290,3 +298,24 @@ func (a *Agent) streamResponse(ctx context.Context, onDelta func(string)) (*mess
 
 	return msg, nil
 }
+
+func (a *Agent) PublishPlan() <-chan *data.Plan {
+	// Send initial plan (non-blocking)
+	select {
+	case a.planCh <- a.Plan:
+	default:
+	}
+	return a.planCh
+}
+
+func (a *Agent) publishPlanUpdate() {
+	if a.planCh == nil {
+		return
+	}
+	// Non-blocking send to avoid deadlocks
+	select {
+	case a.planCh <- a.Plan:
+	default:
+	}
+}
+
