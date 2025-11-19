@@ -43,7 +43,7 @@ func Init(ctx context.Context, llm BaseLLMClient) (LLMClient, error) {
 		return NewAnthropicClient(&client, ModelVersion(llm.Model), llm.TokenLimit, sysPrompt), nil
 	case GoogleProvider:
 		client, err := genai.NewClient(ctx, &genai.ClientConfig{
-			APIKey:  os.Getenv("GEMINI_API_KEY"),
+			APIKey:  os.Getenv("GOOGLE_API_KEY"),
 			Backend: genai.BackendGeminiAPI,
 		})
 		if err != nil {
@@ -70,6 +70,7 @@ func ListAvailableModels(provider ProviderName) []ModelVersion {
 		}
 	case GoogleProvider:
 		return []ModelVersion{
+			Gemini3Pro,
 			Gemini25Pro,
 			Gemini25Flash,
 			Gemini20Flash,
@@ -87,7 +88,7 @@ func GetDefaultModel(provider ProviderName) ModelVersion {
 	case AnthropicProvider:
 		return Claude45Sonnet
 	case GoogleProvider:
-		return Gemini25Pro
+		return Gemini3Pro
 	default:
 		return ""
 	}

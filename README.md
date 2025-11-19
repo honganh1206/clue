@@ -18,7 +18,13 @@ If this proves to be helpful to anyone, consider it my thanks to the open-source
 
 ## Installation
 
-1. Add Anthropic API key as an environment variable with `export ANTHROPIC_API_KEY="your-api-key-here"`
+1. Add API keys as an environment variable
+
+```bash
+export ANTHROPIC_API_KEY="your-api-key-here"
+export GOOGLE_API_KEY="your-api-key-here"
+```
+
 2. Run the installation script for the latest version (Linux only at the moment):
 
 ```bash
@@ -73,4 +79,3 @@ make # Run the agent
 ```
 
 [References](./docs/References.md)
-
