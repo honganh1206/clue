@@ -55,6 +55,7 @@ func (c *GeminiClient) SummarizeHistory(history []*message.Message, threshold in
 func (c *GeminiClient) TruncateMessage(msg *message.Message, threshold int) *message.Message {
 	return c.BaseLLMClient.BaseTruncateMessage(msg, threshold)
 }
+
 func (c *GeminiClient) RunInference(ctx context.Context, onDelta func(string), streaming bool) (*message.Message, error) {
 	if len(c.contents) == 0 {
 		return nil, errors.New("gemini: no messages in conversation history")
@@ -88,7 +89,7 @@ func (c *GeminiClient) runInferenceStream(ctx context.Context, modelName string,
 	response := c.client.Models.GenerateContentStream(ctx, modelName, c.contents, config)
 
 	var fullText strings.Builder
-	var toolCalls []message.ContentBlock
+	var blocks []message.ContentBlock
 	var outputContents []*genai.Content
 
 	msg := &message.Message{
@@ -126,30 +127,49 @@ func (c *GeminiClient) runInferenceStream(ctx context.Context, modelName string,
 			} else {
 				onDelta("\n")
 			}
+
 			if p.FunctionCall != nil {
 				fc := p.FunctionCall
-				inputBytes, err := json.Marshal(fc.Args)
+				input, err := json.Marshal(fc.Args)
 				if err != nil {
 					return nil, fmt.Errorf("failed to marshal function args: %w", err)
 				}
 
-				toolCall := message.NewToolUseBlock(
-					fc.ID,
-					fc.Name,
-					inputBytes,
-				)
-				toolCalls = append(toolCalls, toolCall)
+				var thought json.RawMessage
+				if p.ThoughtSignature != nil {
+					input, err := json.Marshal(p.ThoughtSignature)
+					if err != nil {
+						return nil, fmt.Errorf("failed to marshal thought: %w", err)
+					}
+					thought = input
+				}
+
+				toolCall := message.ToolUseBlock{
+					ID:      fc.ID,
+					Name:    fc.Name,
+					Input:   input,
+					Thought: thought,
+				}
+
+				blocks = append(blocks, toolCall)
 			}
+
 		}
 
 		outputContents = append(outputContents, bestContent)
 	}
 
-	if fullText.String() != "" {
-		msg.Content = append(msg.Content, message.NewTextBlock(fullText.String()))
+	// Instead of putting this in the for loop
+	// we make it outside so we only need to do once
+	if fullText.Len() > 0 {
+		blocks = append(blocks, message.NewTextBlock(fullText.String()))
 	}
 
-	msg.Content = append(msg.Content, toolCalls...)
+	if len(blocks) == 0 {
+		return nil, fmt.Errorf("gemini: model returned no usable content")
+	}
+
+	msg.Content = append(msg.Content, blocks...)
 
 	return msg, nil
 }
@@ -172,7 +192,7 @@ func (c *GeminiClient) runInferenceSnapshot(ctx context.Context, modelName strin
 	}
 
 	var fullText strings.Builder
-	var toolCalls []message.ContentBlock
+	var blocks []message.ContentBlock
 
 	for _, p := range bestContent.Parts {
 		if p.Text != "" {
@@ -180,25 +200,36 @@ func (c *GeminiClient) runInferenceSnapshot(ctx context.Context, modelName strin
 		}
 		if p.FunctionCall != nil {
 			fc := p.FunctionCall
-			inputBytes, err := json.Marshal(fc.Args)
+			input, err := json.Marshal(fc.Args)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal function args: %w", err)
 			}
 
-			toolCall := message.NewToolUseBlock(
-				fc.ID,
-				fc.Name,
-				inputBytes,
-			)
-			toolCalls = append(toolCalls, toolCall)
+			var thought json.RawMessage
+			if p.ThoughtSignature != nil {
+				ts, err := json.Marshal(p.ThoughtSignature)
+				if err != nil {
+					return nil, fmt.Errorf("failed to marshal thought: %w", err)
+				}
+				thought = ts
+			}
+
+			toolCall := message.ToolUseBlock{
+				ID:      fc.ID,
+				Name:    fc.Name,
+				Input:   input,
+				Thought: thought,
+			}
+			blocks = append(blocks, toolCall)
 		}
+
 	}
 
 	if fullText.String() != "" {
 		msg.Content = append(msg.Content, message.NewTextBlock(fullText.String()))
 	}
 
-	msg.Content = append(msg.Content, toolCalls...)
+	msg.Content = append(msg.Content, blocks...)
 
 	return msg, nil
 }
@@ -265,7 +296,9 @@ func toGeminiParts(blocks []message.ContentBlock) []*genai.Part {
 	for _, block := range blocks {
 		switch b := block.(type) {
 		case message.TextBlock:
-			parts = append(parts, genai.NewPartFromText(b.Text))
+			if b.Text != "" {
+				parts = append(parts, genai.NewPartFromText(b.Text))
+			}
 		case message.ToolUseBlock:
 			var args map[string]any
 
@@ -274,7 +307,17 @@ func toGeminiParts(blocks []message.ContentBlock) []*genai.Part {
 				continue
 			}
 
-			parts = append(parts, genai.NewPartFromFunctionCall(b.Name, args))
+			part := genai.NewPartFromFunctionCall(b.Name, args)
+
+			// ThoughtSignature goes hand in hand with FunctionCall
+			if len(b.Thought) > 0 {
+				var sig []byte
+				if err := json.Unmarshal(b.Thought, &sig); err == nil && len(sig) > 0 {
+					part.ThoughtSignature = sig
+				}
+			}
+
+			parts = append(parts, part)
 		case message.ToolResultBlock:
 			response := map[string]any{"result": b.Content}
 
@@ -299,3 +342,4 @@ func toGeminiFunctionDeclaration(tool *tools.ToolDefinition) (*genai.FunctionDec
 
 	return functionDecl, nil
 }
+
