@@ -11,6 +11,7 @@ import (
 	"github.com/honganh1206/clue/server/api"
 	"github.com/honganh1206/clue/server/data"
 	"github.com/honganh1206/clue/tools"
+	"github.com/honganh1206/clue/ui"
 )
 
 // TODO: All these parameters should go into a struct
@@ -66,7 +67,8 @@ func interactive(ctx context.Context, convID string, llmClient, llmClientSub inf
 		return fmt.Errorf("failed to initialize sub-agent LLM: %w", err)
 	}
 
-	a := agent.New(llm, conv, toolBox, apiClient, mcpConfigs, plan, true)
+	ctl := ui.NewController()
+	a := agent.New(llm, conv, toolBox, apiClient, mcpConfigs, plan, true, ctl)
 
 	sub := agent.NewSubagent(subllm, subToolBox, false)
 	a.Sub = sub
@@ -75,7 +77,7 @@ func interactive(ctx context.Context, convID string, llmClient, llmClientSub inf
 	defer a.ShutdownMCPServers()
 
 	if useTUI {
-		err = tui(ctx, a)
+		err = tui(ctx, a, ctl)
 	} else {
 		err = cli(ctx, a)
 	}

@@ -86,7 +86,7 @@ func ListAvailableModels(provider ProviderName) []ModelVersion {
 func GetDefaultModel(provider ProviderName) ModelVersion {
 	switch provider {
 	case AnthropicProvider:
-		return Claude45Sonnet
+		return Claude37Sonnet
 	case GoogleProvider:
 		return Gemini3Pro
 	default:
@@ -97,7 +97,7 @@ func GetDefaultModel(provider ProviderName) ModelVersion {
 func GetDefaultModelSubagent(provider ProviderName) ModelVersion {
 	switch provider {
 	case AnthropicProvider:
-		return Claude45Haiku
+		return Claude35Haiku
 	case GoogleProvider:
 		return Gemini25Flash
 	default:

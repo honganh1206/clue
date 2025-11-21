@@ -13,7 +13,10 @@ import (
 	"github.com/honganh1206/clue/server/api"
 	"github.com/honganh1206/clue/server/data"
 	"github.com/honganh1206/clue/tools"
+	"github.com/honganh1206/clue/ui"
 )
+
+type PlanUpdateCallback func(*data.Plan)
 
 type Agent struct {
 	LLM       inference.LLMClient
@@ -21,13 +24,14 @@ type Agent struct {
 	Conv      *data.Conversation
 	Plan      *data.Plan
 	Client    *api.Client
+	Ctl       *ui.Controller
 	MCP       mcp.Config
 	streaming bool
 	// In the future it could be a map of agents, keys are task ID
 	Sub *Subagent
 }
 
-func New(llm inference.LLMClient, conversation *data.Conversation, toolBox *tools.ToolBox, client *api.Client, mcpConfigs []mcp.ServerConfig, plan *data.Plan, streaming bool) *Agent {
+func New(llm inference.LLMClient, conversation *data.Conversation, toolBox *tools.ToolBox, client *api.Client, mcpConfigs []mcp.ServerConfig, plan *data.Plan, streaming bool, ctl *ui.Controller) *Agent {
 	agent := &Agent{
 		LLM:       llm,
 		ToolBox:   toolBox,
@@ -35,6 +39,7 @@ func New(llm inference.LLMClient, conversation *data.Conversation, toolBox *tool
 		Plan:      plan,
 		Client:    client,
 		streaming: streaming,
+		Ctl:       ctl,
 	}
 
 	agent.MCP.ServerConfigs = mcpConfigs
@@ -217,18 +222,19 @@ func (a *Agent) executeLocalTool(id, name string, input json.RawMessage) message
 		response = final.String()
 	} else {
 		// The main agent invokes tools
-		var meta tools.ToolMetadata
-		if toolDef.Name == tools.ToolNamePlanWrite {
-			// Update to the input var to include conversation ID?
-			meta = tools.ToolMetadata{
-				ConversationID: a.Conv.ID,
-			}
+		meta := tools.ToolMetadata{
+			ConversationID: a.Conv.ID,
 		}
-		// TODO: A lot of formatting like path to file formatting
+
 		response, err = toolDef.Function(input, meta)
 
-		// How do we update the in-mem plan without depending on the client to fetch the latest?
-		a.Plan, _ = a.Client.GetPlan(meta.ConversationID)
+		// TODO: Why specific for PlanWrite here? We can do better
+		if toolDef.Name == tools.ToolNamePlanWrite {
+			// Plan likely to get updated, so re-fetch to be sure
+			a.Plan, _ = a.Client.GetPlan(a.Conv.ID)
+			a.PublishPlan()
+		}
+
 	}
 
 	if err != nil {
@@ -262,6 +268,10 @@ func (a *Agent) runSubagent(id, name, toolDescription string, rawInput json.RawM
 	return result, nil
 }
 
+func (a *Agent) PublishPlan() {
+	a.Ctl.Publish(&ui.State{Plan: a.Plan})
+}
+
 func (a *Agent) saveConversation() error {
 	if len(a.Conv.Messages) > 0 {
 		err := a.Client.SaveConversation(a.Conv)
@@ -293,4 +303,3 @@ func (a *Agent) streamResponse(ctx context.Context, onDelta func(string)) (*mess
 
 	return msg, nil
 }
-

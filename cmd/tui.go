@@ -13,13 +13,13 @@ import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/honganh1206/clue/agent"
 	"github.com/honganh1206/clue/message"
-	"github.com/honganh1206/clue/progress"
 	"github.com/honganh1206/clue/server/data"
+	"github.com/honganh1206/clue/ui"
 	"github.com/honganh1206/clue/utils"
 	"github.com/rivo/tview"
 )
 
-func tui(ctx context.Context, agent *agent.Agent) error {
+func tui(ctx context.Context, agent *agent.Agent, ctl *ui.Controller) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -77,42 +77,35 @@ func tui(ctx context.Context, agent *agent.Agent) error {
 		return event
 	})
 
-	// TODO: Can we move this to a separate function?
-	// Persisted channel
-	planCh := make(chan *data.Plan, 1)
-	// var wg sync.WaitGroup
+	renderPlan := func(s *ui.State) {
+		app.QueueUpdateDraw(func() {
+			inputFlex.Clear()
+			plan := s.Plan
+			if plan == nil || len(plan.Steps) == 0 {
+				inputFlex.AddItem(questionInput, 0, 1, true)
+				mainLayout.ResizeItem(inputFlex, 5, 0)
+			} else {
+				planView.SetText(formatPlanSteps(plan))
+				planView.SetTitle(fmt.Sprintf(" %s ", plan.PlanName))
+				inputFlex.
+					AddItem(questionInput, 0, 2, true).
+					AddItem(planView, 0, 1, false)
 
-	// wg.Add(1)
-	go func() {
-		// defer wg.Done()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case currentPlan := <-planCh:
-				app.QueueUpdateDraw(func() {
-					inputFlex.Clear()
-
-					if currentPlan == nil || len(currentPlan.Steps) == 0 {
-						inputFlex.AddItem(questionInput, 0, 1, true)
-						mainLayout.ResizeItem(inputFlex, 5, 0)
-					} else {
-						planView.SetText(formatPlanSteps(currentPlan))
-						planView.SetTitle(fmt.Sprintf(" %s ", currentPlan.PlanName))
-						inputFlex.
-							AddItem(questionInput, 0, 2, true).
-							AddItem(planView, 0, 1, false)
-
-						newHeight := max(5, len(currentPlan.Steps)+2)
-						mainLayout.ResizeItem(inputFlex, newHeight, 0)
-					}
-				})
-			default:
-				planCh <- agent.Plan
+				newHeight := max(5, len(plan.Steps)+2)
+				mainLayout.ResizeItem(inputFlex, newHeight, 0)
 			}
+		})
+	}
+
+	go func() {
+		updateCh := ctl.Subscribe()
+
+		for s := range updateCh {
+			renderPlan(s)
 		}
 	}()
-	// wg.Wait()
+
+	go agent.PublishPlan()
 
 	questionInput.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if isFirstInput && event.Key() == tcell.KeyRune {
@@ -137,7 +130,7 @@ func tui(ctx context.Context, agent *agent.Agent) error {
 			// User input
 			fmt.Fprintf(conversationView, "[blue::]> %s\n\n", content)
 
-			spinner := progress.NewSpinner(getRandomSpinnerMessage())
+			spinner := ui.NewSpinner(getRandomSpinnerMessage())
 			firstDelta := true
 			spinCh := make(chan bool, 1)
 
@@ -358,4 +351,3 @@ func formatPlanSteps(plan *data.Plan) string {
 
 	return result.String()
 }
-

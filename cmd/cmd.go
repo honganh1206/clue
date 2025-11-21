@@ -294,7 +294,7 @@ Examples:
 		RunE: ChatHandler,
 	}
 
-	rootCmd.PersistentFlags().StringVar(&llm.Provider, "provider", string(inference.AnthropicProvider), "Provider (anthropic, openai, gemini, ollama, deepseek)")
+	rootCmd.PersistentFlags().StringVar(&llm.Provider, "provider", string(inference.AnthropicProvider), "Provider (anthropic, gemini)")
 	rootCmd.PersistentFlags().StringVar(&llm.Model, "model", "", "Model to use (depends on selected model)")
 	rootCmd.PersistentFlags().Int64Var(&llm.TokenLimit, "max-tokens", 0, "Maximum number of tokens in response")
 	rootCmd.PersistentFlags().BoolVar(&verbose, "verbose", false, "Enable verbose output")
