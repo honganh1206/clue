@@ -19,30 +19,42 @@ import (
 type PlanUpdateCallback func(*data.Plan)
 
 type Agent struct {
-	LLM       inference.LLMClient
-	ToolBox   *tools.ToolBox
-	Conv      *data.Conversation
-	Plan      *data.Plan
-	Client    *api.Client
-	Ctl       *ui.Controller
-	MCP       mcp.Config
+	LLM     inference.LLMClient
+	ToolBox *tools.ToolBox
+	Conv    *data.Conversation
+	Plan    *data.Plan
+	Client  *api.Client
+	ctl     *ui.Controller
+	MCP     mcp.Config
+	// TODO: Default to be streaming. Be a dictator :)
 	streaming bool
 	// In the future it could be a map of agents, keys are task ID
 	Sub *Subagent
 }
 
-func New(llm inference.LLMClient, conversation *data.Conversation, toolBox *tools.ToolBox, client *api.Client, mcpConfigs []mcp.ServerConfig, plan *data.Plan, streaming bool, ctl *ui.Controller) *Agent {
+type Config struct {
+	LLM          inference.LLMClient
+	Conversation *data.Conversation
+	ToolBox      *tools.ToolBox
+	Client       *api.Client
+	MCPConfigs   []mcp.ServerConfig
+	Plan         *data.Plan
+	Streaming    bool
+	Controller   *ui.Controller
+}
+
+func New(config *Config) *Agent {
 	agent := &Agent{
-		LLM:       llm,
-		ToolBox:   toolBox,
-		Conv:      conversation,
-		Plan:      plan,
-		Client:    client,
-		streaming: streaming,
-		Ctl:       ctl,
+		LLM:       config.LLM,
+		ToolBox:   config.ToolBox,
+		Conv:      config.Conversation,
+		Plan:      config.Plan,
+		Client:    config.Client,
+		streaming: config.Streaming,
+		ctl:       config.Controller,
 	}
 
-	agent.MCP.ServerConfigs = mcpConfigs
+	agent.MCP.ServerConfigs = config.MCPConfigs
 	agent.MCP.ActiveServers = []*mcp.Server{}
 	agent.MCP.Tools = []mcp.Tools{}
 	agent.MCP.ToolMap = make(map[string]mcp.ToolDetails)
@@ -77,7 +89,6 @@ func (a *Agent) Run(ctx context.Context, userInput string, onDelta func(string))
 			}
 
 			a.Conv.Append(userMsg)
-			a.saveConversation()
 		}
 
 		agentMsg, err := a.streamResponse(ctx, onDelta)
@@ -91,7 +102,6 @@ func (a *Agent) Run(ctx context.Context, userInput string, onDelta func(string))
 		}
 
 		a.Conv.Append(agentMsg)
-		a.saveConversation()
 
 		toolResults := []message.ContentBlock{}
 		for _, c := range agentMsg.Content {
@@ -106,6 +116,7 @@ func (a *Agent) Run(ctx context.Context, userInput string, onDelta func(string))
 			// If we reach this case, it means we have finished processing the tool results
 			// and we are safe to return the text response from the agent and wait for the next input.
 			readUserInput = true
+			a.saveConversation()
 			break
 		}
 
@@ -122,7 +133,6 @@ func (a *Agent) Run(ctx context.Context, userInput string, onDelta func(string))
 		}
 
 		a.Conv.Append(toolResultMsg)
-		a.saveConversation()
 	}
 	return nil
 }
@@ -200,7 +210,6 @@ func (a *Agent) executeLocalTool(id, name string, input json.RawMessage) message
 	var err error
 
 	if toolDef.IsSubTool {
-		// Make the subagent invoke tools
 		toolResultMsg, err := a.runSubagent(id, name, toolDef.Description, input)
 		// 25k tokens is best practice from Anthropic
 		truncatedResult := a.Sub.llm.TruncateMessage(toolResultMsg, 25000)
@@ -221,20 +230,17 @@ func (a *Agent) executeLocalTool(id, name string, input json.RawMessage) message
 
 		response = final.String()
 	} else {
-		// The main agent invokes tools
-		meta := tools.ToolMetadata{
-			ConversationID: a.Conv.ID,
+		toolData := &tools.ToolData{
+			Input: input,
 		}
 
-		response, err = toolDef.Function(input, meta)
-
-		// TODO: Why specific for PlanWrite here? We can do better
-		if toolDef.Name == tools.ToolNamePlanWrite {
-			// Plan likely to get updated, so re-fetch to be sure
-			a.Plan, _ = a.Client.GetPlan(a.Conv.ID)
-			a.PublishPlan()
+		switch toolDef.Name {
+		case tools.ToolNamePlanWrite, tools.ToolNamePlanRead:
+			// Special treatment: Tools dealing with plans need more fields populated
+			response, err = a.executePlanTool(toolDef, toolData)
+		default:
+			response, err = toolDef.Function(toolData)
 		}
-
 	}
 
 	if err != nil {
@@ -242,6 +248,23 @@ func (a *Agent) executeLocalTool(id, name string, input json.RawMessage) message
 	}
 
 	return message.NewToolResultBlock(id, name, response, false)
+}
+
+func (a *Agent) executePlanTool(def *tools.ToolDefinition, data *tools.ToolData) (string, error) {
+	data.Client = a.Client
+	data.ToolMetadata = tools.ToolMetadata{
+		ConversationID: a.Conv.ID,
+	}
+	response, err := def.Function(data)
+	if err != nil {
+		return "", err
+	}
+	// Reflect the plan on the UI
+	if def.Name == tools.ToolNamePlanWrite {
+		a.Plan, _ = a.Client.GetPlan(a.Conv.ID)
+		a.PublishPlan()
+	}
+	return response, nil
 }
 
 func (a *Agent) runSubagent(id, name, toolDescription string, rawInput json.RawMessage) (*message.Message, error) {
@@ -269,7 +292,7 @@ func (a *Agent) runSubagent(id, name, toolDescription string, rawInput json.RawM
 }
 
 func (a *Agent) PublishPlan() {
-	a.Ctl.Publish(&ui.State{Plan: a.Plan})
+	a.ctl.Publish(&ui.State{Plan: a.Plan})
 }
 
 func (a *Agent) saveConversation() error {

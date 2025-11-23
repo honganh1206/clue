@@ -123,6 +123,7 @@ func (b *BaseLLMClient) BaseSummarizeHistory(history []*message.Message, thresho
 	return summarizedHistory
 }
 
+// TODO: Refer to truncate logic in smolkafka Truncate method in log.go
 func (b *BaseLLMClient) BaseTruncateMessage(msg *message.Message, threshold int) *message.Message {
 	for i, b := range msg.Content {
 		// TODO: A new parameter to specify which keys to preserve

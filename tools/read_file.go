@@ -24,9 +24,9 @@ var ReadFileDefinition = ToolDefinition{
 	Function:    ReadFile,
 }
 
-func ReadFile(input json.RawMessage, _ ToolMetadata) (string, error) {
+func ReadFile(data *ToolData) (string, error) {
 	readFileInput := ReadFileInput{}
-	err := json.Unmarshal(input, &readFileInput)
+	err := json.Unmarshal(data.Input, &readFileInput)
 	if err != nil {
 		panic(err)
 	}
@@ -38,3 +38,4 @@ func ReadFile(input json.RawMessage, _ ToolMetadata) (string, error) {
 
 	return string(content), nil
 }
+

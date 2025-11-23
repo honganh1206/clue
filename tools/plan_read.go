@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/honganh1206/clue/schema"
-	"github.com/honganh1206/clue/server/api"
 )
 
 var PlanReadDefinition = ToolDefinition{
@@ -30,11 +29,10 @@ type PlanReadInput struct {
 
 var PlanReadInputSchema = schema.Generate[PlanReadInput]()
 
-func PlanRead(input json.RawMessage, meta ToolMetadata) (string, error) {
-	client := api.NewClient("") // TODO: Very temp
+func PlanRead(data *ToolData) (string, error) {
 	planReadInput := PlanReadInput{}
 
-	err := json.Unmarshal(input, &planReadInput)
+	err := json.Unmarshal(data.Input, &planReadInput)
 	if err != nil {
 		return "", err
 	}
@@ -47,28 +45,28 @@ func PlanRead(input json.RawMessage, meta ToolMetadata) (string, error) {
 
 	switch planReadInput.Action {
 	case ActionInspect:
-		return handleInspect(client, planName)
+		return handleInspect(data, planName)
 	case ActionGetNextStep:
-		return handleGetNextStep(client, planName)
+		return handleGetNextStep(data, planName)
 	case ActionIsCompleted:
-		return handleIsCompleted(client, planName)
+		return handleIsCompleted(data, planName)
 	default:
 		return "", fmt.Errorf("plan_read: unknown action '%s'", planReadInput.Action)
 	}
 }
 
-func handleInspect(client *api.Client, planName string) (string, error) {
+func handleInspect(data *ToolData, planName string) (string, error) {
 	// This means the agent in conversation A session can read the plan from conversation B given the opportunity.
 	// Do we want this?
-	plan, err := client.GetPlanByName(planName)
+	plan, err := data.Client.GetPlanByName(planName)
 	if err != nil {
 		return "", fmt.Errorf("plan_read: failed to get plan '%s': %w", planName, err)
 	}
 	return plan.Inspect(), nil
 }
 
-func handleGetNextStep(client *api.Client, planName string) (string, error) {
-	plan, err := client.GetPlanByName(planName)
+func handleGetNextStep(data *ToolData, planName string) (string, error) {
+	plan, err := data.GetPlanByName(planName)
 	if err != nil {
 		return "", fmt.Errorf("plan_read: failed to get plan '%s': %w", planName, err)
 	}
@@ -94,8 +92,8 @@ func handleGetNextStep(client *api.Client, planName string) (string, error) {
 	}
 }
 
-func handleIsCompleted(client *api.Client, planName string) (string, error) {
-	plan, err := client.GetPlanByName(planName)
+func handleIsCompleted(data *ToolData, planName string) (string, error) {
+	plan, err := data.GetPlanByName(planName)
 	if err != nil {
 		return "", fmt.Errorf("plan_read: failed to get plan '%s': %w", planName, err)
 	}

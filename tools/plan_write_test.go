@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/honganh1206/clue/api"
+	"github.com/honganh1206/clue/server/api"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -19,6 +19,15 @@ func createTestAPIClient(t *testing.T) *api.Client {
 	// }
 
 	return client
+}
+
+func createToolData(inputJSON []byte) ToolData {
+	return ToolData{
+		Input: inputJSON,
+		ToolMetadata: ToolMetadata{
+			ConversationID: "test-conversation",
+		},
+	}
 }
 
 // Tests for PlanWrite function - ActionAddSteps
@@ -43,7 +52,7 @@ func TestPlanWrite_AddSteps_Success(t *testing.T) {
 	}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := PlanWrite(inputJSON, client)
+	result, err := PlanWrite(createToolData(inputJSON))
 
 	assert.NoError(t, err)
 	assert.NotEmpty(t, result)
@@ -75,7 +84,7 @@ func TestPlanWrite_AddSteps_MultipleSteps(t *testing.T) {
 	}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := PlanWrite(inputJSON, client)
+	result, err := PlanWrite(createToolData(inputJSON))
 
 	assert.NoError(t, err)
 	assert.Contains(t, result, "Added 3 steps")
@@ -98,7 +107,7 @@ func TestPlanWrite_AddSteps_MissingStepID(t *testing.T) {
 	}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := PlanWrite(inputJSON, client)
+	result, err := PlanWrite(createToolData(inputJSON))
 
 	assert.Error(t, err)
 	assert.Empty(t, result)
@@ -122,7 +131,7 @@ func TestPlanWrite_AddSteps_MissingDescription(t *testing.T) {
 	}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := PlanWrite(inputJSON, client)
+	result, err := PlanWrite(createToolData(inputJSON))
 
 	assert.Error(t, err)
 	assert.Empty(t, result)
@@ -143,7 +152,7 @@ func TestPlanWrite_SetStatus_ToDone(t *testing.T) {
 	}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := PlanWrite(inputJSON, client)
+	result, err := PlanWrite(createToolData(inputJSON))
 
 	assert.NoError(t, err)
 	assert.NotEmpty(t, result)
@@ -163,7 +172,7 @@ func TestPlanWrite_SetStatus_ToTodo(t *testing.T) {
 	}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := PlanWrite(inputJSON, client)
+	result, err := PlanWrite(createToolData(inputJSON))
 
 	assert.NoError(t, err)
 	assert.NotEmpty(t, result)
@@ -182,7 +191,7 @@ func TestPlanWrite_SetStatus_MissingStepID(t *testing.T) {
 	}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := PlanWrite(inputJSON, client)
+	result, err := PlanWrite(createToolData(inputJSON))
 
 	assert.Error(t, err)
 	assert.Empty(t, result)
@@ -202,7 +211,7 @@ func TestPlanWrite_SetStatus_NonexistentPlan(t *testing.T) {
 	}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := PlanWrite(inputJSON, client)
+	result, err := PlanWrite(createToolData(inputJSON))
 
 	assert.Error(t, err)
 	assert.Empty(t, result)
@@ -219,7 +228,7 @@ func TestPlanWrite_EmptyPlanName(t *testing.T) {
 	}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := PlanWrite(inputJSON, client)
+	result, err := PlanWrite(createToolData(inputJSON))
 
 	assert.Error(t, err)
 	assert.Empty(t, result)
@@ -246,7 +255,7 @@ func TestPlanWrite_UnknownAction(t *testing.T) {
 	}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := PlanWrite(inputJSON, client)
+	result, err := PlanWrite(createToolData(inputJSON))
 
 	assert.Error(t, err)
 	assert.Empty(t, result)
@@ -443,7 +452,7 @@ func TestPlanWrite_VariousInputs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			inputJSON, _ := json.Marshal(tt.input)
 
-			result, err := PlanWrite(inputJSON, client)
+			result, err := PlanWrite(createToolData(inputJSON))
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -475,7 +484,7 @@ func BenchmarkPlanWrite_AddSteps(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		PlanWrite(inputJSON, client)
+		PlanWrite(createToolData(inputJSON))
 	}
 }
 
@@ -493,6 +502,6 @@ func BenchmarkPlanWrite_SetStatus(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		PlanWrite(inputJSON, client)
+		PlanWrite(createToolData(inputJSON))
 	}
 }

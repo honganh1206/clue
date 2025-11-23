@@ -21,10 +21,10 @@ type ListFilesInput struct {
 
 var ListFilesInputSchema = schema.Generate[ListFilesInput]()
 
-func ListFiles(input json.RawMessage, _ ToolMetadata) (string, error) {
+func ListFiles(data *ToolData) (string, error) {
 	listFilesInput := ListFilesInput{}
 
-	err := json.Unmarshal(input, &listFilesInput)
+	err := json.Unmarshal(data.Input, &listFilesInput)
 	if err != nil {
 		return "", err
 	}
@@ -73,3 +73,4 @@ func ListFiles(input json.RawMessage, _ ToolMetadata) (string, error) {
 
 	return string(result), nil
 }
+

@@ -43,3 +43,9 @@ When a plan is created, we need a way to immediately fetch it for display on the
 To interact with the plan the agent needs to do the tool call `plan_read`. However, there might be a problem: **Then plan might be fetched and refetched multiple times to the context window, meanwhile it should be handled via the `Plan` object of the agent**. But that should be minimal, since the agent needs a way to interact with the plan (and thus to allocate steps to subagents).
 
 We also need to know how to modify it. There is an in-memory object of the plan, so the current approach should be to modify it at the start of the plan implementation, and update it again after the plan is done. We then save it to the database. (Normal CRUD stuff please!)
+
+---
+
+Now that the plan state manangement is quite done using the channel approach, the next big challenge is to get rid of the `ToolMetadata` and the `client` object inside the plan tools. Both are just super glue code. Also we need to get rid of the if case for `plan_write` tool in `agent.go`.
+
+The first idea is to reuse the `agent.Client` field inside `agent.go`, meaning we execute CRUD operations on the plan entity inside the `agent.go`, not inside the tool files.

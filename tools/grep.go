@@ -27,9 +27,9 @@ type GrepSearchInput struct {
 
 var GrepSearchInputSchema = schema.Generate[GrepSearchInput]()
 
-func GrepSearch(input json.RawMessage, _ ToolMetadata) (string, error) {
+func GrepSearch(data *ToolData) (string, error) {
 	searchInput := GrepSearchInput{}
-	err := json.Unmarshal(input, &searchInput)
+	err := json.Unmarshal(data.Input, &searchInput)
 	if err != nil {
 		return "", err
 	}
@@ -60,3 +60,4 @@ func GrepSearch(input json.RawMessage, _ ToolMetadata) (string, error) {
 		return arr, nil
 	}
 }
+

@@ -68,9 +68,27 @@ func interactive(ctx context.Context, convID string, llmClient, llmClientSub inf
 	}
 
 	ctl := ui.NewController()
-	a := agent.New(llm, conv, toolBox, apiClient, mcpConfigs, plan, true, ctl)
 
-	sub := agent.NewSubagent(subllm, subToolBox, false)
+	cfg := &agent.Config{
+		LLM:          llm,
+		Conversation: conv,
+		ToolBox:      toolBox,
+		Client:       apiClient,
+		MCPConfigs:   mcpConfigs,
+		Plan:         plan,
+		Streaming:    true,
+		Controller:   ctl,
+	}
+
+	a := agent.New(cfg)
+
+	subCfg := &agent.Config{
+		LLM:       subllm,
+		ToolBox:   subToolBox,
+		Streaming: false,
+	}
+
+	sub := agent.NewSubagent(subCfg)
 	a.Sub = sub
 
 	a.RegisterMCPServers()

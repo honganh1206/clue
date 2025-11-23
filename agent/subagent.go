@@ -21,17 +21,17 @@ type Subagent struct {
 	streaming bool
 }
 
-func NewSubagent(llm inference.LLMClient, toolBox *tools.ToolBox, streaming bool) *Subagent {
-	err := llm.ToNativeTools(toolBox.Tools)
+func NewSubagent(config *Config) *Subagent {
+	err := config.LLM.ToNativeTools(config.ToolBox.Tools)
 	if err != nil {
 		// TODO: Return error instead of panicking
 		panic(fmt.Sprintf("failed to register subagent tools: %v", err))
 	}
 
 	return &Subagent{
-		llm:       llm,
-		toolBox:   toolBox,
-		streaming: streaming,
+		llm:       config.LLM,
+		toolBox:   config.ToolBox,
+		streaming: config.Streaming,
 	}
 }
 
@@ -112,8 +112,11 @@ func (s *Subagent) executeTool(id, name string, input json.RawMessage) message.C
 		return message.NewToolResultBlock(id, name, errorMsg, true)
 	}
 
-	meta := tools.ToolMetadata{} // TODO: placeholder
-	response, err := toolDef.Function(input, meta)
+	toolData := &tools.ToolData{
+		Input: input,
+	}
+
+	response, err := toolDef.Function(toolData)
 	if err != nil {
 		return message.NewToolResultBlock(id, name, err.Error(), true)
 	}

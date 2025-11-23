@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/honganh1206/clue/schema"
-	"github.com/honganh1206/clue/server/api"
 )
 
 var PlanWriteDefinition = ToolDefinition{
@@ -49,11 +48,10 @@ var PlanWriteInputSchema = schema.Generate[PlanWriteInput]()
 
 // TODO: We might be using the same client with the agent here
 // so when we create a transaction, the agent is already using the client to save conversation
-func PlanWrite(input json.RawMessage, meta ToolMetadata) (string, error) {
-	client := api.NewClient("") // TODO: Very temp
+func PlanWrite(data *ToolData) (string, error) {
 	planWriteInput := PlanWriteInput{}
 
-	err := json.Unmarshal(input, &planWriteInput)
+	err := json.Unmarshal(data.Input, &planWriteInput)
 	if err != nil {
 		return "", err
 	}
@@ -66,22 +64,23 @@ func PlanWrite(input json.RawMessage, meta ToolMetadata) (string, error) {
 
 	switch planWriteInput.Action {
 	case ActionSetStatus:
-		return handleSetStatus(client, &planWriteInput, planName, meta)
+		// TODO: Passing the entire data struct is kind dumb
+		return handleSetStatus(&planWriteInput, data, planName)
 	case ActionAddSteps:
-		return handleAddSteps(client, &planWriteInput, planName, meta)
+		return handleAddSteps(&planWriteInput, data, planName)
 	default:
 		return "", fmt.Errorf("plan_write: unknown action '%s'", planWriteInput.Action)
 	}
 }
 
-func handleSetStatus(client *api.Client, input *PlanWriteInput, planName string, meta ToolMetadata) (string, error) {
+func handleSetStatus(input *PlanWriteInput, data *ToolData, planName string) (string, error) {
 	// TODO: If we tell the agent to mark all steps as done here (meaning not tell it explicitly the names of the steps to mark)
 	// then the agent will generate new step names.
 	// This leads to mismatches between those names and step names from the DB, and eventually an error.
 	// Can the context window of the agent handle that?
 	stepID := input.StepID
 	status := input.Status
-	p, err := client.GetPlanByName(planName)
+	p, err := data.Client.GetPlanByName(planName)
 	if err != nil {
 		return "", fmt.Errorf("plan_write: failed to get plan '%s' for set_status: %w", planName, err)
 	}
@@ -97,22 +96,22 @@ func handleSetStatus(client *api.Client, input *PlanWriteInput, planName string,
 	}
 
 	// Persist the change to the plan (including the updated step status)
-	if err = client.SavePlan(p); err != nil {
+	if err = data.Client.SavePlan(p); err != nil {
 		return "", fmt.Errorf("plan_write: failed to save plan '%s' after setting status: %w", planName, err)
 	}
 
-	return fmt.Sprintf("Step '%s' in plan '%s' set to '%s'.", stepID, planName, string(status)), nil
+	return fmt.Sprintf("Step '%s' in plan '%s' set to '%s'.", stepID, planName, status), nil
 }
 
-func handleAddSteps(client *api.Client, input *PlanWriteInput, planName string, meta ToolMetadata) (string, error) {
+func handleAddSteps(input *PlanWriteInput, data *ToolData, planName string) (string, error) {
 	stepsToAdd := input.StepsToAdd
 
-	p, err := client.GetPlan(planName)
+	p, err := data.Client.GetPlan(planName)
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "not found") {
 			// TODO: Fetch the current conversation from client object to write a plan to it
 			// should we reuse the same client object?
-			p, err = client.CreatePlan(planName, meta.ConversationID)
+			p, err = data.Client.CreatePlan(planName, data.ToolMetadata.ConversationID)
 			if err != nil {
 				return "", fmt.Errorf("plan_write: failed to create new plan '%s' for adding steps: %w", planName, err)
 			}
@@ -142,10 +141,9 @@ func handleAddSteps(client *api.Client, input *PlanWriteInput, planName string, 
 		addedCount++
 	}
 
-	if err := client.SavePlan(p); err != nil {
+	if err := data.Client.SavePlan(p); err != nil {
 		// 500 here? is it because of create plan and add steps in the same transaction??
 		return "", fmt.Errorf("plan_write: failed to save updated plan '%s': %w", planName, err)
 	}
 	return fmt.Sprintf("Added %d steps to plan '%s'.", addedCount, planName), nil
 }
-

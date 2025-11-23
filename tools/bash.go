@@ -27,10 +27,10 @@ var BashDefinition = ToolDefinition{
 	Function:    Bash,
 }
 
-func Bash(input json.RawMessage, _ ToolMetadata) (string, error) {
+func Bash(data *ToolData) (string, error) {
 	// Parse the JSON input into a BashInput struct
 	bashInput := BashInput{}
-	err := json.Unmarshal(input, &bashInput)
+	err := json.Unmarshal(data.Input, &bashInput)
 	if err != nil {
 		return "", err
 	}
@@ -46,3 +46,4 @@ func Bash(input json.RawMessage, _ ToolMetadata) (string, error) {
 
 	return strings.TrimSpace(string(output)), err
 }
+

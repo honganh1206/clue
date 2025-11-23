@@ -4,6 +4,7 @@ import "github.com/honganh1206/clue/server/data"
 
 type State struct {
 	Plan *data.Plan
+	// TODO: Can we handle response delta here too?
 }
 
 type Controller struct {
