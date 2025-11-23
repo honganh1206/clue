@@ -39,10 +39,6 @@ type ToolData struct {
 	// Not the best design, but it's better than creating new instances of client
 	// Can I have a Output field of type string and the Function of ToolDefinition should return it?
 	*api.Client
-	Input json.RawMessage
-	ToolMetadata
-}
-
-type ToolMetadata struct {
-	ConversationID string `json:"conversation_id"`
+	Input          json.RawMessage
+	ConversationID string
 }

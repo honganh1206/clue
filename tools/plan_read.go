@@ -9,7 +9,7 @@ import (
 
 var PlanReadDefinition = ToolDefinition{
 	Name:        ToolNamePlanRead,
-	Description: "Fetch evelopment plans. Use this tool to inspect and query the status of plans and their steps. Always specify the plan name.",
+	Description: "Fetch evelopment plans. Use this tool to inspect and query the status of plans and their steps.",
 	InputSchema: PlanReadInputSchema,
 	Function:    PlanRead,
 }
@@ -23,8 +23,7 @@ const (
 )
 
 type PlanReadInput struct {
-	PlanName string     `json:"plan_name" jsonschema_description:"The name of the plan to manage (e.g., 'main', 'feature-x'). This corresponds to the unique ID in the plans database."`
-	Action   ReadAction `json:"read_action" jsonschema_description:"The read operation to perform on the plan: 'inspect', 'get_next_step' or 'is_completed'."`
+	Action ReadAction `json:"read_action" jsonschema_description:"The read operation to perform on the plan: 'inspect', 'get_next_step' or 'is_completed'."`
 }
 
 var PlanReadInputSchema = schema.Generate[PlanReadInput]()
@@ -37,38 +36,32 @@ func PlanRead(data *ToolData) (string, error) {
 		return "", err
 	}
 
-	planName := planReadInput.PlanName
-
-	if planName == "" {
-		return "", fmt.Errorf("plan_read: missing or invalid plan_name")
-	}
-
 	switch planReadInput.Action {
 	case ActionInspect:
-		return handleInspect(data, planName)
+		return handleInspect(data)
 	case ActionGetNextStep:
-		return handleGetNextStep(data, planName)
+		return handleGetNextStep(data)
 	case ActionIsCompleted:
-		return handleIsCompleted(data, planName)
+		return handleIsCompleted(data)
 	default:
 		return "", fmt.Errorf("plan_read: unknown action '%s'", planReadInput.Action)
 	}
 }
 
-func handleInspect(data *ToolData, planName string) (string, error) {
+func handleInspect(data *ToolData) (string, error) {
 	// This means the agent in conversation A session can read the plan from conversation B given the opportunity.
 	// Do we want this?
-	plan, err := data.Client.GetPlanByName(planName)
+	plan, err := data.Client.GetPlan(data.ConversationID)
 	if err != nil {
-		return "", fmt.Errorf("plan_read: failed to get plan '%s': %w", planName, err)
+		return "", fmt.Errorf("plan_read: failed to get plan with conversation ID '%s': %w", data.ConversationID, err)
 	}
 	return plan.Inspect(), nil
 }
 
-func handleGetNextStep(data *ToolData, planName string) (string, error) {
-	plan, err := data.GetPlanByName(planName)
+func handleGetNextStep(data *ToolData) (string, error) {
+	plan, err := data.GetPlan(data.ConversationID)
 	if err != nil {
-		return "", fmt.Errorf("plan_read: failed to get plan '%s': %w", planName, err)
+		return "", fmt.Errorf("plan_read: failed to get plan for conversation with ID '%s': %w", data.ConversationID, err)
 	}
 	next := plan.NextStep()
 	if next == nil {
@@ -92,10 +85,10 @@ func handleGetNextStep(data *ToolData, planName string) (string, error) {
 	}
 }
 
-func handleIsCompleted(data *ToolData, planName string) (string, error) {
-	plan, err := data.GetPlanByName(planName)
+func handleIsCompleted(data *ToolData) (string, error) {
+	plan, err := data.GetPlan(data.ConversationID)
 	if err != nil {
-		return "", fmt.Errorf("plan_read: failed to get plan '%s': %w", planName, err)
+		return "", fmt.Errorf("plan_read: failed to get plan for conversation with ID '%s': %w", data.ConversationID, err)
 	}
 	isCompleted := plan.IsCompleted()
 	// Are we going to format it to JSON or just string?

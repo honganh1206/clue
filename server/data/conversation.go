@@ -200,7 +200,7 @@ func (cm ConversationModel) LatestID() (string, error) {
 	return id, nil
 }
 
-func (cm ConversationModel) Load(id string) (*Conversation, error) {
+func (cm ConversationModel) Get(id string) (*Conversation, error) {
 	query := `
 		SELECT created_at FROM conversations WHERE id = ?
 	`
@@ -260,4 +260,3 @@ func (cm ConversationModel) Load(id string) (*Conversation, error) {
 
 	return conv, nil
 }
-

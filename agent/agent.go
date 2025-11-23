@@ -250,17 +250,19 @@ func (a *Agent) executeLocalTool(id, name string, input json.RawMessage) message
 	return message.NewToolResultBlock(id, name, response, false)
 }
 
-func (a *Agent) executePlanTool(def *tools.ToolDefinition, data *tools.ToolData) (string, error) {
-	data.Client = a.Client
-	data.ToolMetadata = tools.ToolMetadata{
-		ConversationID: a.Conv.ID,
-	}
-	response, err := def.Function(data)
+// TODO: The ToolData struct should not have a Client field
+// All CRUD operations for Plan should be executed here
+// The plan_write and plan_read tools should only receive a Plan object
+func (a *Agent) executePlanTool(toolDef *tools.ToolDefinition, toolData *tools.ToolData) (string, error) {
+	toolData.Client = a.Client
+	toolData.ConversationID = a.Conv.ID
+
+	response, err := toolDef.Function(toolData)
 	if err != nil {
 		return "", err
 	}
 	// Reflect the plan on the UI
-	if def.Name == tools.ToolNamePlanWrite {
+	if toolDef.Name == tools.ToolNamePlanWrite {
 		a.Plan, _ = a.Client.GetPlan(a.Conv.ID)
 		a.PublishPlan()
 	}

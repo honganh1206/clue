@@ -22,7 +22,7 @@ func createTestSubagent() (*Subagent, *MockLLMClient) {
 			{
 				Name:        "test_tool",
 				Description: "A test tool for subagent",
-				Function: func(input json.RawMessage) (string, error) {
+				Function: func(td *tools.ToolData) (string, error) {
 					return "subagent test result", nil
 				},
 			},
@@ -32,7 +32,11 @@ func createTestSubagent() (*Subagent, *MockLLMClient) {
 	// Mock successful tool registration
 	mockLLM.On("ToNativeTools", toolBox.Tools).Return(nil)
 
-	subagent := NewSubagent(mockLLM, toolBox, false)
+	subagent := NewSubagent(&Config{
+		LLM:       mockLLM,
+		ToolBox:   toolBox,
+		Streaming: false,
+	})
 	return subagent, mockLLM
 }
 
@@ -44,14 +48,18 @@ func TestNewSubagent_Success(t *testing.T) {
 			{
 				Name:        "read_file",
 				Description: "Read a file",
-				Function:    func(input json.RawMessage) (string, error) { return "", nil },
+				Function:    func(td *tools.ToolData) (string, error) { return "", nil },
 			},
 		},
 	}
 
 	mockLLM.On("ToNativeTools", toolBox.Tools).Return(nil)
 
-	subagent := NewSubagent(mockLLM, toolBox, true)
+	subagent := NewSubagent(&Config{
+		LLM:       mockLLM,
+		ToolBox:   toolBox,
+		Streaming: true,
+	})
 
 	assert.NotNil(t, subagent)
 	assert.Equal(t, mockLLM, subagent.llm)
@@ -76,7 +84,11 @@ func TestNewSubagent_ToNativeToolsError(t *testing.T) {
 
 	// This should panic due to the error
 	assert.Panics(t, func() {
-		NewSubagent(mockLLM, toolBox, false)
+		NewSubagent(&Config{
+			LLM:       mockLLM,
+			ToolBox:   toolBox,
+			Streaming: false,
+		})
 	})
 
 	mockLLM.AssertExpectations(t)
@@ -307,7 +319,7 @@ func TestSubagent_executeTool_ToolError(t *testing.T) {
 			{
 				Name:        "error_tool",
 				Description: "A tool that returns an error",
-				Function: func(input json.RawMessage) (string, error) {
+				Function: func(td *tools.ToolData) (string, error) {
 					return "", errors.New("tool execution failed")
 				},
 			},
@@ -315,7 +327,11 @@ func TestSubagent_executeTool_ToolError(t *testing.T) {
 	}
 
 	mockLLM.On("ToNativeTools", toolBox.Tools).Return(nil)
-	subagent := NewSubagent(mockLLM, toolBox, false)
+	subagent := NewSubagent(&Config{
+		LLM:       mockLLM,
+		ToolBox:   toolBox,
+		Streaming: false,
+	})
 
 	toolInput, _ := json.Marshal(map[string]string{"param": "value"})
 
@@ -378,14 +394,14 @@ func TestSubagent_Run_MultipleToolCalls(t *testing.T) {
 			{
 				Name:        "tool1",
 				Description: "First tool",
-				Function: func(input json.RawMessage) (string, error) {
+				Function: func(td *tools.ToolData) (string, error) {
 					return "result1", nil
 				},
 			},
 			{
 				Name:        "tool2",
 				Description: "Second tool",
-				Function: func(input json.RawMessage) (string, error) {
+				Function: func(td *tools.ToolData) (string, error) {
 					return "result2", nil
 				},
 			},
@@ -393,7 +409,11 @@ func TestSubagent_Run_MultipleToolCalls(t *testing.T) {
 	}
 
 	mockLLM.On("ToNativeTools", toolBox.Tools).Return(nil)
-	subagent := NewSubagent(mockLLM, toolBox, false)
+	subagent := NewSubagent(&Config{
+		LLM:       mockLLM,
+		ToolBox:   toolBox,
+		Streaming: false,
+	})
 
 	// Response with multiple tool uses
 	toolInput1, _ := json.Marshal(map[string]string{"param": "value1"})
@@ -448,7 +468,11 @@ func TestSubagent_Run_StreamingMode(t *testing.T) {
 	}
 
 	mockLLM.On("ToNativeTools", toolBox.Tools).Return(nil)
-	subagent := NewSubagent(mockLLM, toolBox, true) // Enable streaming
+	subagent := NewSubagent(&Config{
+		LLM:       mockLLM,
+		ToolBox:   toolBox,
+		Streaming: true,
+	}) // Enable streaming
 
 	expectedResponse := &message.Message{
 		Role: message.AssistantRole,

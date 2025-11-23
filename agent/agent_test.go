@@ -110,7 +110,7 @@ func createTestAgent() (*Agent, *MockLLMClient) {
 			{
 				Name:        "test_tool",
 				Description: "A test tool",
-				Function: func(input json.RawMessage) (string, error) {
+				Function: func(td *tools.ToolData) (string, error) {
 					return "test result", nil
 				},
 			},
@@ -119,7 +119,14 @@ func createTestAgent() (*Agent, *MockLLMClient) {
 
 	// Create a real api.Client for testing
 	realClient := api.NewClient("")
-	agent := New(mockLLM, conv, toolBox, realClient, []mcp.ServerConfig{}, false)
+	agent := New(&Config{
+		LLM:          mockLLM,
+		Conversation: conv,
+		ToolBox:      toolBox,
+		Client:       realClient,
+		MCPConfigs:   []mcp.ServerConfig{},
+		Streaming:    false,
+	})
 	return agent, mockLLM
 }
 
@@ -165,7 +172,14 @@ func TestNew(t *testing.T) {
 			}
 
 			realClient := api.NewClient("")
-			agent := New(mockLLM, conv, toolBox, realClient, mcpConfigs, tt.streaming)
+			agent := New(&Config{
+				LLM:          mockLLM,
+				Conversation: conv,
+				ToolBox:      toolBox,
+				Client:       realClient,
+				MCPConfigs:   mcpConfigs,
+				Streaming:    tt.streaming,
+			})
 
 			assert.NotNil(t, agent)
 			assert.Equal(t, mockLLM, agent.LLM)
@@ -309,7 +323,7 @@ func TestAgent_executeLocalTool_ToolError(t *testing.T) {
 	errorTool := &tools.ToolDefinition{
 		Name:        "error_tool",
 		Description: "A tool that errors",
-		Function: func(input json.RawMessage) (string, error) {
+		Function: func(td *tools.ToolData) (string, error) {
 			return "", errors.New("tool execution failed")
 		},
 	}
@@ -334,7 +348,11 @@ func TestAgent_runSubagent_Success(t *testing.T) {
 	subLLM := &MockLLMClient{}
 	subToolBox := &tools.ToolBox{Tools: []*tools.ToolDefinition{}}
 	subLLM.On("ToNativeTools", subToolBox.Tools).Return(nil)
-	realSubagent := NewSubagent(subLLM, subToolBox, false)
+	realSubagent := NewSubagent(&Config{
+		LLM:       subLLM,
+		ToolBox:   subToolBox,
+		Streaming: false,
+	})
 	agent.Sub = realSubagent
 
 	expectedResponse := &message.Message{
@@ -376,7 +394,11 @@ func TestAgent_runSubagent_SubagentError(t *testing.T) {
 	subLLM := &MockLLMClient{}
 	subToolBox := &tools.ToolBox{Tools: []*tools.ToolDefinition{}}
 	subLLM.On("ToNativeTools", subToolBox.Tools).Return(nil)
-	realSubagent := NewSubagent(subLLM, subToolBox, false)
+	realSubagent := NewSubagent(&Config{
+		LLM:       subLLM,
+		ToolBox:   subToolBox,
+		Streaming: false,
+	})
 	agent.Sub = realSubagent
 
 	expectedError := errors.New("subagent execution failed")

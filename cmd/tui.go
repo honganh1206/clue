@@ -86,7 +86,6 @@ func tui(ctx context.Context, agent *agent.Agent, ctl *ui.Controller) error {
 				mainLayout.ResizeItem(inputFlex, 5, 0)
 			} else {
 				planView.SetText(formatPlanSteps(plan))
-				planView.SetTitle(fmt.Sprintf(" %s ", plan.PlanName))
 				inputFlex.
 					AddItem(questionInput, 0, 2, true).
 					AddItem(planView, 0, 1, false)
@@ -339,14 +338,14 @@ func formatPlanSteps(plan *data.Plan) string {
 
 	var result strings.Builder
 
-	for i, step := range plan.Steps {
+	for _, step := range plan.Steps {
 		statusColor := "white"
 		statusSymbol := "○"
 		if strings.ToUpper(step.Status) == "DONE" {
 			statusColor = "green"
 			statusSymbol = "✓"
 		}
-		result.WriteString(fmt.Sprintf("[%s::]%s %d. %s[-]\n", statusColor, statusSymbol, i+1, step.Description))
+		result.WriteString(fmt.Sprintf("[%s::]%s %s[-]\n", statusColor, statusSymbol, step.Description))
 	}
 
 	return result.String()

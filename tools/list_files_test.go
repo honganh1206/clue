@@ -89,7 +89,7 @@ func TestListFiles_Success(t *testing.T) {
 	input := ListFilesInput{Path: testDir}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := ListFiles(inputJSON, ToolMetadata{})
+	result, err := ListFiles(&ToolData{Input: inputJSON})
 
 	assert.NoError(t, err)
 	assert.NotEmpty(t, result)
@@ -118,7 +118,7 @@ func TestListFiles_EmptyDirectory(t *testing.T) {
 	input := ListFilesInput{Path: emptyDir}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := ListFiles(inputJSON, ToolMetadata{})
+	result, err := ListFiles(&ToolData{Input: inputJSON})
 
 	assert.NoError(t, err)
 	assert.Equal(t, "null", result)
@@ -128,7 +128,7 @@ func TestListFiles_NoPathProvided(t *testing.T) {
 	input := ListFilesInput{}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := ListFiles(inputJSON, ToolMetadata{})
+	result, err := ListFiles(&ToolData{Input: inputJSON})
 
 	assert.NoError(t, err)
 	assert.NotEmpty(t, result)
@@ -143,7 +143,7 @@ func TestListFiles_NonexistentDirectory(t *testing.T) {
 	input := ListFilesInput{Path: "/nonexistent/directory"}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := ListFiles(inputJSON, ToolMetadata{})
+	result, err := ListFiles(&ToolData{Input: inputJSON})
 
 	assert.Error(t, err)
 	assert.Empty(t, result)
@@ -155,7 +155,7 @@ func TestListFiles_GitDirectorySkipped(t *testing.T) {
 	input := ListFilesInput{Path: testDir}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := ListFiles(inputJSON, ToolMetadata{})
+	result, err := ListFiles(&ToolData{Input: inputJSON})
 
 	assert.NoError(t, err)
 
@@ -185,7 +185,7 @@ func TestListFiles_DirectoryIndicator(t *testing.T) {
 	input := ListFilesInput{Path: testDir}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := ListFiles(inputJSON, ToolMetadata{})
+	result, err := ListFiles(&ToolData{Input: inputJSON})
 
 	assert.NoError(t, err)
 
@@ -206,15 +206,10 @@ func TestListFiles_DirectoryIndicator(t *testing.T) {
 func TestListFiles_InvalidJSON(t *testing.T) {
 	invalidJSON := []byte(`{"path": invalid json}`)
 
-	// ListFiles panics on JSON unmarshal error, so we need to recover from panic
-	defer func() {
-		if r := recover(); r != nil {
-			assert.NotNil(t, r)
-		}
-	}()
+	result, err := ListFiles(&ToolData{Input: invalidJSON})
 
-	ListFiles(invalidJSON, ToolMetadata{})
-	t.Error("Expected panic but didn't get one")
+	assert.Error(t, err)
+	assert.Empty(t, result)
 }
 
 func TestListFiles_RelativePaths(t *testing.T) {
@@ -223,7 +218,7 @@ func TestListFiles_RelativePaths(t *testing.T) {
 	input := ListFilesInput{Path: testDir}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := ListFiles(inputJSON, ToolMetadata{})
+	result, err := ListFiles(&ToolData{Input: inputJSON})
 
 	assert.NoError(t, err)
 
@@ -252,7 +247,7 @@ func TestListFilesDefinition_FunctionExecution(t *testing.T) {
 	input := ListFilesInput{Path: testDir}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := ListFilesDefinition.Function(inputJSON)
+	result, err := ListFilesDefinition.Function(&ToolData{Input: inputJSON})
 
 	assert.NoError(t, err)
 	assert.NotEmpty(t, result)
@@ -353,7 +348,7 @@ func TestListFiles_VariousDirectoryStructures(t *testing.T) {
 			input := ListFilesInput{Path: testDir}
 			inputJSON, _ := json.Marshal(input)
 
-			result, err := ListFiles(inputJSON, ToolMetadata{})
+			result, err := ListFiles(&ToolData{Input: inputJSON})
 
 			assert.NoError(t, err)
 
@@ -409,7 +404,7 @@ func TestListFiles_ComplexDirectoryStructure(t *testing.T) {
 	input := ListFilesInput{Path: tmpDir}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := ListFiles(inputJSON, ToolMetadata{})
+	result, err := ListFiles(&ToolData{Input: inputJSON})
 
 	assert.NoError(t, err)
 
@@ -449,7 +444,7 @@ func BenchmarkListFiles_SmallDirectory(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ListFiles(inputJSON, ToolMetadata{})
+		ListFiles(&ToolData{Input: inputJSON})
 	}
 }
 
@@ -473,6 +468,6 @@ func BenchmarkListFiles_LargeDirectory(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ListFiles(inputJSON, ToolMetadata{})
+		ListFiles(&ToolData{Input: inputJSON})
 	}
 }

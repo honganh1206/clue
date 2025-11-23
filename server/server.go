@@ -139,7 +139,7 @@ func (s *server) listConversations(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) getConversation(w http.ResponseWriter, r *http.Request, id string) {
-	conv, err := s.models.Conversations.Load(id)
+	conv, err := s.models.Conversations.Get(id)
 	if err != nil {
 		handleError(w, err)
 		return
@@ -182,17 +182,11 @@ func (s *server) saveConversation(w http.ResponseWriter, r *http.Request, conver
 
 func (s *server) planHandler(w http.ResponseWriter, r *http.Request) {
 	planID, hasID := parsePlanID(r.URL.Path)
-
 	switch r.Method {
 	case http.MethodPost:
 		s.createPlan(w, r)
 	case http.MethodGet:
-		if hasID {
-			s.getPlan(w, r, planID)
-		} else {
-			planName := r.URL.Query().Get("name")
-			s.getPlanByName(w, r, planName)
-		}
+		s.getPlan(w, r, planID)
 	case http.MethodPut:
 		s.savePlan(w, r, planID)
 	case http.MethodDelete:
@@ -228,7 +222,6 @@ func parsePlanID(path string) (string, bool) {
 
 func (s *server) createPlan(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Name           string `json:"name"`
 		ConversationID string `json:"conversation_id"`
 	}
 
@@ -237,15 +230,6 @@ func (s *server) createPlan(w http.ResponseWriter, r *http.Request) {
 			Code:    http.StatusBadRequest,
 			Message: "Invalid request format",
 			Err:     err,
-		})
-		return
-	}
-
-	if req.Name == "" {
-		handleError(w, &HTTPError{
-			Code:    http.StatusBadRequest,
-			Message: "Plan name is required",
-			Err:     nil,
 		})
 		return
 	}
@@ -259,7 +243,7 @@ func (s *server) createPlan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	plan, err := data.NewPlan(req.ConversationID, req.Name)
+	plan, err := data.NewPlan(req.ConversationID)
 	if err != nil {
 		handleError(w, &HTTPError{
 			Code:    http.StatusInternalServerError,
@@ -282,32 +266,8 @@ func (s *server) createPlan(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"id": plan.ID})
 }
 
-func (s *server) listPlans(w http.ResponseWriter, r *http.Request) {
-	plans, err := s.models.Plans.List()
-	if err != nil {
-		handleError(w, &HTTPError{
-			Code:    http.StatusInternalServerError,
-			Message: "Failed to list plans",
-			Err:     err,
-		})
-		return
-	}
-
-	writeJSON(w, http.StatusOK, plans)
-}
-
 func (s *server) getPlan(w http.ResponseWriter, r *http.Request, id string) {
-	p, err := s.models.Plans.GetByConversationID(id)
-	if err != nil {
-		handleError(w, err)
-		return
-	}
-
-	writeJSON(w, http.StatusOK, p)
-}
-
-func (s *server) getPlanByName(w http.ResponseWriter, r *http.Request, planName string) {
-	p, err := s.models.Plans.GetByName(planName)
+	p, err := s.models.Plans.Get(id)
 	if err != nil {
 		handleError(w, err)
 		return

@@ -88,7 +88,7 @@ func GetDefaultModel(provider ProviderName) ModelVersion {
 	case AnthropicProvider:
 		return Claude37Sonnet
 	case GoogleProvider:
-		return Gemini3Pro
+		return Gemini25Pro
 	default:
 		return ""
 	}

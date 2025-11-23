@@ -101,26 +101,26 @@ func TestPlanner_Get_Basic(t *testing.T) {
 		t.Fatalf("Setup failed: Could not create plan: %v", err)
 	}
 
-	plan, err := planner.GetByID(createdPlan.ID)
+	plan, err := planner.GetByConversationID(createdPlan.ID)
 	if err != nil {
-		t.Fatalf("GetByID failed: %v", err)
+		t.Fatalf("GetByConversationID failed: %v", err)
 	}
 
 	if plan == nil {
-		t.Fatal("GetByID returned a nil plan")
+		t.Fatal("GetByConversationID returned a nil plan")
 	}
 	if plan.ID != createdPlan.ID {
-		t.Errorf("GetByID returned plan with wrong ID: got %s, want %s", plan.ID, createdPlan.ID)
+		t.Errorf("GetByConversationID returned plan with wrong ID: got %s, want %s", plan.ID, createdPlan.ID)
 	}
 	if plan.PlanName != planName {
-		t.Errorf("GetByID returned plan with wrong name: got %s, want %s", plan.PlanName, planName)
+		t.Errorf("GetByConversationID returned plan with wrong name: got %s, want %s", plan.PlanName, planName)
 	}
 	if len(plan.Steps) != 0 {
-		t.Errorf("GetByID returned plan with non-empty steps initially: got %d, want 0", len(plan.Steps))
+		t.Errorf("GetByConversationID returned plan with non-empty steps initially: got %d, want 0", len(plan.Steps))
 	}
 
 	// Test getting non-existent plan
-	_, err = planner.GetByID("non-existent-plan-id")
+	_, err = planner.GetByConversationID("non-existent-plan-id")
 	if err == nil {
 		t.Error("Expected error when getting non-existent plan, but got nil")
 	}
@@ -153,9 +153,9 @@ func TestPlanner_SaveAndGet(t *testing.T) {
 	}
 
 	// 4. Get the plan back
-	retrievedPlan, err := planner.GetByID(plan.ID)
+	retrievedPlan, err := planner.GetByConversationID(plan.ID)
 	if err != nil {
-		t.Fatalf("GetByID after Save failed: %v", err)
+		t.Fatalf("GetByConversationID after Save failed: %v", err)
 	}
 
 	// 5. Verify the retrieved plan
@@ -217,9 +217,9 @@ func TestPlanner_SaveAndGet(t *testing.T) {
 	}
 
 	// 8. Get again
-	finalPlan, err := planner.GetByID(plan.ID)
+	finalPlan, err := planner.GetByConversationID(plan.ID)
 	if err != nil {
-		t.Fatalf("Second GetByID failed: %v", err)
+		t.Fatalf("Second GetByConversationID failed: %v", err)
 	}
 
 	// 9. Verify final state

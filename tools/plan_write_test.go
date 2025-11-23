@@ -21,20 +21,16 @@ func createTestAPIClient(t *testing.T) *api.Client {
 	return client
 }
 
-func createToolData(inputJSON []byte) ToolData {
-	return ToolData{
-		Input: inputJSON,
-		ToolMetadata: ToolMetadata{
-			ConversationID: "test-conversation",
-		},
+func createToolData(inputJSON []byte) *ToolData {
+	return &ToolData{
+		Input:          inputJSON,
+		ConversationID: "test-conversation",
 	}
 }
 
 // Tests for PlanWrite function - ActionAddSteps
 func TestPlanWrite_AddSteps_Success(t *testing.T) {
-	// t.Skip("Requires running API server")
-
-	client := createTestAPIClient(t)
+	t.Skip("Requires running API server")
 
 	input := PlanWriteInput{
 		PlanName: "test-plan",
@@ -61,8 +57,6 @@ func TestPlanWrite_AddSteps_Success(t *testing.T) {
 
 func TestPlanWrite_AddSteps_MultipleSteps(t *testing.T) {
 	t.Skip("Requires running API server")
-
-	client := createTestAPIClient(t)
 
 	input := PlanWriteInput{
 		PlanName: "multi-step-plan",
@@ -93,8 +87,6 @@ func TestPlanWrite_AddSteps_MultipleSteps(t *testing.T) {
 func TestPlanWrite_AddSteps_MissingStepID(t *testing.T) {
 	t.Skip("Requires running API server")
 
-	client := createTestAPIClient(t)
-
 	input := PlanWriteInput{
 		PlanName: "test-plan",
 		Action:   ActionAddSteps,
@@ -116,8 +108,6 @@ func TestPlanWrite_AddSteps_MissingStepID(t *testing.T) {
 
 func TestPlanWrite_AddSteps_MissingDescription(t *testing.T) {
 	t.Skip("Requires running API server")
-
-	client := createTestAPIClient(t)
 
 	input := PlanWriteInput{
 		PlanName: "test-plan",
@@ -142,13 +132,11 @@ func TestPlanWrite_AddSteps_MissingDescription(t *testing.T) {
 func TestPlanWrite_SetStatus_ToDone(t *testing.T) {
 	t.Skip("Requires running API server")
 
-	client := createTestAPIClient(t)
-
 	input := PlanWriteInput{
 		PlanName: "test-plan",
 		Action:   ActionSetStatus,
 		StepID:   "step-1",
-		Status:   StatusDone,
+		Status:   "DONE",
 	}
 	inputJSON, _ := json.Marshal(input)
 
@@ -162,13 +150,11 @@ func TestPlanWrite_SetStatus_ToDone(t *testing.T) {
 func TestPlanWrite_SetStatus_ToTodo(t *testing.T) {
 	t.Skip("Requires running API server")
 
-	client := createTestAPIClient(t)
-
 	input := PlanWriteInput{
 		PlanName: "test-plan",
 		Action:   ActionSetStatus,
 		StepID:   "step-1",
-		Status:   StatusTodo,
+		Status:   "TODO",
 	}
 	inputJSON, _ := json.Marshal(input)
 
@@ -181,13 +167,11 @@ func TestPlanWrite_SetStatus_ToTodo(t *testing.T) {
 func TestPlanWrite_SetStatus_MissingStepID(t *testing.T) {
 	t.Skip("Requires running API server")
 
-	client := createTestAPIClient(t)
-
 	input := PlanWriteInput{
 		PlanName: "test-plan",
 		Action:   ActionSetStatus,
 		StepID:   "",
-		Status:   StatusDone,
+		Status:   "DONE",
 	}
 	inputJSON, _ := json.Marshal(input)
 
@@ -201,13 +185,11 @@ func TestPlanWrite_SetStatus_MissingStepID(t *testing.T) {
 func TestPlanWrite_SetStatus_NonexistentPlan(t *testing.T) {
 	t.Skip("Requires running API server")
 
-	client := createTestAPIClient(t)
-
 	input := PlanWriteInput{
 		PlanName: "nonexistent-plan",
 		Action:   ActionSetStatus,
 		StepID:   "step-1",
-		Status:   StatusDone,
+		Status:   "DONE",
 	}
 	inputJSON, _ := json.Marshal(input)
 
@@ -220,8 +202,6 @@ func TestPlanWrite_SetStatus_NonexistentPlan(t *testing.T) {
 
 // Tests for error cases
 func TestPlanWrite_EmptyPlanName(t *testing.T) {
-	client := createTestAPIClient(t)
-
 	input := PlanWriteInput{
 		PlanName: "",
 		Action:   ActionAddSteps,
@@ -236,22 +216,18 @@ func TestPlanWrite_EmptyPlanName(t *testing.T) {
 }
 
 func TestPlanWrite_InvalidJSON(t *testing.T) {
-	client := createTestAPIClient(t)
-
 	invalidJSON := []byte(`{"plan_name": invalid json}`)
 
-	result, err := PlanWrite(invalidJSON, client)
+	result, err := PlanWrite(&ToolData{Input: invalidJSON})
 
 	assert.Error(t, err)
 	assert.Empty(t, result)
 }
 
 func TestPlanWrite_UnknownAction(t *testing.T) {
-	client := createTestAPIClient(t)
-
 	input := PlanWriteInput{
 		PlanName: "test-plan",
-		Action:   WriteAction(999), // Invalid action
+		Action:   WriteAction("invalid_action"), // Invalid action
 	}
 	inputJSON, _ := json.Marshal(input)
 
@@ -337,13 +313,13 @@ func TestPlanWriteInput_JSONMarshaling(t *testing.T) {
 
 	jsonStr := string(data)
 	assert.Contains(t, jsonStr, `"plan_name":"test-plan"`)
-	assert.Contains(t, jsonStr, `"write_action":1`)
+	assert.Contains(t, jsonStr, `"write_action":"add_steps"`)
 }
 
 func TestPlanWriteInput_JSONUnmarshaling(t *testing.T) {
 	jsonData := `{
 		"plan_name":"test-plan",
-		"write_action":1,
+		"write_action":"add_steps",
 		"steps_to_add":[
 			{"id":"step-1","description":"Test step"}
 		]
@@ -359,31 +335,18 @@ func TestPlanWriteInput_JSONUnmarshaling(t *testing.T) {
 	assert.Equal(t, "step-1", input.StepsToAdd[0].ID)
 }
 
-// Tests for WriteAction enum
+// Tests for WriteAction values
 func TestWriteAction_Values(t *testing.T) {
-	assert.Equal(t, WriteAction(0), ActionSetStatus)
-	assert.Equal(t, WriteAction(1), ActionAddSteps)
-	assert.Equal(t, WriteAction(2), ActionRemoveSteps)
-	assert.Equal(t, WriteAction(3), ActionCompactPlan)
-	assert.Equal(t, WriteAction(4), ActionReorderSteps)
-}
-
-// Tests for Status enum
-func TestStatus_Values(t *testing.T) {
-	assert.Equal(t, Status(0), StatusDone)
-	assert.Equal(t, Status(1), StatusTodo)
-}
-
-func TestStatus_Names(t *testing.T) {
-	assert.Equal(t, "DONE", statusName[StatusDone])
-	assert.Equal(t, "TODO", statusName[StatusTodo])
+	assert.Equal(t, "set_status", string(ActionSetStatus))
+	assert.Equal(t, "add_steps", string(ActionAddSteps))
+	assert.Equal(t, "remove_steps", string(ActionRemoveSteps))
+	assert.Equal(t, "compact_plan", string(ActionCompactPlan))
+	assert.Equal(t, "reorder_steps", string(ActionReorderSteps))
 }
 
 // Table-driven tests
 func TestPlanWrite_VariousInputs(t *testing.T) {
 	t.Skip("Requires running API server")
-
-	client := createTestAPIClient(t)
 
 	tests := []struct {
 		name        string
@@ -417,7 +380,7 @@ func TestPlanWrite_VariousInputs(t *testing.T) {
 				PlanName: "test-plan",
 				Action:   ActionSetStatus,
 				StepID:   "",
-				Status:   StatusDone,
+				Status:   "DONE",
 			},
 			expectError: true,
 			errorMsg:    "requires 'step_id'",
@@ -472,7 +435,6 @@ func TestPlanWrite_VariousInputs(t *testing.T) {
 func BenchmarkPlanWrite_AddSteps(b *testing.B) {
 	b.Skip("Requires running API server")
 
-	client, _ := api.NewClient("http://localhost:8080")
 	input := PlanWriteInput{
 		PlanName: "bench-plan",
 		Action:   ActionAddSteps,
@@ -491,12 +453,11 @@ func BenchmarkPlanWrite_AddSteps(b *testing.B) {
 func BenchmarkPlanWrite_SetStatus(b *testing.B) {
 	b.Skip("Requires running API server")
 
-	client, _ := api.NewClient("http://localhost:8080")
 	input := PlanWriteInput{
 		PlanName: "bench-plan",
 		Action:   ActionSetStatus,
 		StepID:   "step-1",
-		Status:   StatusDone,
+		Status:   "DONE",
 	}
 	inputJSON, _ := json.Marshal(input)
 
