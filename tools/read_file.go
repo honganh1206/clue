@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"os"
 
-	"github.com/honganh1206/clue/schema"
+	"github.com/honganh1206/tinker/schema"
 )
 
 //go:embed read_file.md

@@ -14,7 +14,7 @@ list/conversations:
 	go run ./main.go conversation -l
 build:
 	$(eval VERSION := $(shell cat VERSION))
-	go build -ldflags="-s -X 'github.com/honganh1206/clue/cmd.Version=$(VERSION)'" -o bin/clue main.go
+	go build -ldflags="-s -X 'github.com/honganh1206/tinker/cmd.Version=$(VERSION)'" -o bin/tinker main.go
 coverage:
 	go test ./... -coverprofile=coverage.out
 	go tool cover -html=coverage.out

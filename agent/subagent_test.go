@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
-	"github.com/honganh1206/clue/message"
-	"github.com/honganh1206/clue/tools"
+	"github.com/honganh1206/tinker/message"
+	"github.com/honganh1206/tinker/tools"
 )
 
 // Test helpers for subagent

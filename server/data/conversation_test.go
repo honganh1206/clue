@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/honganh1206/clue/message"
+	"github.com/honganh1206/tinker/message"
 	_ "github.com/mattn/go-sqlite3"
 )
 

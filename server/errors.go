@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/honganh1206/clue/server/data"
+	"github.com/honganh1206/tinker/server/data"
 )
 
 var (

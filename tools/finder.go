@@ -3,7 +3,7 @@ package tools
 import (
 	_ "embed"
 
-	"github.com/honganh1206/clue/schema"
+	"github.com/honganh1206/tinker/schema"
 )
 
 //go:embed finder.md

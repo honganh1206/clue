@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/honganh1206/clue/message"
-	"github.com/honganh1206/clue/utils"
+	"github.com/honganh1206/tinker/message"
+	"github.com/honganh1206/tinker/utils"
 )
 
 var ErrConversationNotFound = errors.New("history: conversation not found")

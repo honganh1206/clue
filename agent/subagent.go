@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/honganh1206/clue/inference"
-	"github.com/honganh1206/clue/message"
-	"github.com/honganh1206/clue/tools"
+	"github.com/honganh1206/tinker/inference"
+	"github.com/honganh1206/tinker/message"
+	"github.com/honganh1206/tinker/tools"
 )
 
 // Subagent is a lightweight agent for executing sub-tasks like finder

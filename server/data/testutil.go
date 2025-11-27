@@ -6,14 +6,14 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/honganh1206/clue/server/db"
+	"github.com/honganh1206/tinker/server/db"
 	_ "github.com/mattn/go-sqlite3"
 )
 
 func createTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 
-	tempDir, err := os.MkdirTemp("", "clue_test_*")
+	tempDir, err := os.MkdirTemp("", "tinker_test_*")
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}

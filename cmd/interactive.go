@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/honganh1206/clue/agent"
-	"github.com/honganh1206/clue/inference"
-	"github.com/honganh1206/clue/mcp"
-	"github.com/honganh1206/clue/server/api"
-	"github.com/honganh1206/clue/server/data"
-	"github.com/honganh1206/clue/tools"
-	"github.com/honganh1206/clue/ui"
+	"github.com/honganh1206/tinker/agent"
+	"github.com/honganh1206/tinker/inference"
+	"github.com/honganh1206/tinker/mcp"
+	"github.com/honganh1206/tinker/server/api"
+	"github.com/honganh1206/tinker/server/data"
+	"github.com/honganh1206/tinker/tools"
+	"github.com/honganh1206/tinker/ui"
 )
 
 // TODO: All these parameters should go into a struct

@@ -125,8 +125,8 @@ func (s *Server) Start(ctx context.Context) error {
 			Name    string `json:"name"`
 			Version string `json:"version"`
 		}{
-			Name: "clue-mcp-client",
-			// TODO: Update per clue version?
+			Name: "tinker-mcp-client",
+			// TODO: Update per tinker version?
 			Version: "0.1.0",
 		},
 	}

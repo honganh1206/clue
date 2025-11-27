@@ -7,9 +7,9 @@ import (
 	"os"
 
 	"github.com/anthropics/anthropic-sdk-go"
-	"github.com/honganh1206/clue/message"
-	"github.com/honganh1206/clue/prompts"
-	"github.com/honganh1206/clue/tools"
+	"github.com/honganh1206/tinker/message"
+	"github.com/honganh1206/tinker/prompts"
+	"github.com/honganh1206/tinker/tools"
 	"google.golang.org/genai"
 )
 

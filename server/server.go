@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/honganh1206/clue/server/data"
-	"github.com/honganh1206/clue/server/db"
+	"github.com/honganh1206/tinker/server/data"
+	"github.com/honganh1206/tinker/server/db"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -29,7 +29,7 @@ func Serve(ln net.Listener) error {
 
 	// TODO: This should have their own function
 	// to be used directly by the CLI agent
-	dsn := filepath.Join(homeDir, ".clue", "clue.db")
+	dsn := filepath.Join(homeDir, ".tinker", "tinker.db")
 
 	db, err := db.OpenDB(dsn, data.ConversationSchema, data.PlanSchema)
 	if err != nil {

@@ -237,11 +237,11 @@ import (
     "fmt"
     "strings"
 
-    "github.com/honganh1206/clue/agent"
-    "github.com/honganh1206/clue/inference"
-    "github.com/honganh1206/clue/message"
-    "github.com/honganh1206/clue/schema"
-    "github.com/honganh1206/clue/server/data/conversation"
+    "github.com/honganh1206/tinker/agent"
+    "github.com/honganh1206/tinker/inference"
+    "github.com/honganh1206/tinker/message"
+    "github.com/honganh1206/tinker/schema"
+    "github.com/honganh1206/tinker/server/data/conversation"
 )
 
 //go:embed codebase_search.md

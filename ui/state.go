@@ -1,6 +1,6 @@
 package ui
 
-import "github.com/honganh1206/clue/server/data"
+import "github.com/honganh1206/tinker/server/data"
 
 type State struct {
 	Plan *data.Plan

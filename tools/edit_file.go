@@ -7,7 +7,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/honganh1206/clue/schema"
+	"github.com/honganh1206/tinker/schema"
 )
 
 // TODO: Embed markdown tool prompt
