@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/honganh1206/clue/server/api"
+	"github.com/honganh1206/clue/server/data"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -21,11 +22,15 @@ func createTestAPIClient(t *testing.T) *api.Client {
 	return client
 }
 
-func createToolData(inputJSON []byte) ToolInput {
+func createToolInput(inputJSON []byte) ToolInput {
 	return ToolInput{
 		RawInput: inputJSON,
-		ToolData: &ToolData{
-			ConversationID: "test-conversation",
+		ToolObject: &ToolObject{
+			Plan: &data.Plan{
+				ID:             "test-plan",
+				ConversationID: "test-conversation",
+				Steps:          []*data.Step{},
+			},
 		},
 	}
 }
@@ -35,7 +40,7 @@ func TestPlanWrite_AddSteps_Success(t *testing.T) {
 	t.Skip("Requires running API server")
 
 	input := PlanWriteInput{
-		Action:   ActionAddSteps,
+		Action: ActionAddSteps,
 		StepsToAdd: []PlanStepInput{
 			{
 				ID:          "step-1",
@@ -49,7 +54,7 @@ func TestPlanWrite_AddSteps_Success(t *testing.T) {
 	}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := PlanWrite(createToolData(inputJSON))
+	result, err := PlanWrite(createToolInput(inputJSON))
 
 	assert.NoError(t, err)
 	assert.NotEmpty(t, result)
@@ -60,7 +65,7 @@ func TestPlanWrite_AddSteps_MultipleSteps(t *testing.T) {
 	t.Skip("Requires running API server")
 
 	input := PlanWriteInput{
-		Action:   ActionAddSteps,
+		Action: ActionAddSteps,
 		StepsToAdd: []PlanStepInput{
 			{
 				ID:          "step-1",
@@ -78,7 +83,7 @@ func TestPlanWrite_AddSteps_MultipleSteps(t *testing.T) {
 	}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := PlanWrite(createToolData(inputJSON))
+	result, err := PlanWrite(createToolInput(inputJSON))
 
 	assert.NoError(t, err)
 	assert.Contains(t, result, "Added 3 steps")
@@ -88,7 +93,7 @@ func TestPlanWrite_AddSteps_MissingStepID(t *testing.T) {
 	t.Skip("Requires running API server")
 
 	input := PlanWriteInput{
-		Action:   ActionAddSteps,
+		Action: ActionAddSteps,
 		StepsToAdd: []PlanStepInput{
 			{
 				ID:          "",
@@ -98,7 +103,7 @@ func TestPlanWrite_AddSteps_MissingStepID(t *testing.T) {
 	}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := PlanWrite(createToolData(inputJSON))
+	result, err := PlanWrite(createToolInput(inputJSON))
 
 	assert.Error(t, err)
 	assert.Empty(t, result)
@@ -109,7 +114,7 @@ func TestPlanWrite_AddSteps_MissingDescription(t *testing.T) {
 	t.Skip("Requires running API server")
 
 	input := PlanWriteInput{
-		Action:   ActionAddSteps,
+		Action: ActionAddSteps,
 		StepsToAdd: []PlanStepInput{
 			{
 				ID:          "step-1",
@@ -119,7 +124,7 @@ func TestPlanWrite_AddSteps_MissingDescription(t *testing.T) {
 	}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := PlanWrite(createToolData(inputJSON))
+	result, err := PlanWrite(createToolInput(inputJSON))
 
 	assert.Error(t, err)
 	assert.Empty(t, result)
@@ -131,13 +136,13 @@ func TestPlanWrite_SetStatus_ToDone(t *testing.T) {
 	t.Skip("Requires running API server")
 
 	input := PlanWriteInput{
-		Action:   ActionSetStatus,
-		StepID:   "step-1",
-		Status:   "DONE",
+		Action: ActionSetStatus,
+		StepID: "step-1",
+		Status: "DONE",
 	}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := PlanWrite(createToolData(inputJSON))
+	result, err := PlanWrite(createToolInput(inputJSON))
 
 	assert.NoError(t, err)
 	assert.NotEmpty(t, result)
@@ -148,13 +153,13 @@ func TestPlanWrite_SetStatus_ToTodo(t *testing.T) {
 	t.Skip("Requires running API server")
 
 	input := PlanWriteInput{
-		Action:   ActionSetStatus,
-		StepID:   "step-1",
-		Status:   "TODO",
+		Action: ActionSetStatus,
+		StepID: "step-1",
+		Status: "TODO",
 	}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := PlanWrite(createToolData(inputJSON))
+	result, err := PlanWrite(createToolInput(inputJSON))
 
 	assert.NoError(t, err)
 	assert.NotEmpty(t, result)
@@ -164,13 +169,13 @@ func TestPlanWrite_SetStatus_MissingStepID(t *testing.T) {
 	t.Skip("Requires running API server")
 
 	input := PlanWriteInput{
-		Action:   ActionSetStatus,
-		StepID:   "",
-		Status:   "DONE",
+		Action: ActionSetStatus,
+		StepID: "",
+		Status: "DONE",
 	}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := PlanWrite(createToolData(inputJSON))
+	result, err := PlanWrite(createToolInput(inputJSON))
 
 	assert.Error(t, err)
 	assert.Empty(t, result)
@@ -181,13 +186,13 @@ func TestPlanWrite_SetStatus_NonexistentPlan(t *testing.T) {
 	t.Skip("Requires running API server")
 
 	input := PlanWriteInput{
-		Action:   ActionSetStatus,
-		StepID:   "step-1",
-		Status:   "DONE",
+		Action: ActionSetStatus,
+		StepID: "step-1",
+		Status: "DONE",
 	}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := PlanWrite(createToolData(inputJSON))
+	result, err := PlanWrite(createToolInput(inputJSON))
 
 	assert.Error(t, err)
 	assert.Empty(t, result)
@@ -198,11 +203,11 @@ func TestPlanWrite_SetStatus_NonexistentPlan(t *testing.T) {
 func TestPlanWrite_EmptyPlanName(t *testing.T) {
 	t.Skip("Requires running API server")
 	input := PlanWriteInput{
-		Action:   ActionAddSteps,
+		Action: ActionAddSteps,
 	}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := PlanWrite(createToolData(inputJSON))
+	result, err := PlanWrite(createToolInput(inputJSON))
 
 	assert.Error(t, err)
 	assert.Empty(t, result)
@@ -220,11 +225,11 @@ func TestPlanWrite_InvalidJSON(t *testing.T) {
 
 func TestPlanWrite_UnknownAction(t *testing.T) {
 	input := PlanWriteInput{
-		Action:   WriteAction("invalid_action"), // Invalid action
+		Action: WriteAction("invalid_action"), // Invalid action
 	}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := PlanWrite(createToolData(inputJSON))
+	result, err := PlanWrite(createToolInput(inputJSON))
 
 	assert.Error(t, err)
 	assert.Empty(t, result)
@@ -291,7 +296,7 @@ func TestPlanStepInput_JSONUnmarshaling(t *testing.T) {
 // Tests for PlanWriteInput struct
 func TestPlanWriteInput_JSONMarshaling(t *testing.T) {
 	input := PlanWriteInput{
-		Action:   ActionAddSteps,
+		Action: ActionAddSteps,
 		StepsToAdd: []PlanStepInput{
 			{
 				ID:          "step-1",
@@ -329,7 +334,6 @@ func TestWriteAction_Values(t *testing.T) {
 	assert.Equal(t, "set_status", string(ActionSetStatus))
 	assert.Equal(t, "add_steps", string(ActionAddSteps))
 	assert.Equal(t, "remove_steps", string(ActionRemoveSteps))
-	assert.Equal(t, "compact_plan", string(ActionCompactPlan))
 	assert.Equal(t, "reorder_steps", string(ActionReorderSteps))
 }
 
@@ -346,7 +350,7 @@ func TestPlanWrite_VariousInputs(t *testing.T) {
 		{
 			name: "valid add steps",
 			input: PlanWriteInput{
-				Action:   ActionAddSteps,
+				Action: ActionAddSteps,
 				StepsToAdd: []PlanStepInput{
 					{ID: "step-1", Description: "Test step"},
 				},
@@ -356,7 +360,7 @@ func TestPlanWrite_VariousInputs(t *testing.T) {
 		{
 			name: "missing plan name",
 			input: PlanWriteInput{
-				Action:   ActionAddSteps,
+				Action: ActionAddSteps,
 			},
 			expectError: true,
 			errorMsg:    "missing or invalid plan_name",
@@ -364,9 +368,9 @@ func TestPlanWrite_VariousInputs(t *testing.T) {
 		{
 			name: "set status without step id",
 			input: PlanWriteInput{
-				Action:   ActionSetStatus,
-				StepID:   "",
-				Status:   "DONE",
+				Action: ActionSetStatus,
+				StepID: "",
+				Status: "DONE",
 			},
 			expectError: true,
 			errorMsg:    "requires 'step_id'",
@@ -374,7 +378,7 @@ func TestPlanWrite_VariousInputs(t *testing.T) {
 		{
 			name: "add step without id",
 			input: PlanWriteInput{
-				Action:   ActionAddSteps,
+				Action: ActionAddSteps,
 				StepsToAdd: []PlanStepInput{
 					{ID: "", Description: "Test"},
 				},
@@ -385,7 +389,7 @@ func TestPlanWrite_VariousInputs(t *testing.T) {
 		{
 			name: "add step without description",
 			input: PlanWriteInput{
-				Action:   ActionAddSteps,
+				Action: ActionAddSteps,
 				StepsToAdd: []PlanStepInput{
 					{ID: "step-1", Description: ""},
 				},
@@ -399,7 +403,7 @@ func TestPlanWrite_VariousInputs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			inputJSON, _ := json.Marshal(tt.input)
 
-			result, err := PlanWrite(createToolData(inputJSON))
+			result, err := PlanWrite(createToolInput(inputJSON))
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -420,7 +424,7 @@ func BenchmarkPlanWrite_AddSteps(b *testing.B) {
 	b.Skip("Requires running API server")
 
 	input := PlanWriteInput{
-		Action:   ActionAddSteps,
+		Action: ActionAddSteps,
 		StepsToAdd: []PlanStepInput{
 			{ID: "step-1", Description: "Benchmark step"},
 		},
@@ -429,7 +433,7 @@ func BenchmarkPlanWrite_AddSteps(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		PlanWrite(createToolData(inputJSON))
+		PlanWrite(createToolInput(inputJSON))
 	}
 }
 
@@ -437,14 +441,15 @@ func BenchmarkPlanWrite_SetStatus(b *testing.B) {
 	b.Skip("Requires running API server")
 
 	input := PlanWriteInput{
-		Action:   ActionSetStatus,
-		StepID:   "step-1",
-		Status:   "DONE",
+		Action: ActionSetStatus,
+		StepID: "step-1",
+		Status: "DONE",
 	}
 	inputJSON, _ := json.Marshal(input)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		PlanWrite(createToolData(inputJSON))
+		PlanWrite(createToolInput(inputJSON))
 	}
 }
+

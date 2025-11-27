@@ -22,6 +22,7 @@ type Agent struct {
 	LLM     inference.LLMClient
 	ToolBox *tools.ToolBox
 	Conv    *data.Conversation
+	Plan    *data.Plan
 	Client  *api.Client
 	ctl     *ui.Controller
 	MCP     mcp.Config
@@ -47,6 +48,7 @@ func New(config *Config) *Agent {
 		LLM:       config.LLM,
 		ToolBox:   config.ToolBox,
 		Conv:      config.Conversation,
+		Plan:      config.Plan,
 		Client:    config.Client,
 		streaming: config.Streaming,
 		ctl:       config.Controller,
@@ -230,7 +232,7 @@ func (a *Agent) executeLocalTool(id, name string, input json.RawMessage) message
 	} else {
 		toolInput := tools.ToolInput{
 			RawInput: input,
-			ToolData: &tools.ToolData{
+			ToolObject: &tools.ToolObject{
 				Plan: &data.Plan{},
 			},
 		}
@@ -239,6 +241,8 @@ func (a *Agent) executeLocalTool(id, name string, input json.RawMessage) message
 		case tools.ToolNamePlanWrite, tools.ToolNamePlanRead:
 			// Special treatment: Tools dealing with plans need more fields populated
 			toolOutput, err = a.executePlanTool(toolDef, toolInput)
+		// TODO: Should we use a.Plan for the main agent to refer to its own plan,
+		// instead of forcing it to use plan_read?
 		default:
 			toolOutput, err = toolDef.Function(toolInput)
 		}
@@ -272,7 +276,6 @@ func (a *Agent) executePlanTool(toolDef *tools.ToolDefinition, toolInput tools.T
 		return "", fmt.Errorf("plan_write: plan object is nil after GetPlan/CreatePlan")
 	}
 	toolInput.Plan = p
-	toolInput.ConversationID = a.Conv.ID
 
 	response, err := toolDef.Function(toolInput)
 
@@ -280,17 +283,14 @@ func (a *Agent) executePlanTool(toolDef *tools.ToolDefinition, toolInput tools.T
 		return "", fmt.Errorf("plan_write: failed to save plan '%s' after setting status: %w", a.Conv.ID, err)
 	}
 
-	// Send an update event to the UI
+	// Synchronization step, just to be sure
+	a.Plan = p
+
+	// Send an update plan event to the UI
 	go func() {
 		a.ctl.Publish(&ui.State{Plan: p})
 	}()
 
-	// Reflect the plan on the UI
-	// TODO: This is dumb. We can do better
-	// if toolDef.Name == tools.ToolNamePlanWrite {
-	// 	a.Plan, _ = a.Client.GetPlan(a.Conv.ID)
-	// 	// a.PublishPlan()
-	// }
 	return response, nil
 }
 

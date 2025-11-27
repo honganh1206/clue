@@ -21,7 +21,6 @@ const (
 	ActionSetStatus    WriteAction = "set_status"
 	ActionAddSteps     WriteAction = "add_steps"
 	ActionRemoveSteps  WriteAction = "remove_steps"
-	ActionCompactPlan  WriteAction = "compact_plan"
 	ActionReorderSteps WriteAction = "reorder_steps"
 )
 
@@ -35,7 +34,7 @@ type PlanStepInput struct {
 var PlanStepSchema = schema.Generate[PlanStepInput]()
 
 type PlanWriteInput struct {
-	Action          WriteAction     `json:"write_action" jsonschema_description:"The write operation to perform: 'add_steps', 'set_status', 'remove_steps', 'reorder_steps', or 'compact_plan'."`
+	Action          WriteAction     `json:"write_action" jsonschema_description:"The write operation to perform: 'add_steps', 'set_status', 'remove_steps', 'reorder_steps'."`
 	StepID          string          `json:"step_id,omitempty" jsonschema_description:"The ID of the step to target (required for 'set_status')."`
 	Status          string          `json:"status,omitempty" jsonschema_description:"The status to set: 'DONE' or 'TODO' (required for 'set_status')."`
 	StepsToAdd      []PlanStepInput `json:"steps_to_add,omitempty" jsonschema_description:"A list of step objects to add to the plan (required for 'add_steps'), creating it if necessary."`
@@ -50,20 +49,32 @@ func PlanWrite(input ToolInput) (string, error) {
 
 	err := json.Unmarshal(input.RawInput, &planWriteInput)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("error when unmarshalling raw input: %w", err)
 	}
 
 	switch planWriteInput.Action {
 	case ActionSetStatus:
-		output, err := handleSetStatus(&planWriteInput, input.ToolData.Plan, input.ToolData.ConversationID)
+		output, err := handleSetStatus(&planWriteInput, input.ToolObject.Plan)
 		if err != nil {
-			return "error when setting status", err
+			return "", fmt.Errorf("error when setting status: %w", err)
 		}
 		return output, nil
 	case ActionAddSteps:
-		output, err := handleAddSteps(&planWriteInput, input.ToolData.Plan, input.ToolData.ConversationID)
+		output, err := handleAddSteps(&planWriteInput, input.ToolObject.Plan)
 		if err != nil {
-			return "error when adding steps", err
+			return "", fmt.Errorf("error when adding steps: %w", err)
+		}
+		return output, nil
+	case ActionRemoveSteps:
+		output, err := handleRemoveSteps(&planWriteInput, input.ToolObject.Plan)
+		if err != nil {
+			return "", fmt.Errorf("error when removing steps: %w", err)
+		}
+		return output, nil
+	case ActionReorderSteps:
+		output, err := handleReorderSteps(&planWriteInput, input.ToolObject.Plan)
+		if err != nil {
+			return "", fmt.Errorf("error when reordering steps: %w", err)
 		}
 		return output, nil
 
@@ -72,13 +83,9 @@ func PlanWrite(input ToolInput) (string, error) {
 	}
 }
 
-func handleSetStatus(input *PlanWriteInput, plan *data.Plan, conversationID string) (string, error) {
-	// TODO: If we tell the agent to mark all steps as done here (meaning not tell it explicitly the names of the steps to mark)
-	// then the agent will generate new step names.
-	// This leads to mismatches between those names and step names from the DB, and eventually an error.
-	// Can the context window of the agent handle that?
+func handleSetStatus(input *PlanWriteInput, plan *data.Plan) (string, error) {
 	if plan == nil {
-		return "plan is nil", fmt.Errorf("plan is nil in handleSetStatus")
+		return "", fmt.Errorf("plan is nil in handleSetStatus")
 	}
 
 	stepID := input.StepID
@@ -92,13 +99,13 @@ func handleSetStatus(input *PlanWriteInput, plan *data.Plan, conversationID stri
 	}
 
 	if err != nil {
-		return "", fmt.Errorf("plan_write: failed to set status for step '%s' in plan '%s': %w", stepID, conversationID, err)
+		return "", fmt.Errorf("plan_write: failed to set status for step '%s' in plan '%s': %w", stepID, plan.ID, err)
 	}
 
-	return fmt.Sprintf("Step '%s' in plan '%s' set to '%s'.", stepID, conversationID, status), nil
+	return fmt.Sprintf("Step '%s' in plan '%s' set to '%s'.", stepID, plan.ID, status), nil
 }
 
-func handleAddSteps(input *PlanWriteInput, plan *data.Plan, conversationID string) (string, error) {
+func handleAddSteps(input *PlanWriteInput, plan *data.Plan) (string, error) {
 	stepsToAdd := input.StepsToAdd
 
 	addedCount := 0
@@ -122,5 +129,41 @@ func handleAddSteps(input *PlanWriteInput, plan *data.Plan, conversationID strin
 		addedCount++
 	}
 
-	return fmt.Sprintf("Added %d steps to plan with conversation ID '%s'.", addedCount, conversationID), nil
+	return fmt.Sprintf("Added %d steps to plan ID '%s'.", addedCount, plan.ID), nil
+}
+
+func handleRemoveSteps(input *PlanWriteInput, plan *data.Plan) (string, error) {
+	stepIDsToRemove := input.StepIDsToRemove
+	if len(stepIDsToRemove) == 0 {
+		return "", fmt.Errorf("plan_write: 'remove_steps' action requires 'step_ids_to_remove' list")
+	}
+
+	removedCount := plan.RemoveSteps(stepIDsToRemove)
+
+	return fmt.Sprintf("Removed %d steps from plan '%s'.", removedCount, plan.ID), nil
+}
+
+// TODO: This uses PlannerModel, not Plan struct
+// so it must be made by the Client, not the tool
+//
+// func handleCompactPlans(input *PlanWriteInput, plan *data.Plan) (string, error) {
+// 	err := plan.Compact() // This is the call to the method added in planner.go
+// 	if err != nil {
+// 		// The Compact method in planner.go logs warnings for individual file errors
+// 		// but returns an error if the directory read fails.
+// 		return "", fmt.Errorf("plan_write: 'compact_plans' action encountered an error: %w", err)
+// 	}
+//
+// 	return fmt.Sprintf("Removed %d steps from plan '%s'.", removedCount, plan.ID), nil
+// }
+
+func handleReorderSteps(input *PlanWriteInput, plan *data.Plan) (string, error) {
+	stepIDsToReorder := input.StepIDsToRemove
+	if len(stepIDsToReorder) == 0 {
+		return "", fmt.Errorf("plan_write: 'remove_steps' action requires 'step_ids_to_remove' list")
+	}
+
+	plan.ReorderSteps(stepIDsToReorder)
+
+	return fmt.Sprintf("Removed steps from plan '%s'.", plan.ID), nil
 }

@@ -5,13 +5,19 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
-
-	"github.com/honganh1206/clue/server/utils"
 )
 
 func createPlanTestModel(t *testing.T) PlanModel {
-	testDB := utils.CreateTestDB(t, PlanSchema)
+	testDB := createTestDB(t)
 	return PlanModel{DB: testDB}
+}
+
+func createTestConversation(t *testing.T, db *sql.DB, id string) {
+	t.Helper()
+	_, err := db.Exec("INSERT INTO conversations (id) VALUES (?)", id)
+	if err != nil {
+		t.Fatalf("Failed to create test conversation: %v", err)
+	}
 }
 
 func TestNewPlanner(t *testing.T) {
@@ -33,9 +39,10 @@ func TestNewPlanner(t *testing.T) {
 func TestPlanner_Create(t *testing.T) {
 	planner := createPlanTestModel(t)
 
-	planName := "test-plan-create"
 	conversationID := "test-conversation-id"
-	plan, err := NewPlan(conversationID, planName)
+	createTestConversation(t, planner.DB, conversationID)
+
+	plan, err := NewPlan(conversationID)
 	if err != nil {
 		t.Fatalf("NewPlan failed: %v", err)
 	}
@@ -47,9 +54,6 @@ func TestPlanner_Create(t *testing.T) {
 
 	if plan.ID == "" {
 		t.Error("Create returned plan with empty ID")
-	}
-	if plan.PlanName != planName {
-		t.Errorf("Create returned plan with wrong name: got %s, want %s", plan.PlanName, planName)
 	}
 	if len(plan.Steps) != 0 {
 		t.Errorf("Create returned plan with non-empty steps: got %d, want 0", len(plan.Steps))
@@ -65,33 +69,24 @@ func TestPlanner_Create(t *testing.T) {
 		t.Errorf("Plan count in DB is wrong after Create: got %d, want 1", count)
 	}
 
-	// Test creating a second plan with the same name (should succeed since plan_name is not unique)
-	plan2, err := NewPlan(conversationID, planName)
+	// Test creating a second plan with the same conversation ID (should fail)
+	plan2, err := NewPlan(conversationID)
 	if err != nil {
 		t.Fatalf("NewPlan failed: %v", err)
 	}
 	err = planner.Create(plan2)
-	if err != nil {
-		t.Errorf("Creating a second plan with the same name should succeed: %v", err)
-	}
-
-	// Verify both plans exist
-	var totalCount int
-	err = planner.DB.QueryRow("SELECT COUNT(*) FROM plans WHERE plan_name = ?", planName).Scan(&totalCount)
-	if err != nil {
-		t.Fatalf("Failed to query DB for plan count: %v", err)
-	}
-	if totalCount != 2 {
-		t.Errorf("Expected 2 plans with name '%s', got %d", planName, totalCount)
+	if err == nil {
+		t.Error("Creating a second plan with the same conversation ID should fail")
 	}
 }
 
 func TestPlanner_Get_Basic(t *testing.T) {
 	planner := createPlanTestModel(t)
 
-	planName := "test-plan-get"
 	conversationID := "test-conversation-id"
-	createdPlan, err := NewPlan(conversationID, planName)
+	createTestConversation(t, planner.DB, conversationID)
+
+	createdPlan, err := NewPlan(conversationID)
 	if err != nil {
 		t.Fatalf("NewPlan failed: %v", err)
 	}
@@ -101,7 +96,7 @@ func TestPlanner_Get_Basic(t *testing.T) {
 		t.Fatalf("Setup failed: Could not create plan: %v", err)
 	}
 
-	plan, err := planner.GetByConversationID(createdPlan.ID)
+	plan, err := planner.Get(conversationID)
 	if err != nil {
 		t.Fatalf("GetByConversationID failed: %v", err)
 	}
@@ -112,15 +107,12 @@ func TestPlanner_Get_Basic(t *testing.T) {
 	if plan.ID != createdPlan.ID {
 		t.Errorf("GetByConversationID returned plan with wrong ID: got %s, want %s", plan.ID, createdPlan.ID)
 	}
-	if plan.PlanName != planName {
-		t.Errorf("GetByConversationID returned plan with wrong name: got %s, want %s", plan.PlanName, planName)
-	}
 	if len(plan.Steps) != 0 {
 		t.Errorf("GetByConversationID returned plan with non-empty steps initially: got %d, want 0", len(plan.Steps))
 	}
 
 	// Test getting non-existent plan
-	_, err = planner.GetByConversationID("non-existent-plan-id")
+	_, err = planner.Get("non-existent-plan-id")
 	if err == nil {
 		t.Error("Expected error when getting non-existent plan, but got nil")
 	}
@@ -128,11 +120,11 @@ func TestPlanner_Get_Basic(t *testing.T) {
 
 func TestPlanner_SaveAndGet(t *testing.T) {
 	planner := createPlanTestModel(t)
-	planName := "test-plan-save-get"
 	conversationID := "test-conversation-id"
+	createTestConversation(t, planner.DB, conversationID)
 
 	// 1. Create the initial plan
-	plan, err := NewPlan(conversationID, planName)
+	plan, err := NewPlan(conversationID)
 	if err != nil {
 		t.Fatalf("NewPlan failed: %v", err)
 	}
@@ -153,7 +145,7 @@ func TestPlanner_SaveAndGet(t *testing.T) {
 	}
 
 	// 4. Get the plan back
-	retrievedPlan, err := planner.GetByConversationID(plan.ID)
+	retrievedPlan, err := planner.Get(conversationID)
 	if err != nil {
 		t.Fatalf("GetByConversationID after Save failed: %v", err)
 	}
@@ -161,9 +153,6 @@ func TestPlanner_SaveAndGet(t *testing.T) {
 	// 5. Verify the retrieved plan
 	if retrievedPlan.ID != plan.ID {
 		t.Errorf("Retrieved plan ID mismatch: got %s, want %s", retrievedPlan.ID, plan.ID)
-	}
-	if retrievedPlan.PlanName != planName {
-		t.Errorf("Retrieved plan name mismatch: got %s, want %s", retrievedPlan.PlanName, planName)
 	}
 	if len(retrievedPlan.Steps) != 2 {
 		t.Fatalf("Retrieved plan step count mismatch: got %d, want 2", len(retrievedPlan.Steps))
@@ -217,7 +206,7 @@ func TestPlanner_SaveAndGet(t *testing.T) {
 	}
 
 	// 8. Get again
-	finalPlan, err := planner.GetByConversationID(plan.ID)
+	finalPlan, err := planner.Get(conversationID)
 	if err != nil {
 		t.Fatalf("Second GetByConversationID failed: %v", err)
 	}

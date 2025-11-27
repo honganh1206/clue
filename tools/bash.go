@@ -41,7 +41,7 @@ func Bash(input ToolInput) (string, error) {
 	// Maybe an interactive bash interface?
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Sprintf("Command failed with error: %s\nOutput: %s", err.Error(), string(output)), err
+		return fmt.Sprintf("Command failed with error: %s\nOutput: %s", err.Error(), string(output)), nil
 	}
 
 	return strings.TrimSpace(string(output)), err

@@ -47,11 +47,11 @@ func EditFile(input ToolInput) (string, error) {
 		if os.IsNotExist(err) && editFileInput.OldStr == "" {
 			result, err := createNewFile(editFileInput.Path, editFileInput.NewStr)
 			if err != nil {
-				return fmt.Sprintf("error cannot create new file"), err
+				return "", fmt.Errorf("error cannot create new file: %w", err)
 			}
 			return result, nil
 		}
-		return "error reading file", err
+		return "", fmt.Errorf("error reading file: %w", err)
 	}
 
 	oldContent := string(content)

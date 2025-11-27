@@ -5,12 +5,11 @@ import (
 	"time"
 
 	"github.com/honganh1206/clue/message"
-	"github.com/honganh1206/clue/server/utils"
 	_ "github.com/mattn/go-sqlite3"
 )
 
 func createTestModel(t *testing.T) *ConversationModel {
-	testDB := utils.CreateTestDB(t, ConversationSchema)
+	testDB := createTestDB(t)
 	return &ConversationModel{DB: testDB}
 }
 
@@ -282,7 +281,7 @@ func TestList_EmptyConversation(t *testing.T) {
 	}
 
 	// Save empty conversation directly to database
-	_, err = cm.DB.Exec("INSERT INTO conversations (id, created_at, plan_id) VALUES (?, ?, ?)", conv.ID, conv.CreatedAt, nil)
+	_, err = cm.DB.Exec("INSERT INTO conversations (id, created_at) VALUES (?, ?)", conv.ID, conv.CreatedAt, nil)
 	if err != nil {
 		t.Fatalf("Failed to insert empty conversation: %v", err)
 	}
@@ -350,11 +349,11 @@ func TestLatestID(t *testing.T) {
 	}
 }
 
-func TestLoad(t *testing.T) {
+func TestGet(t *testing.T) {
 	cm := createTestModel(t)
 
 	// Test loading non-existent conversation
-	_, err := cm.Load("non-existent-id")
+	_, err := cm.Get("non-existent-id")
 	if err != ErrConversationNotFound {
 		t.Errorf("Expected ErrConversationNotFound, got %v", err)
 	}
@@ -396,9 +395,9 @@ func TestLoad(t *testing.T) {
 	}
 
 	// Load conversation
-	loadedConv, err := cm.Load(conv.ID)
+	loadedConv, err := cm.Get(conv.ID)
 	if err != nil {
-		t.Fatalf("Load() failed: %v", err)
+		t.Fatalf("Get() failed: %v", err)
 	}
 
 	// Verify basic properties
@@ -500,7 +499,7 @@ func TestLoad(t *testing.T) {
 	}
 }
 
-func TestLoad_EmptyConversation(t *testing.T) {
+func TestGet_EmptyConversation(t *testing.T) {
 	cm := createTestModel(t)
 
 	// Create conversation without messages
@@ -515,9 +514,9 @@ func TestLoad_EmptyConversation(t *testing.T) {
 	}
 
 	// Load conversation
-	loadedConv, err := cm.Load(conv.ID)
+	loadedConv, err := cm.Get(conv.ID)
 	if err != nil {
-		t.Fatalf("Load() failed: %v", err)
+		t.Fatalf("Get() failed: %v", err)
 	}
 
 	if loadedConv.ID != conv.ID {
@@ -527,3 +526,4 @@ func TestLoad_EmptyConversation(t *testing.T) {
 		t.Errorf("Expected 0 messages, got %d", len(loadedConv.Messages))
 	}
 }
+

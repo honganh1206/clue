@@ -30,13 +30,11 @@ type ToolDefinition struct {
 	IsSubTool   bool `json:"-"`
 }
 
-type ToolData struct {
-	Plan           *data.Plan
-	ConversationID string
+type ToolObject struct {
+	Plan *data.Plan
 }
 
 type ToolInput struct {
 	RawInput json.RawMessage
-	*ToolData
+	*ToolObject
 }
-

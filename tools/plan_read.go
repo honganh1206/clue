@@ -102,3 +102,4 @@ func handleIsCompleted(input ToolInput) (string, error) {
 	}
 	return string(b), nil
 }
+

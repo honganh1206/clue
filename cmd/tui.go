@@ -87,7 +87,7 @@ func tui(ctx context.Context, agent *agent.Agent, ctl *ui.Controller) error {
 		} else {
 			planView.SetText(formatPlanSteps(plan))
 			inputFlex.
-				AddItem(questionInput, 0, 2, true).
+				AddItem(questionInput, 0, 1, true).
 				AddItem(planView, 0, 1, false)
 
 			newHeight := max(5, len(plan.Steps)+2)
@@ -96,8 +96,7 @@ func tui(ctx context.Context, agent *agent.Agent, ctl *ui.Controller) error {
 		// })
 	}
 
-	initialState := &ui.State{}
-
+	initialState := &ui.State{Plan: agent.Plan}
 	renderPlan(initialState)
 
 	go func() {
