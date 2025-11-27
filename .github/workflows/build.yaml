@@ -27,7 +27,7 @@ jobs:
         run: go version
 
       - name: Install dependencies
-        run: go install github.com/honganh1206/clue
+        run: go install github.com/honganh1206/tinker
       #
       # - name: Check formatting
       #   run: |
