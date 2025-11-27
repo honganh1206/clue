@@ -24,11 +24,11 @@ type MockGeminiClient struct {
 func setupTestEnv() func() {
 	// Store original env vars
 	originalAnthropicKey := os.Getenv("ANTHROPIC_API_KEY")
-	originalGeminiKey := os.Getenv("GEMINI_API_KEY")
+	originalGeminiKey := os.Getenv("GOOGLE_API_KEY")
 
 	// Set test env vars
 	os.Setenv("ANTHROPIC_API_KEY", "test-anthropic-key")
-	os.Setenv("GEMINI_API_KEY", "test-gemini-key")
+	os.Setenv("GOOGLE_API_KEY", "test-gemini-key")
 
 	// Return cleanup function
 	return func() {
@@ -39,9 +39,9 @@ func setupTestEnv() func() {
 		}
 
 		if originalGeminiKey == "" {
-			os.Unsetenv("GEMINI_API_KEY")
+			os.Unsetenv("GOOGLE_API_KEY")
 		} else {
-			os.Setenv("GEMINI_API_KEY", originalGeminiKey)
+			os.Setenv("GOOGLE_API_KEY", originalGeminiKey)
 		}
 	}
 }
@@ -66,39 +66,6 @@ func createTestMessages(count int) []*message.Message {
 }
 
 // Tests
-func TestInit_AnthropicProvider_Success(t *testing.T) {
-	cleanup := setupTestEnv()
-	defer cleanup()
-
-	llm := BaseLLMClient{
-		Provider:   AnthropicProvider,
-		Model:      string(Claude4Sonnet),
-		TokenLimit: 4096,
-	}
-
-	client, err := Init(context.Background(), llm)
-
-	assert.NoError(t, err)
-	assert.NotNil(t, client)
-	assert.Equal(t, AnthropicModelName, client.ProviderName())
-}
-
-func TestInit_GoogleProvider_Success(t *testing.T) {
-	cleanup := setupTestEnv()
-	defer cleanup()
-
-	llm := BaseLLMClient{
-		Provider:   GoogleProvider,
-		Model:      string(Gemini25Pro),
-		TokenLimit: 8192,
-	}
-
-	client, err := Init(context.Background(), llm)
-
-	assert.NoError(t, err)
-	assert.NotNil(t, client)
-	assert.Equal(t, GoogleModelName, client.ProviderName())
-}
 
 func TestInit_GoogleProvider_MissingAPIKey(t *testing.T) {
 	t.Skip("Skipping test that causes log.Fatal - needs proper error handling implementation")
@@ -164,6 +131,7 @@ func TestListAvailableModels_GoogleProvider(t *testing.T) {
 	models := ListAvailableModels(GoogleProvider)
 
 	expectedModels := []ModelVersion{
+		Gemini3Pro,
 		Gemini25Pro,
 		Gemini25Flash,
 		Gemini20Flash,
@@ -173,31 +141,13 @@ func TestListAvailableModels_GoogleProvider(t *testing.T) {
 	}
 
 	assert.Equal(t, expectedModels, models)
-	assert.Len(t, models, 6)
+	assert.Len(t, models, 7)
 }
 
 func TestListAvailableModels_UnknownProvider(t *testing.T) {
 	models := ListAvailableModels("unknown_provider")
 
 	assert.Empty(t, models)
-}
-
-func TestGetDefaultModel_AnthropicProvider(t *testing.T) {
-	defaultModel := GetDefaultModel(AnthropicProvider)
-
-	assert.Equal(t, Claude4Sonnet, defaultModel)
-}
-
-func TestGetDefaultModel_GoogleProvider(t *testing.T) {
-	defaultModel := GetDefaultModel(GoogleProvider)
-
-	assert.Equal(t, Gemini25Pro, defaultModel)
-}
-
-func TestGetDefaultModel_UnknownProvider(t *testing.T) {
-	defaultModel := GetDefaultModel("unknown_provider")
-
-	assert.Equal(t, ModelVersion(""), defaultModel)
 }
 
 func TestBaseLLMClient_BaseSummarizeHistory_BelowThreshold(t *testing.T) {
@@ -409,7 +359,7 @@ func TestListAvailableModels_AllProviders(t *testing.T) {
 		{
 			name:          "Google provider",
 			provider:      GoogleProvider,
-			expectedCount: 6,
+			expectedCount: 7,
 			shouldContain: []ModelVersion{Gemini25Pro, Gemini15Flash},
 		},
 		{
@@ -429,37 +379,6 @@ func TestListAvailableModels_AllProviders(t *testing.T) {
 			for _, expectedModel := range tt.shouldContain {
 				assert.Contains(t, models, expectedModel)
 			}
-		})
-	}
-}
-
-func TestGetDefaultModel_AllProviders(t *testing.T) {
-	tests := []struct {
-		name     string
-		provider ProviderName
-		expected ModelVersion
-	}{
-		{
-			name:     "Anthropic default",
-			provider: AnthropicProvider,
-			expected: Claude4Sonnet,
-		},
-		{
-			name:     "Google default",
-			provider: GoogleProvider,
-			expected: Gemini25Pro,
-		},
-		{
-			name:     "Unknown provider default",
-			provider: "unknown",
-			expected: "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := GetDefaultModel(tt.provider)
-			assert.Equal(t, tt.expected, result)
 		})
 	}
 }

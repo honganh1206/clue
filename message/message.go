@@ -30,6 +30,7 @@ const (
 	TextType       = "text"
 	ToolUseType    = "tool_use"
 	ToolResultType = "tool_result"
+	ThoughtType    = "thought"
 )
 
 // Here so we can marshal/unmarshal content blocks
@@ -40,6 +41,7 @@ type ContentBlock interface {
 func (t TextBlock) Type() string       { return TextType }
 func (t ToolUseBlock) Type() string    { return ToolUseType }
 func (t ToolResultBlock) Type() string { return ToolResultType }
+func (t ThoughtBlock) Type() string    { return ThoughtType }
 
 type TextBlock struct {
 	Text string `json:"text"`
@@ -55,6 +57,8 @@ type ToolUseBlock struct {
 	ID    string          `json:"id"`
 	Name  string          `json:"name"`
 	Input json.RawMessage `json:"input"`
+	// Specific for Gemini 3
+	Thought json.RawMessage `json:"thought,omitempty"`
 }
 
 func NewToolUseBlock(id, name string, input json.RawMessage) ContentBlock {
@@ -81,6 +85,16 @@ func NewToolResultBlock(toolUseID, toolName, content string, isError bool) Conte
 	}
 }
 
+type ThoughtBlock struct {
+	Thought json.RawMessage `json:"thought"`
+}
+
+func NewThoughtBlock(thought json.RawMessage) ContentBlock {
+	return ThoughtBlock{
+		Thought: thought,
+	}
+}
+
 // Custom JSON marshaling for Message to handle ContentBlock interface
 func (m *Message) MarshalJSON() ([]byte, error) {
 	type MessageAlias Message
@@ -90,6 +104,7 @@ func (m *Message) MarshalJSON() ([]byte, error) {
 		ID        string          `json:"id,omitempty"`
 		Name      string          `json:"name,omitempty"`
 		Input     json.RawMessage `json:"input,omitempty"`
+		Thought   json.RawMessage `json:"thought,omitempty"`
 		ToolUseID string          `json:"tool_use_id,omitempty"`
 		ToolName  string          `json:"tool_name,omitempty"`
 		Content   string          `json:"content,omitempty"`
@@ -109,9 +124,11 @@ func (m *Message) MarshalJSON() ([]byte, error) {
 		case TextBlock:
 			temp.Content[i] = contentWithType{Type: TextType, Text: b.Text}
 		case ToolUseBlock:
-			temp.Content[i] = contentWithType{Type: ToolUseType, ID: b.ID, Name: b.Name, Input: b.Input}
+			temp.Content[i] = contentWithType{Type: ToolUseType, ID: b.ID, Name: b.Name, Input: b.Input, Thought: b.Thought}
 		case ToolResultBlock:
 			temp.Content[i] = contentWithType{Type: ToolResultType, ToolUseID: b.ToolUseID, ToolName: b.ToolName, Content: b.Content, IsError: b.IsError}
+		case ThoughtBlock:
+			temp.Content[i] = contentWithType{Type: ThoughtType, Thought: b.Thought}
 		default:
 			return nil, fmt.Errorf("unknown content block type: %T", block)
 		}
@@ -129,6 +146,7 @@ func (m *Message) UnmarshalJSON(data []byte) error {
 		ID        string          `json:"id,omitempty"`
 		Name      string          `json:"name,omitempty"`
 		Input     json.RawMessage `json:"input,omitempty"`
+		Thought   json.RawMessage `json:"thought,omitempty"`
 		ToolUseID string          `json:"tool_use_id,omitempty"`
 		ToolName  string          `json:"tool_name,omitempty"`
 		Content   string          `json:"content,omitempty"`
@@ -152,9 +170,11 @@ func (m *Message) UnmarshalJSON(data []byte) error {
 		case TextType:
 			m.Content[i] = TextBlock{Text: c.Text}
 		case ToolUseType:
-			m.Content[i] = ToolUseBlock{ID: c.ID, Name: c.Name, Input: c.Input}
+			m.Content[i] = ToolUseBlock{ID: c.ID, Name: c.Name, Input: c.Input, Thought: c.Thought}
 		case ToolResultType:
 			m.Content[i] = ToolResultBlock{ToolUseID: c.ToolUseID, ToolName: c.ToolName, Content: c.Content, IsError: c.IsError}
+		case ThoughtType:
+			m.Content[i] = ThoughtBlock{Thought: c.Thought}
 		default:
 			return fmt.Errorf("unknown content block type: %s", c.Type)
 		}

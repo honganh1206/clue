@@ -9,7 +9,7 @@ import (
 
 	"github.com/honganh1206/clue/agent"
 	"github.com/honganh1206/clue/message"
-	"github.com/honganh1206/clue/server/data/conversation"
+	"github.com/honganh1206/clue/server/data"
 )
 
 const (
@@ -19,13 +19,13 @@ const (
 	colorRed   = "\033[31m"
 )
 
-func cli(ctx context.Context, agent *agent.Agent, conv *conversation.Conversation) error {
-	isFirstInput := len(conv.Messages) == 0
+func cli(ctx context.Context, a *agent.Agent) error {
+	isFirstInput := len(a.Conv.Messages) == 0
 
 	if isFirstInput {
 		printWelcome()
 	} else {
-		printConversationHistory(conv)
+		printConversationHistory(a.Conv)
 	}
 
 	scanner := bufio.NewScanner(os.Stdin)
@@ -53,7 +53,7 @@ func cli(ctx context.Context, agent *agent.Agent, conv *conversation.Conversatio
 			fmt.Print(delta)
 		}
 
-		err := agent.Run(ctx, userInput, onDelta)
+		err := a.Run(ctx, userInput, onDelta)
 		if err != nil {
 			fmt.Printf("\n%sError: %v%s\n", colorRed, err, colorReset)
 			continue
@@ -71,7 +71,7 @@ func printWelcome() {
 	fmt.Println(formatWelcomeMessage())
 }
 
-func printConversationHistory(conv *conversation.Conversation) {
+func printConversationHistory(conv *data.Conversation) {
 	if len(conv.Messages) == 0 {
 		return
 	}
@@ -107,4 +107,3 @@ func formatMessagePlain(msg *message.Message) string {
 
 	return result.String()
 }
-

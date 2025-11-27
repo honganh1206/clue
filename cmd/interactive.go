@@ -6,13 +6,15 @@ import (
 	"log"
 
 	"github.com/honganh1206/clue/agent"
-	"github.com/honganh1206/clue/api"
 	"github.com/honganh1206/clue/inference"
 	"github.com/honganh1206/clue/mcp"
-	"github.com/honganh1206/clue/server/data/conversation"
+	"github.com/honganh1206/clue/server/api"
+	"github.com/honganh1206/clue/server/data"
 	"github.com/honganh1206/clue/tools"
+	"github.com/honganh1206/clue/ui"
 )
 
+// TODO: All these parameters should go into a struct
 func interactive(ctx context.Context, convID string, llmClient, llmClientSub inference.BaseLLMClient, apiClient *api.Client, mcpConfigs []mcp.ServerConfig, useTUI bool) error {
 	llm, err := inference.Init(ctx, llmClient)
 	if err != nil {
@@ -25,8 +27,10 @@ func interactive(ctx context.Context, convID string, llmClient, llmClientSub inf
 			&tools.ListFilesDefinition,
 			&tools.EditFileDefinition,
 			&tools.GrepSearchDefinition,
-			&tools.CodebaseSearchAgentDefinition, // Now handled by subagent
+			&tools.FinderDefinition,
 			&tools.BashDefinition,
+			&tools.PlanWriteDefinition,
+			&tools.PlanReadDefinition,
 		},
 	}
 
@@ -39,12 +43,18 @@ func interactive(ctx context.Context, convID string, llmClient, llmClientSub inf
 		},
 	}
 
-	var conv *conversation.Conversation
+	var conv *data.Conversation
+	var plan *data.Plan
 
 	if convID != "" {
 		conv, err = apiClient.GetConversation(convID)
 		if err != nil {
 			return err
+		}
+		plan, err = apiClient.GetPlan(convID)
+		// TODO: There could be a case where there is no plan for a conversation
+		// what should we do then?
+		if err != nil {
 		}
 	} else {
 		conv, err = apiClient.CreateConversation()
@@ -54,23 +64,41 @@ func interactive(ctx context.Context, convID string, llmClient, llmClientSub inf
 	}
 
 	subllm, err := inference.Init(ctx, llmClientSub)
-
 	if err != nil {
 		return fmt.Errorf("failed to initialize sub-agent LLM: %w", err)
 	}
 
-	a := agent.New(llm, conv, toolBox, apiClient, mcpConfigs, true)
+	ctl := ui.NewController()
 
-	sub := agent.NewSubagent(subllm, subToolBox, false)
+	cfg := &agent.Config{
+		LLM:          llm,
+		Conversation: conv,
+		ToolBox:      toolBox,
+		Client:       apiClient,
+		MCPConfigs:   mcpConfigs,
+		Plan:         plan,
+		Streaming:    true,
+		Controller:   ctl,
+	}
+
+	a := agent.New(cfg)
+
+	subCfg := &agent.Config{
+		LLM:       subllm,
+		ToolBox:   subToolBox,
+		Streaming: false,
+	}
+
+	sub := agent.NewSubagent(subCfg)
 	a.Sub = sub
 
 	a.RegisterMCPServers()
 	defer a.ShutdownMCPServers()
 
 	if useTUI {
-		err = tui(ctx, a, conv)
+		err = tui(ctx, a, ctl)
 	} else {
-		err = cli(ctx, a, conv)
+		err = cli(ctx, a)
 	}
 
 	if err != nil {

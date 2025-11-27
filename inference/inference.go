@@ -43,7 +43,7 @@ func Init(ctx context.Context, llm BaseLLMClient) (LLMClient, error) {
 		return NewAnthropicClient(&client, ModelVersion(llm.Model), llm.TokenLimit, sysPrompt), nil
 	case GoogleProvider:
 		client, err := genai.NewClient(ctx, &genai.ClientConfig{
-			APIKey:  os.Getenv("GEMINI_API_KEY"),
+			APIKey:  os.Getenv("GOOGLE_API_KEY"),
 			Backend: genai.BackendGeminiAPI,
 		})
 		if err != nil {
@@ -70,6 +70,7 @@ func ListAvailableModels(provider ProviderName) []ModelVersion {
 		}
 	case GoogleProvider:
 		return []ModelVersion{
+			Gemini3Pro,
 			Gemini25Pro,
 			Gemini25Flash,
 			Gemini20Flash,
@@ -85,9 +86,9 @@ func ListAvailableModels(provider ProviderName) []ModelVersion {
 func GetDefaultModel(provider ProviderName) ModelVersion {
 	switch provider {
 	case AnthropicProvider:
-		return Claude45Sonnet
+		return Claude37Sonnet
 	case GoogleProvider:
-		return Gemini25Pro
+		return Gemini3Pro
 	default:
 		return ""
 	}
@@ -96,7 +97,7 @@ func GetDefaultModel(provider ProviderName) ModelVersion {
 func GetDefaultModelSubagent(provider ProviderName) ModelVersion {
 	switch provider {
 	case AnthropicProvider:
-		return Claude45Haiku
+		return Claude35Haiku
 	case GoogleProvider:
 		return Gemini25Flash
 	default:
@@ -122,6 +123,7 @@ func (b *BaseLLMClient) BaseSummarizeHistory(history []*message.Message, thresho
 	return summarizedHistory
 }
 
+// TODO: Refer to truncate logic in smolkafka Truncate method in log.go
 func (b *BaseLLMClient) BaseTruncateMessage(msg *message.Message, threshold int) *message.Message {
 	for i, b := range msg.Content {
 		// TODO: A new parameter to specify which keys to preserve

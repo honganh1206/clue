@@ -18,15 +18,15 @@ type ReadFileInput struct {
 var ReadFileInputSchema = schema.Generate[ReadFileInput]()
 
 var ReadFileDefinition = ToolDefinition{
-	Name:        "read_file",
+	Name:        ToolNameReadFile,
 	Description: readFilePrompt,
 	InputSchema: ReadFileInputSchema, // Machine-readable description of the tool's input
 	Function:    ReadFile,
 }
 
-func ReadFile(input json.RawMessage) (string, error) {
+func ReadFile(input ToolInput) (string, error) {
 	readFileInput := ReadFileInput{}
-	err := json.Unmarshal(input, &readFileInput)
+	err := json.Unmarshal(input.RawInput, &readFileInput)
 	if err != nil {
 		panic(err)
 	}

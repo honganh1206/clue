@@ -1,4 +1,4 @@
-package conversation
+package data
 
 import (
 	"database/sql"
@@ -10,16 +10,13 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/honganh1206/clue/message"
-	"github.com/honganh1206/clue/server/db"
 	"github.com/honganh1206/clue/utils"
 )
 
-//go:embed schema.sql
-var schemaSQL string
+var ErrConversationNotFound = errors.New("history: conversation not found")
 
-var (
-	ErrConversationNotFound = errors.New("history: conversation not found")
-)
+//go:embed conversation_schema.sql
+var ConversationSchema string
 
 type Conversation struct {
 	ID        string
@@ -31,23 +28,7 @@ type ConversationModel struct {
 	DB *sql.DB
 }
 
-func InitDB(dsn string) (*sql.DB, error) {
-	dbConfig := db.Config{
-		Dsn:          dsn,
-		MaxOpenConns: 25,
-		MaxIdleConns: 25,
-		MaxIdleTime:  "15m",
-	}
-
-	conversationDb, err := db.OpenDB(dbConfig, schemaSQL)
-	if err != nil {
-		return nil, err
-	}
-
-	return conversationDb, nil
-}
-
-func New() (*Conversation, error) {
+func NewConversation() (*Conversation, error) {
 	id, err := uuid.NewRandom()
 	if err != nil {
 		return nil, err
@@ -70,8 +51,22 @@ func (c *Conversation) Append(msg *message.Message) {
 	c.Messages = append(c.Messages, msg)
 }
 
-// TODO: Should this be a model method?
-func (cm ConversationModel) SaveTo(c *Conversation) error {
+func (cm ConversationModel) Create(c *Conversation) error {
+	query := `
+	INSERT INTO conversations (id, created_at)
+	VALUES(?, ?)
+	RETURNING id
+	`
+
+	err := cm.DB.QueryRow(query, c.ID, c.CreatedAt).Scan(&c.ID)
+	if err != nil {
+		return fmt.Errorf("failed to insert new conversation into database: %w", err)
+	}
+
+	return nil
+}
+
+func (cm ConversationModel) Save(c *Conversation) error {
 	// Begin a transaction
 	tx, err := cm.DB.Begin()
 	if err != nil {
@@ -186,7 +181,6 @@ func (cm ConversationModel) List() ([]ConversationMetadata, error) {
 	}
 
 	return metadataList, nil
-
 }
 
 func (cm ConversationModel) LatestID() (string, error) {
@@ -206,7 +200,7 @@ func (cm ConversationModel) LatestID() (string, error) {
 	return id, nil
 }
 
-func (cm ConversationModel) Load(id string) (*Conversation, error) {
+func (cm ConversationModel) Get(id string) (*Conversation, error) {
 	query := `
 		SELECT created_at FROM conversations WHERE id = ?
 	`
@@ -265,5 +259,4 @@ func (cm ConversationModel) Load(id string) (*Conversation, error) {
 	}
 
 	return conv, nil
-
 }

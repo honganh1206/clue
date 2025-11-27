@@ -13,13 +13,16 @@ import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/honganh1206/clue/agent"
 	"github.com/honganh1206/clue/message"
-	"github.com/honganh1206/clue/progress"
-	"github.com/honganh1206/clue/server/data/conversation"
+	"github.com/honganh1206/clue/server/data"
+	"github.com/honganh1206/clue/ui"
 	"github.com/honganh1206/clue/utils"
 	"github.com/rivo/tview"
 )
 
-func tui(ctx context.Context, agent *agent.Agent, conv *conversation.Conversation) error {
+func tui(ctx context.Context, agent *agent.Agent, ctl *ui.Controller) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	app := tview.NewApplication()
 
 	conversationView := tview.NewTextView().
@@ -27,16 +30,15 @@ func tui(ctx context.Context, agent *agent.Agent, conv *conversation.Conversatio
 		SetWordWrap(true).
 		SetChangedFunc(func() {
 			app.Draw()
-		})
+		}).ScrollToEnd()
 
-	isFirstInput := len(conv.Messages) == 0
+	isFirstInput := len(agent.Conv.Messages) == 0
 	if isFirstInput {
 		conversationView.SetTextAlign(tview.AlignCenter)
 		displayWelcomeMessage(conversationView)
 	} else {
-		displayConversationHistory(conversationView, conv)
+		displayConversationHistory(conversationView, agent.Conv)
 	}
-
 	relPath := displayRelativePath()
 
 	questionInput := tview.NewTextArea()
@@ -44,14 +46,27 @@ func tui(ctx context.Context, agent *agent.Agent, conv *conversation.Conversatio
 		SetTitleAlign(tview.AlignLeft).
 		SetBorder(true).
 		SetDrawFunc(renderRelativePath(relPath))
+	questionInput.SetFocusFunc(func() {
+		questionInput.SetBorderColor(tcell.ColorGreen)
+	})
+	questionInput.SetBlurFunc(func() {
+		questionInput.SetBorderColor(tcell.ColorWhite)
+	})
 
 	spinnerView := tview.NewTextView().
 		SetDynamicColors(true).
 		SetText("")
 
+	planView := tview.NewTextView().
+		SetDynamicColors(true)
+	planView.SetBorder(true)
+
+	inputFlex := tview.NewFlex()
+
+	inputHeight := 5
 	mainLayout := tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(conversationView, 0, 1, false).
-		AddItem(questionInput, 5, 1, true).
+		AddItem(inputFlex, inputHeight, 0, true).
 		AddItem(spinnerView, 1, 0, false)
 
 	conversationView.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
@@ -61,6 +76,36 @@ func tui(ctx context.Context, agent *agent.Agent, conv *conversation.Conversatio
 		}
 		return event
 	})
+
+	renderPlan := func(s *ui.State) {
+		// app.QueueUpdateDraw(func() {
+		inputFlex.Clear()
+		plan := s.Plan
+		if plan == nil || len(plan.Steps) == 0 {
+			inputFlex.AddItem(questionInput, 0, 1, true)
+			mainLayout.ResizeItem(inputFlex, 5, 0)
+		} else {
+			planView.SetText(formatPlanSteps(plan))
+			inputFlex.
+				AddItem(questionInput, 0, 1, true).
+				AddItem(planView, 0, 1, false)
+
+			newHeight := max(5, len(plan.Steps)+2)
+			mainLayout.ResizeItem(inputFlex, newHeight, 0)
+		}
+		// })
+	}
+
+	initialState := &ui.State{Plan: agent.Plan}
+	renderPlan(initialState)
+
+	go func() {
+		updateCh := ctl.Subscribe()
+
+		for s := range updateCh {
+			renderPlan(s)
+		}
+	}()
 
 	questionInput.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if isFirstInput && event.Key() == tcell.KeyRune {
@@ -85,7 +130,7 @@ func tui(ctx context.Context, agent *agent.Agent, conv *conversation.Conversatio
 			// User input
 			fmt.Fprintf(conversationView, "[blue::]> %s\n\n", content)
 
-			spinner := progress.NewSpinner(getRandomSpinnerMessage())
+			spinner := ui.NewSpinner(getRandomSpinnerMessage())
 			firstDelta := true
 			spinCh := make(chan bool, 1)
 
@@ -94,6 +139,8 @@ func tui(ctx context.Context, agent *agent.Agent, conv *conversation.Conversatio
 				defer ticker.Stop()
 				for {
 					select {
+					case <-ctx.Done():
+						return
 					case stop := <-spinCh:
 						if stop {
 							// Clear the spinner text to hide it from the UI when the agent finishes processing
@@ -151,7 +198,11 @@ func tui(ctx context.Context, agent *agent.Agent, conv *conversation.Conversatio
 		return event
 	})
 
-	return app.SetRoot(mainLayout, true).SetFocus(questionInput).Run()
+	if err := app.SetRoot(mainLayout, true).EnableMouse(true).SetFocus(questionInput).Run(); err != nil {
+		panic(err)
+	}
+
+	return nil
 }
 
 func formatMessage(msg *message.Message) string {
@@ -197,7 +248,7 @@ func displayWelcomeMessage(conversationView *tview.TextView) {
 	fmt.Fprintf(conversationView, "%s\n", formatWelcomeMessage())
 }
 
-func displayConversationHistory(conversationView *tview.TextView, conv *conversation.Conversation) {
+func displayConversationHistory(conversationView *tview.TextView, conv *data.Conversation) {
 	if len(conv.Messages) == 0 {
 		return
 	}
@@ -281,3 +332,22 @@ func displayRelativePath() string {
 	return relativePath
 }
 
+func formatPlanSteps(plan *data.Plan) string {
+	if plan == nil || len(plan.Steps) == 0 {
+		return ""
+	}
+
+	var result strings.Builder
+
+	for _, step := range plan.Steps {
+		statusColor := "white"
+		statusSymbol := "○"
+		if strings.ToUpper(step.Status) == "DONE" {
+			statusColor = "green"
+			statusSymbol = "✓"
+		}
+		result.WriteString(fmt.Sprintf("[%s::]%s %s[-]\n", statusColor, statusSymbol, step.Description))
+	}
+
+	return result.String()
+}

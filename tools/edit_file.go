@@ -13,7 +13,7 @@ import (
 // TODO: Embed markdown tool prompt
 // Apparently Claude loves replacing strings (known through experiments?)
 var EditFileDefinition = ToolDefinition{
-	Name: "edit_file",
+	Name: ToolNameEditFile,
 	Description: `Make edits to a text file.
 
 	Replace 'old_str' with 'new_str' in the given file. 'old_str' and 'new_str' MUST be different from each other.
@@ -31,9 +31,9 @@ type EditFileInput struct {
 
 var EditFileInputSchema = schema.Generate[EditFileInput]()
 
-func EditFile(input json.RawMessage) (string, error) {
+func EditFile(input ToolInput) (string, error) {
 	editFileInput := EditFileInput{}
-	err := json.Unmarshal(input, &editFileInput)
+	err := json.Unmarshal(input.RawInput, &editFileInput)
 	if err != nil {
 		return "", err
 	}
@@ -45,9 +45,13 @@ func EditFile(input json.RawMessage) (string, error) {
 	content, err := os.ReadFile(editFileInput.Path)
 	if err != nil {
 		if os.IsNotExist(err) && editFileInput.OldStr == "" {
-			return createNewFile(editFileInput.Path, editFileInput.NewStr)
+			result, err := createNewFile(editFileInput.Path, editFileInput.NewStr)
+			if err != nil {
+				return "", fmt.Errorf("error cannot create new file: %w", err)
+			}
+			return result, nil
 		}
-		return "", err
+		return "", fmt.Errorf("error reading file: %w", err)
 	}
 
 	oldContent := string(content)
@@ -58,7 +62,7 @@ func EditFile(input json.RawMessage) (string, error) {
 		return "", fmt.Errorf("old_str not found in file")
 	}
 
-	err = os.WriteFile(editFileInput.Path, []byte(newContent), 0644)
+	err = os.WriteFile(editFileInput.Path, []byte(newContent), 0o644)
 	if err != nil {
 		return "", err
 	}
@@ -70,14 +74,14 @@ func createNewFile(filePath, content string) (string, error) {
 	dir := path.Dir(filePath)
 	if dir != "." {
 		// Default permission for dir
-		err := os.MkdirAll(dir, 0755)
+		err := os.MkdirAll(dir, 0o755)
 		if err != nil {
 			return "", fmt.Errorf("failed to create directory: %w", err)
 		}
 	}
 
 	// Permission to read and write file
-	err := os.WriteFile(filePath, []byte(content), 0644)
+	err := os.WriteFile(filePath, []byte(content), 0o644)
 	if err != nil {
 		return "", fmt.Errorf("failed to create file: %w", err)
 	}

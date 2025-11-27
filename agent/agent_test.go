@@ -10,10 +10,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
-	"github.com/honganh1206/clue/api"
 	"github.com/honganh1206/clue/mcp"
 	"github.com/honganh1206/clue/message"
-	"github.com/honganh1206/clue/server/data/conversation"
+	"github.com/honganh1206/clue/server/api"
+	"github.com/honganh1206/clue/server/data"
 	"github.com/honganh1206/clue/tools"
 )
 
@@ -62,14 +62,14 @@ func (m *MockLLMClient) ToNativeTools(tools []*tools.ToolDefinition) error {
 
 // Create interfaces for dependency injection
 type APIClient interface {
-	SaveConversation(conv *conversation.Conversation) error
+	SaveConversation(conv *data.Conversation) error
 }
 
 type MockAPIClient struct {
 	mock.Mock
 }
 
-func (m *MockAPIClient) SaveConversation(conv *conversation.Conversation) error {
+func (m *MockAPIClient) SaveConversation(conv *data.Conversation) error {
 	args := m.Called(conv)
 	return args.Error(0)
 }
@@ -79,7 +79,7 @@ type APIClientAdapter struct {
 	*api.Client
 }
 
-func (a *APIClientAdapter) SaveConversation(conv *conversation.Conversation) error {
+func (a *APIClientAdapter) SaveConversation(conv *data.Conversation) error {
 	return a.Client.SaveConversation(conv)
 }
 
@@ -104,13 +104,13 @@ func (m *MockSubagent) Run(ctx context.Context, toolDescription, query string) (
 func createTestAgent() (*Agent, *MockLLMClient) {
 	mockLLM := &MockLLMClient{}
 
-	conv, _ := conversation.New()
+	conv, _ := data.NewConversation()
 	toolBox := &tools.ToolBox{
 		Tools: []*tools.ToolDefinition{
 			{
 				Name:        "test_tool",
 				Description: "A test tool",
-				Function: func(input json.RawMessage) (string, error) {
+				Function: func(input tools.ToolInput) (string, error) {
 					return "test result", nil
 				},
 			},
@@ -119,7 +119,14 @@ func createTestAgent() (*Agent, *MockLLMClient) {
 
 	// Create a real api.Client for testing
 	realClient := api.NewClient("")
-	agent := New(mockLLM, conv, toolBox, realClient, []mcp.ServerConfig{}, false)
+	agent := New(&Config{
+		LLM:          mockLLM,
+		Conversation: conv,
+		ToolBox:      toolBox,
+		Client:       realClient,
+		MCPConfigs:   []mcp.ServerConfig{},
+		Streaming:    false,
+	})
 	return agent, mockLLM
 }
 
@@ -153,7 +160,7 @@ func TestNew(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockLLM := &MockLLMClient{}
-			conv, _ := conversation.New()
+			conv, _ := data.NewConversation()
 			toolBox := &tools.ToolBox{Tools: []*tools.ToolDefinition{}}
 
 			mcpConfigs := make([]mcp.ServerConfig, tt.mcpCount)
@@ -165,18 +172,25 @@ func TestNew(t *testing.T) {
 			}
 
 			realClient := api.NewClient("")
-			agent := New(mockLLM, conv, toolBox, realClient, mcpConfigs, tt.streaming)
+			agent := New(&Config{
+				LLM:          mockLLM,
+				Conversation: conv,
+				ToolBox:      toolBox,
+				Client:       realClient,
+				MCPConfigs:   mcpConfigs,
+				Streaming:    tt.streaming,
+			})
 
 			assert.NotNil(t, agent)
-			assert.Equal(t, mockLLM, agent.llm)
-			assert.Equal(t, conv, agent.conversation)
-			assert.Equal(t, toolBox, agent.toolBox)
-			assert.NotNil(t, agent.client)
+			assert.Equal(t, mockLLM, agent.LLM)
+			assert.Equal(t, conv, agent.Conv)
+			assert.Equal(t, toolBox, agent.ToolBox)
+			assert.NotNil(t, agent.Client)
 			assert.Equal(t, tt.streaming, agent.streaming)
-			assert.Equal(t, tt.mcpCount, len(agent.mcp.ServerConfigs))
-			assert.NotNil(t, agent.mcp.ActiveServers)
-			assert.NotNil(t, agent.mcp.Tools)
-			assert.NotNil(t, agent.mcp.ToolMap)
+			assert.Equal(t, tt.mcpCount, len(agent.MCP.ServerConfigs))
+			assert.NotNil(t, agent.MCP.ActiveServers)
+			assert.NotNil(t, agent.MCP.Tools)
+			assert.NotNil(t, agent.MCP.ToolMap)
 		})
 	}
 }
@@ -201,10 +215,10 @@ func TestAgent_Run_SimpleTextResponse(t *testing.T) {
 	err := agent.Run(ctx, userInput, onDelta)
 
 	assert.NoError(t, err)
-	assert.Len(t, agent.conversation.Messages, 2) // User message + Assistant message
+	assert.Len(t, agent.Conv.Messages, 2) // User message + Assistant message
 
 	// Verify user message was added
-	userMsg := agent.conversation.Messages[0]
+	userMsg := agent.Conv.Messages[0]
 	assert.Equal(t, message.UserRole, userMsg.Role)
 	assert.Len(t, userMsg.Content, 1)
 	if textBlock, ok := userMsg.Content[0].(message.TextBlock); ok {
@@ -244,7 +258,7 @@ func TestAgent_Run_WithToolUse(t *testing.T) {
 	err := agent.Run(ctx, userInput, onDelta)
 
 	assert.NoError(t, err)
-	assert.Greater(t, len(agent.conversation.Messages), 2) // Should have multiple messages
+	assert.Greater(t, len(agent.Conv.Messages), 2) // Should have multiple messages
 
 	mockLLM.AssertExpectations(t)
 }
@@ -309,11 +323,11 @@ func TestAgent_executeLocalTool_ToolError(t *testing.T) {
 	errorTool := &tools.ToolDefinition{
 		Name:        "error_tool",
 		Description: "A tool that errors",
-		Function: func(input json.RawMessage) (string, error) {
+		Function: func(input tools.ToolInput) (string, error) {
 			return "", errors.New("tool execution failed")
 		},
 	}
-	agent.toolBox.Tools = append(agent.toolBox.Tools, errorTool)
+	agent.ToolBox.Tools = append(agent.ToolBox.Tools, errorTool)
 
 	toolInput, _ := json.Marshal(map[string]string{"query": "test"})
 
@@ -334,7 +348,11 @@ func TestAgent_runSubagent_Success(t *testing.T) {
 	subLLM := &MockLLMClient{}
 	subToolBox := &tools.ToolBox{Tools: []*tools.ToolDefinition{}}
 	subLLM.On("ToNativeTools", subToolBox.Tools).Return(nil)
-	realSubagent := NewSubagent(subLLM, subToolBox, false)
+	realSubagent := NewSubagent(&Config{
+		LLM:       subLLM,
+		ToolBox:   subToolBox,
+		Streaming: false,
+	})
 	agent.Sub = realSubagent
 
 	expectedResponse := &message.Message{
@@ -376,7 +394,11 @@ func TestAgent_runSubagent_SubagentError(t *testing.T) {
 	subLLM := &MockLLMClient{}
 	subToolBox := &tools.ToolBox{Tools: []*tools.ToolDefinition{}}
 	subLLM.On("ToNativeTools", subToolBox.Tools).Return(nil)
-	realSubagent := NewSubagent(subLLM, subToolBox, false)
+	realSubagent := NewSubagent(&Config{
+		LLM:       subLLM,
+		ToolBox:   subToolBox,
+		Streaming: false,
+	})
 	agent.Sub = realSubagent
 
 	expectedError := errors.New("subagent execution failed")
@@ -398,7 +420,7 @@ func TestAgent_saveConversation_Success(t *testing.T) {
 	agent, _ := createTestAgent()
 
 	// Add a message to conversation
-	agent.conversation.Append(createTestMessage(message.UserRole, "Test message"))
+	agent.Conv.Append(createTestMessage(message.UserRole, "Test message"))
 
 	// Note: This test uses a real HTTP client, so it may fail if server is not running
 	// In a proper test setup, we would mock the HTTP client

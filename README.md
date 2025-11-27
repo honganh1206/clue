@@ -18,7 +18,13 @@ If this proves to be helpful to anyone, consider it my thanks to the open-source
 
 ## Installation
 
-1. Add Anthropic API key as an environment variable with `export ANTHROPIC_API_KEY="your-api-key-here"`
+1. Add API keys as an environment variable
+
+```bash
+export ANTHROPIC_API_KEY="your-api-key-here"
+export GOOGLE_API_KEY="your-api-key-here"
+```
+
 2. Run the installation script for the latest version (Linux only at the moment):
 
 ```bash
@@ -32,6 +38,38 @@ To add MCP servers to clue:
 ```sh
 clue mcp --server-cmd "my-server:npx @modelcontextprotocol/server-everything"
 ```
+
+## Breaking Changes
+
+> **⚠️ WARNING**: If you have a running clue daemon from a previous version, you must purge it before installing the new version:
+
+1. Disable the systemd service:
+
+```bash
+sudo systemctl disable clue
+sudo systemctl stop clue
+```
+
+2. Identify the clue process:
+
+```bash
+ps aux | grep clue
+```
+
+3. Kill the process entirely (replace `<PID>` with the actual process ID):
+
+```bash
+kill -9 <PID>
+```
+
+4. Remove the service file:
+
+```bash
+sudo rm /etc/systemd/system/clue.service
+sudo systemctl daemon-reload
+```
+
+5. Move the existing `conversation.db` from `~/.local/.clue` to `~/.clue` and rename the database to `clue.db`
 
 ## Development
 

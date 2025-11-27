@@ -13,6 +13,6 @@ But I don't think that will help in the long run. I have an idea of the Maestro 
 Here is a list of what I do:
 
 1. Made a `subagent.go` file and pretty much copied the inference logic inside `agent.go`. The subagents share the same for loop that will continue invoking the tools until it is done with the task it is given. At that point, it sends back the result to the main agent.
-2. Invoke the subagent as a tool. For now, when the main agent invokes the `codebase_search_agent` tool, the subagent will be invoked as a local tool call. For that reason, there is no search function inside `codebase_search_agent.go`.
+2. Invoke the subagent as a tool. For now, when the main agent invokes the `finder` tool, the subagent will be invoked as a local tool call. For that reason, there is no search function inside `finder.go`.
 
 In the future, I think the approach to separate the logic for subagents is still a good approach. We might get a hoarde of subagents running under the command of the big boss!

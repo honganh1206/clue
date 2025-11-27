@@ -2,7 +2,6 @@ package tools
 
 import (
 	"encoding/json"
-
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -27,7 +26,7 @@ func TestToolBox_AddTool(t *testing.T) {
 	testTool := &ToolDefinition{
 		Name:        "test_tool",
 		Description: "A test tool",
-		Function: func(input json.RawMessage) (string, error) {
+		Function: func(input ToolInput) (string, error) {
 			return "test result", nil
 		},
 	}
@@ -45,12 +44,12 @@ func TestToolBox_MultipleLtools(t *testing.T) {
 			{
 				Name:        "tool1",
 				Description: "First tool",
-				Function:    func(input json.RawMessage) (string, error) { return "result1", nil },
+				Function:    func(input ToolInput) (string, error) { return "result1", nil },
 			},
 			{
 				Name:        "tool2",
 				Description: "Second tool",
-				Function:    func(input json.RawMessage) (string, error) { return "result2", nil },
+				Function:    func(input ToolInput) (string, error) { return "result2", nil },
 				IsSubTool:   true,
 			},
 		},
@@ -68,7 +67,7 @@ func TestToolDefinition_Creation(t *testing.T) {
 	tool := &ToolDefinition{
 		Name:        "test_tool",
 		Description: "Test description",
-		Function: func(input json.RawMessage) (string, error) {
+		Function: func(input ToolInput) (string, error) {
 			return "success", nil
 		},
 	}
@@ -84,7 +83,7 @@ func TestToolDefinition_SubTool(t *testing.T) {
 		Name:        "sub_tool",
 		Description: "Sub tool description",
 		IsSubTool:   true,
-		Function: func(input json.RawMessage) (string, error) {
+		Function: func(input ToolInput) (string, error) {
 			return "sub result", nil
 		},
 	}
@@ -95,38 +94,19 @@ func TestToolDefinition_SubTool(t *testing.T) {
 func TestToolDefinition_FunctionExecution(t *testing.T) {
 	tool := &ToolDefinition{
 		Name: "echo_tool",
-		Function: func(input json.RawMessage) (string, error) {
-			var data map[string]string
-			err := json.Unmarshal(input, &data)
+		Function: func(input ToolInput) (string, error) {
+			var message map[string]string
+			err := json.Unmarshal(input.RawInput, &message)
 			if err != nil {
 				return "", err
 			}
-			return data["message"], nil
+			return message["message"], nil
 		},
 	}
 
 	input, _ := json.Marshal(map[string]string{"message": "hello world"})
-	result, err := tool.Function(input)
+	result, err := tool.Function(ToolInput{RawInput: input})
 
 	assert.NoError(t, err)
 	assert.Equal(t, "hello world", result)
-}
-
-// Tests for ToolInput struct
-func TestToolInput_JSONMarshaling(t *testing.T) {
-	toolInput := ToolInput{Path: "/test/path"}
-
-	data, err := json.Marshal(toolInput)
-	assert.NoError(t, err)
-	assert.Contains(t, string(data), `"path":"/test/path"`)
-}
-
-func TestToolInput_JSONUnmarshaling(t *testing.T) {
-	jsonData := `{"path":"/test/path"}`
-
-	var toolInput ToolInput
-	err := json.Unmarshal([]byte(jsonData), &toolInput)
-
-	assert.NoError(t, err)
-	assert.Equal(t, "/test/path", toolInput.Path)
 }
