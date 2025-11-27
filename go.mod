@@ -1,4 +1,4 @@
-module github.com/honganh1206/clue
+module github.com/honganh1206/tinker
 
 go 1.24.4
 

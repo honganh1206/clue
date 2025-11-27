@@ -7,13 +7,13 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/honganh1206/clue/inference"
-	"github.com/honganh1206/clue/mcp"
-	"github.com/honganh1206/clue/message"
-	"github.com/honganh1206/clue/server/api"
-	"github.com/honganh1206/clue/server/data"
-	"github.com/honganh1206/clue/tools"
-	"github.com/honganh1206/clue/ui"
+	"github.com/honganh1206/tinker/inference"
+	"github.com/honganh1206/tinker/mcp"
+	"github.com/honganh1206/tinker/message"
+	"github.com/honganh1206/tinker/server/api"
+	"github.com/honganh1206/tinker/server/data"
+	"github.com/honganh1206/tinker/tools"
+	"github.com/honganh1206/tinker/ui"
 )
 
 type PlanUpdateCallback func(*data.Plan)

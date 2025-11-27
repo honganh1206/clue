@@ -7,9 +7,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/honganh1206/clue/agent"
-	"github.com/honganh1206/clue/message"
-	"github.com/honganh1206/clue/server/data"
+	"github.com/honganh1206/tinker/agent"
+	"github.com/honganh1206/tinker/message"
+	"github.com/honganh1206/tinker/server/data"
 )
 
 const (

@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/honganh1206/clue/schema"
-	"github.com/honganh1206/clue/server/data"
+	"github.com/honganh1206/tinker/schema"
+	"github.com/honganh1206/tinker/server/data"
 )
 
 var PlanWriteDefinition = ToolDefinition{

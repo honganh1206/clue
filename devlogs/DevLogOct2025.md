@@ -1,10 +1,10 @@
-Clue can now delegate work to its subagents! Well, at least with search-related tasks.
+Tinker can now delegate work to its subagents! Well, at least with search-related tasks.
 
 The development behind this was quite funny:
 
 I initially just wanted to write a bash tool for the agent to execute command, but I completed writing it faster than I expected :) So I thought of improving the search tool that can invoke a subagent.
 
-I was so impressed by [Amp's subagents](https://ampcode.com/agents-for-the-agent) that I tried to copy it (TLDR: Subagents save your main agent's context window and can be invoked by including "subagent" in the prompt - How cool is that?). Think of it like mini-Clues: They should have their own context window and set of tools, and they should be reporting to the big agent in the room.
+I was so impressed by [Amp's subagents](https://ampcode.com/agents-for-the-agent) that I tried to copy it (TLDR: Subagents save your main agent's context window and can be invoked by including "subagent" in the prompt - How cool is that?). Think of it like mini-Tinkers: They should have their own context window and set of tools, and they should be reporting to the big agent in the room.
 
 My design is to have a smaller version of the Agent struct without the persisting conversation slice + MCP connects (will have in the future?), but AI suggests that I use a runner and re-use the same Agent struct so to avoid import cycle with the `tools` package.
 

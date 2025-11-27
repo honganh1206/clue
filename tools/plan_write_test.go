@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/honganh1206/clue/server/api"
-	"github.com/honganh1206/clue/server/data"
+	"github.com/honganh1206/tinker/server/api"
+	"github.com/honganh1206/tinker/server/data"
 	"github.com/stretchr/testify/assert"
 )
 

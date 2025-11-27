@@ -7,7 +7,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/honganh1206/clue/schema"
+	"github.com/honganh1206/tinker/schema"
 )
 
 //go:embed grep.md

@@ -103,12 +103,12 @@ func SaveConfigs(configs []ServerConfig) error {
 		return err
 	}
 
-	clueDir := filepath.Join(configDir, "clue")
-	if err := os.MkdirAll(clueDir, 0755); err != nil {
+	tinkerDir := filepath.Join(configDir, "tinker")
+	if err := os.MkdirAll(tinkerDir, 0755); err != nil {
 		return err
 	}
 
-	configPath := filepath.Join(clueDir, mcpConfigFile)
+	configPath := filepath.Join(tinkerDir, mcpConfigFile)
 	data, err := json.MarshalIndent(configs, "", "  ")
 	if err != nil {
 		return err
@@ -123,7 +123,7 @@ func LoadConfigs() ([]ServerConfig, error) {
 		return nil, err
 	}
 
-	configPath := filepath.Join(configDir, "clue", mcpConfigFile)
+	configPath := filepath.Join(configDir, "tinker", mcpConfigFile)
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		return []ServerConfig{}, nil
 	}

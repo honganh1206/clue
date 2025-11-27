@@ -41,8 +41,8 @@ esac
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VERSION=$(cat "$SCRIPT_DIR/../VERSION" 2>/dev/null || echo "0.2.2")
-BASE_URL="https://github.com/honganh1206/clue/releases/download"
-DOWNLOAD_URL="${BASE_URL}/${VERSION}/clue_${VERSION}_${OS}_${ARCH}"
+BASE_URL="https://github.com/honganh1206/tinker/releases/download"
+DOWNLOAD_URL="${BASE_URL}/${VERSION}/tinker_${VERSION}_${OS}_${ARCH}"
 
 SUDO=
 if [ "$(id -u)" -ne 0 ]; then
@@ -68,58 +68,58 @@ for BINDIR in /usr/local/bin /usr/bin /bin; do
     echo $PATH | grep -q $BINDIR && break || continue
 done
 
-CLUE_INSTALL_DIR=$(dirname ${BINDIR})
+TINKER_INSTALL_DIR=$(dirname ${BINDIR})
 
-status "Downloading clue version ${VERSION} for ${OS}/${ARCH}..."
+status "Downloading tinker version ${VERSION} for ${OS}/${ARCH}..."
 
-if ! curl -fsSL -o clue ${DOWNLOAD_URL}; then
+if ! curl -fsSL -o tinker ${DOWNLOAD_URL}; then
     error "Download failed. Please check your internet connection and try again."
     exit 1
 fi
 
-chmod +x clue
+chmod +x tinker
 
-if [ -d "$CLUE_INSTALL_DIR/clue" ] ; then
+if [ -d "$TINKER_INSTALL_DIR/tinker" ] ; then
     status "Cleaning up old version at $OLLAMA_INSTALL_DIR/ollama"
     $SUDO rm -rf "$OLLAMA_INSTALL_DIR/ollama"
 fi
 
-# Allow clue.service to connect to local sqlite3
-# since when we run clue.service with systemd, the current user is root,
+# Allow tinker.service to connect to local sqlite3
+# since when we run tinker.service with systemd, the current user is root,
 # and thus cannot connect to local DBs.
 # So we pre-fetch the current local user.
 # TODO: Make sqlite3 DB system-wide?
 CURRENT_USER="$(whoami)"
 
-status "Installing clue to ${CLUE_INSTALL_DIR}..."
+status "Installing tinker to ${TINKER_INSTALL_DIR}..."
 
-$SUDO mv clue $BINDIR
+$SUDO mv tinker $BINDIR
 
 install_success() {
-    status 'The Clue API is now available at 127.0.0.1:11435.'
-    status 'Install complete. Run "clue" from the command line.'
+    status 'The Tinker API is now available at 127.0.0.1:11435.'
+    status 'Install complete. Run "tinker" from the command line.'
 }
 trap install_success EXIT
 
 configure_systemd() {
-    # TODO: set HOME=/usr/share/clue for clue user
-    # and set write access to ./local/.clue for clue user
+    # TODO: set HOME=/usr/share/tinker for tinker user
+    # and set write access to ./local/.tinker for tinker user
     # and might be moving the DBs to shared user space?
-    # if ! id clue >/dev/null 2>$1; then
-    #     status "Creating clue user..."
-    #     $SUDO useradd -r -s /bin/false -U -m -d /usr/share/clue clue
+    # if ! id tinker >/dev/null 2>$1; then
+    #     status "Creating tinker user..."
+    #     $SUDO useradd -r -s /bin/false -U -m -d /usr/share/tinker tinker
     # fi
 
-    # status "Adding current user to clue group..."
-    # $SUDO usermod -a -G clue $(whoami)
-    status "Creating clue systemd service..."
-    cat <<EOF | $SUDO tee /etc/systemd/system/clue.service >/dev/null
+    # status "Adding current user to tinker group..."
+    # $SUDO usermod -a -G tinker $(whoami)
+    status "Creating tinker systemd service..."
+    cat <<EOF | $SUDO tee /etc/systemd/system/tinker.service >/dev/null
 [Unit]
-Description=Clue AI Coding Agent Server
+Description=Tinker AI Coding Agent Server
 After=network-online.target
 
 [Service]
-ExecStart=$BINDIR/clue serve
+ExecStart=$BINDIR/tinker serve
 User=$CURRENT_USER
 Group=$(id -gn)
 Restart=always
@@ -131,10 +131,10 @@ Environment="HOME=$HOME"
 WantedBy=default.target
 EOF
 
-    status "Enabling and starting clue service..."
+    status "Enabling and starting tinker service..."
     $SUDO systemctl daemon-reload
-    $SUDO systemctl enable clue.service
-    $SUDO systemctl start clue.service
+    $SUDO systemctl enable tinker.service
+    $SUDO systemctl start tinker.service
 }
 
 if available systemctl; then

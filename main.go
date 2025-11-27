@@ -5,7 +5,7 @@ import (
 	_ "embed"
 	"os"
 
-	"github.com/honganh1206/clue/cmd"
+	"github.com/honganh1206/tinker/cmd"
 )
 
 func main() {

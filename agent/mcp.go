@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/honganh1206/clue/mcp"
-	"github.com/honganh1206/clue/tools"
+	"github.com/honganh1206/tinker/mcp"
+	"github.com/honganh1206/tinker/tools"
 )
 
 func (a *Agent) RegisterMCPServers() {

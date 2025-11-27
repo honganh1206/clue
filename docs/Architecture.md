@@ -6,7 +6,7 @@ CLI, server and model engine are separate
 
 Root `main.go` as stateless command-line interface and client operations. The CLI starts conversations and manages user I/O
 
-The CLI client `clue serve` send HTTP request to `server/`
+The CLI client `tinker serve` send HTTP request to `server/`
 
 `app/main.go` as server daemon and API service (background processing). The server performs CRUD operations on conversations and messages (also inference routing?)
 

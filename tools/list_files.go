@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/honganh1206/clue/schema"
+	"github.com/honganh1206/tinker/schema"
 )
 
 var ListFilesDefinition = ToolDefinition{

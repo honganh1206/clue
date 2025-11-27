@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
-	"github.com/honganh1206/clue/message"
+	"github.com/honganh1206/tinker/message"
 )
 
 // Mock implementations for testing

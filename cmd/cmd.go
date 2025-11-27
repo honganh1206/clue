@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/honganh1206/clue/inference"
-	"github.com/honganh1206/clue/mcp"
-	"github.com/honganh1206/clue/server"
-	"github.com/honganh1206/clue/server/api"
-	"github.com/honganh1206/clue/utils"
+	"github.com/honganh1206/tinker/inference"
+	"github.com/honganh1206/tinker/mcp"
+	"github.com/honganh1206/tinker/server"
+	"github.com/honganh1206/tinker/server/api"
+	"github.com/honganh1206/tinker/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -35,9 +35,9 @@ var (
 )
 
 func HelpHandler(cmd *cobra.Command, args []string) error {
-	fmt.Println("clue - A simple CLI-based AI coding agent")
+	fmt.Println("tinker - A simple CLI-based AI coding agent")
 	fmt.Println("\nUsage:")
-	fmt.Println("\tclue -provider anthropic -model claude-4-sonnet")
+	fmt.Println("\ttinker -provider anthropic -model claude-4-sonnet")
 
 	return nil
 }
@@ -248,15 +248,15 @@ func NewCLI() *cobra.Command {
 
 	versionCmd := &cobra.Command{
 		Use:   "version",
-		Short: "Print the version number of clue",
+		Short: "Print the version number of tinker",
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Printf("Clue version %s (commit: %s, built: %s)\n", Version, GitCommit, BuildTime)
+			fmt.Printf("Tinker version %s (commit: %s, built: %s)\n", Version, GitCommit, BuildTime)
 		},
 	}
 
 	serveCmd := &cobra.Command{
 		Use:   "serve",
-		Short: "Start clue server",
+		Short: "Start tinker server",
 		Args:  cobra.ExactArgs(0),
 		RunE:  RunServer,
 	}
@@ -269,18 +269,18 @@ func NewCLI() *cobra.Command {
 Server configurations must be in the format id:command.
 
 Examples:
-  clue mcp --server-cmd "my-server:uvx mcp-server-fetch"
-  clue mcp "fetch-server:uvx mcp-server-fetch"
-  clue mcp "python-server:python my_mcp_server.py --port 8080"
-  clue mcp --verbose "node-server:node mcp-server.js"
-  clue mcp "server1:uvx mcp-server-fetch" "server2:python other_server.py"`,
+  tinker mcp --server-cmd "my-server:uvx mcp-server-fetch"
+  tinker mcp "fetch-server:uvx mcp-server-fetch"
+  tinker mcp "python-server:python my_mcp_server.py --port 8080"
+  tinker mcp --verbose "node-server:node mcp-server.js"
+  tinker mcp "server1:uvx mcp-server-fetch" "server2:python other_server.py"`,
 		RunE: MCPHandler,
 	}
 
 	mcpCmd.Flags().StringVar(&mcpServerCmd, "server-cmd", "", "Server configuration in format id:command (e.g., 'my-server:uvx mcp-server-fetch')")
 
 	rootCmd := &cobra.Command{
-		Use:   "clue",
+		Use:   "tinker",
 		Short: "An AI agent for code editing and assistance",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			if configs, err := mcp.LoadConfigs(); err == nil {

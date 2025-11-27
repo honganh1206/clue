@@ -11,11 +11,11 @@ import (
 	"time"
 
 	"github.com/gdamore/tcell/v2"
-	"github.com/honganh1206/clue/agent"
-	"github.com/honganh1206/clue/message"
-	"github.com/honganh1206/clue/server/data"
-	"github.com/honganh1206/clue/ui"
-	"github.com/honganh1206/clue/utils"
+	"github.com/honganh1206/tinker/agent"
+	"github.com/honganh1206/tinker/message"
+	"github.com/honganh1206/tinker/server/data"
+	"github.com/honganh1206/tinker/ui"
+	"github.com/honganh1206/tinker/utils"
 	"github.com/rivo/tview"
 )
 
@@ -229,9 +229,9 @@ func formatMessage(msg *message.Message) string {
 
 func formatWelcomeMessage() string {
 	return utils.RenderBox(
-		fmt.Sprintf("Clue v%s", Version),
+		fmt.Sprintf("Tinker v%s", Version),
 		[]string{
-			"Thank you for using Clue!",
+			"Thank you for using Tinker!",
 			"",
 			"Feel free to make a contribution - this app is open source",
 			"",

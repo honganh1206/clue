@@ -1,4 +1,4 @@
-// Package tools provides tool definitions for the Clue CLI agent system.
+// Package tools provides tool definitions for the Tinker CLI agent system.
 package tools
 
 import (
@@ -8,7 +8,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/honganh1206/clue/schema"
+	"github.com/honganh1206/tinker/schema"
 )
 
 //go:embed bash.md
