@@ -22,7 +22,7 @@ func createTestSubagent() (*Subagent, *MockLLMClient) {
 			{
 				Name:        "test_tool",
 				Description: "A test tool for subagent",
-				Function: func(td *tools.ToolData) (string, error) {
+				Function: func(input tools.ToolInput) (string, error) {
 					return "subagent test result", nil
 				},
 			},
@@ -48,7 +48,7 @@ func TestNewSubagent_Success(t *testing.T) {
 			{
 				Name:        "read_file",
 				Description: "Read a file",
-				Function:    func(td *tools.ToolData) (string, error) { return "", nil },
+				Function:    func(input tools.ToolInput) (string, error) { return "", nil },
 			},
 		},
 	}
@@ -319,7 +319,7 @@ func TestSubagent_executeTool_ToolError(t *testing.T) {
 			{
 				Name:        "error_tool",
 				Description: "A tool that returns an error",
-				Function: func(td *tools.ToolData) (string, error) {
+				Function: func(input tools.ToolInput) (string, error) {
 					return "", errors.New("tool execution failed")
 				},
 			},
@@ -394,14 +394,14 @@ func TestSubagent_Run_MultipleToolCalls(t *testing.T) {
 			{
 				Name:        "tool1",
 				Description: "First tool",
-				Function: func(td *tools.ToolData) (string, error) {
+				Function: func(input tools.ToolInput) (string, error) {
 					return "result1", nil
 				},
 			},
 			{
 				Name:        "tool2",
 				Description: "Second tool",
-				Function: func(td *tools.ToolData) (string, error) {
+				Function: func(input tools.ToolInput) (string, error) {
 					return "result2", nil
 				},
 			},

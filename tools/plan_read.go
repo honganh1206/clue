@@ -28,42 +28,46 @@ type PlanReadInput struct {
 
 var PlanReadInputSchema = schema.Generate[PlanReadInput]()
 
-func PlanRead(data *ToolData) (string, error) {
+func PlanRead(input ToolInput) (string, error) {
 	planReadInput := PlanReadInput{}
 
-	err := json.Unmarshal(data.Input, &planReadInput)
+	err := json.Unmarshal(input.RawInput, &planReadInput)
 	if err != nil {
 		return "", err
 	}
 
 	switch planReadInput.Action {
 	case ActionInspect:
-		return handleInspect(data)
+		output, err := handleInspect(input)
+		if err != nil {
+			return "error when inspecting plan", err
+		}
+		return output, nil
 	case ActionGetNextStep:
-		return handleGetNextStep(data)
+		output, err := handleGetNextStep(input)
+		if err != nil {
+			return "error when getting next step", err
+		}
+		return output, nil
+
 	case ActionIsCompleted:
-		return handleIsCompleted(data)
+		output, err := handleIsCompleted(input)
+		if err != nil {
+			return "error when checking if step is completed", err
+		}
+		return output, nil
+
 	default:
 		return "", fmt.Errorf("plan_read: unknown action '%s'", planReadInput.Action)
 	}
 }
 
-func handleInspect(data *ToolData) (string, error) {
-	// This means the agent in conversation A session can read the plan from conversation B given the opportunity.
-	// Do we want this?
-	plan, err := data.Client.GetPlan(data.ConversationID)
-	if err != nil {
-		return "", fmt.Errorf("plan_read: failed to get plan with conversation ID '%s': %w", data.ConversationID, err)
-	}
-	return plan.Inspect(), nil
+func handleInspect(input ToolInput) (string, error) {
+	return input.Plan.Inspect(), nil
 }
 
-func handleGetNextStep(data *ToolData) (string, error) {
-	plan, err := data.GetPlan(data.ConversationID)
-	if err != nil {
-		return "", fmt.Errorf("plan_read: failed to get plan for conversation with ID '%s': %w", data.ConversationID, err)
-	}
-	next := plan.NextStep()
+func handleGetNextStep(input ToolInput) (string, error) {
+	next := input.Plan.NextStep()
 	if next == nil {
 		return "plan is completed", nil
 	} else {
@@ -85,12 +89,8 @@ func handleGetNextStep(data *ToolData) (string, error) {
 	}
 }
 
-func handleIsCompleted(data *ToolData) (string, error) {
-	plan, err := data.GetPlan(data.ConversationID)
-	if err != nil {
-		return "", fmt.Errorf("plan_read: failed to get plan for conversation with ID '%s': %w", data.ConversationID, err)
-	}
-	isCompleted := plan.IsCompleted()
+func handleIsCompleted(input ToolInput) (string, error) {
+	isCompleted := input.Plan.IsCompleted()
 	// Are we going to format it to JSON or just string?
 	resp := map[string]any{
 		"is_completed": isCompleted,

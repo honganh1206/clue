@@ -112,14 +112,14 @@ func (s *Subagent) executeTool(id, name string, input json.RawMessage) message.C
 		return message.NewToolResultBlock(id, name, errorMsg, true)
 	}
 
-	toolData := &tools.ToolData{
-		Input: input,
+	toolInput := tools.ToolInput{
+		RawInput: input,
 	}
 
-	response, err := toolDef.Function(toolData)
+	response, err := toolDef.Function(toolInput)
 	if err != nil {
 		return message.NewToolResultBlock(id, name, err.Error(), true)
 	}
 
-	return message.NewToolResultBlock(id, name, response, false)
+	return message.NewToolResultBlock(id, name, string(response), false)
 }

@@ -31,9 +31,9 @@ type EditFileInput struct {
 
 var EditFileInputSchema = schema.Generate[EditFileInput]()
 
-func EditFile(data *ToolData) (string, error) {
+func EditFile(input ToolInput) (string, error) {
 	editFileInput := EditFileInput{}
-	err := json.Unmarshal(data.Input, &editFileInput)
+	err := json.Unmarshal(input.RawInput, &editFileInput)
 	if err != nil {
 		return "", err
 	}
@@ -45,9 +45,13 @@ func EditFile(data *ToolData) (string, error) {
 	content, err := os.ReadFile(editFileInput.Path)
 	if err != nil {
 		if os.IsNotExist(err) && editFileInput.OldStr == "" {
-			return createNewFile(editFileInput.Path, editFileInput.NewStr)
+			result, err := createNewFile(editFileInput.Path, editFileInput.NewStr)
+			if err != nil {
+				return fmt.Sprintf("error cannot create new file"), err
+			}
+			return result, nil
 		}
-		return "", err
+		return "error reading file", err
 	}
 
 	oldContent := string(content)
@@ -84,4 +88,3 @@ func createNewFile(filePath, content string) (string, error) {
 
 	return fmt.Sprintf("successfully created file %s", filePath), nil
 }
-

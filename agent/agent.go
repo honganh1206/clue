@@ -22,7 +22,6 @@ type Agent struct {
 	LLM     inference.LLMClient
 	ToolBox *tools.ToolBox
 	Conv    *data.Conversation
-	Plan    *data.Plan
 	Client  *api.Client
 	ctl     *ui.Controller
 	MCP     mcp.Config
@@ -48,7 +47,6 @@ func New(config *Config) *Agent {
 		LLM:       config.LLM,
 		ToolBox:   config.ToolBox,
 		Conv:      config.Conversation,
-		Plan:      config.Plan,
 		Client:    config.Client,
 		streaming: config.Streaming,
 		ctl:       config.Controller,
@@ -206,7 +204,7 @@ func (a *Agent) executeLocalTool(id, name string, input json.RawMessage) message
 		errorMsg := "tool not found"
 		return message.NewToolResultBlock(id, name, errorMsg, true)
 	}
-	var response string
+	var toolOutput string
 	var err error
 
 	if toolDef.IsSubTool {
@@ -228,18 +226,21 @@ func (a *Agent) executeLocalTool(id, name string, input json.RawMessage) message
 			}
 		}
 
-		response = final.String()
+		toolOutput = final.String()
 	} else {
-		toolData := &tools.ToolData{
-			Input: input,
+		toolInput := tools.ToolInput{
+			RawInput: input,
+			ToolData: &tools.ToolData{
+				Plan: &data.Plan{},
+			},
 		}
 
 		switch toolDef.Name {
 		case tools.ToolNamePlanWrite, tools.ToolNamePlanRead:
 			// Special treatment: Tools dealing with plans need more fields populated
-			response, err = a.executePlanTool(toolDef, toolData)
+			toolOutput, err = a.executePlanTool(toolDef, toolInput)
 		default:
-			response, err = toolDef.Function(toolData)
+			toolOutput, err = toolDef.Function(toolInput)
 		}
 	}
 
@@ -247,25 +248,49 @@ func (a *Agent) executeLocalTool(id, name string, input json.RawMessage) message
 		return message.NewToolResultBlock(id, name, err.Error(), true)
 	}
 
-	return message.NewToolResultBlock(id, name, response, false)
+	// Temp casting to ToolOutput type
+	return message.NewToolResultBlock(id, name, string(toolOutput), false)
 }
 
-// TODO: The ToolData struct should not have a Client field
-// All CRUD operations for Plan should be executed here
-// The plan_write and plan_read tools should only receive a Plan object
-func (a *Agent) executePlanTool(toolDef *tools.ToolDefinition, toolData *tools.ToolData) (string, error) {
-	toolData.Client = a.Client
-	toolData.ConversationID = a.Conv.ID
+func (a *Agent) executePlanTool(toolDef *tools.ToolDefinition, toolInput tools.ToolInput) (string, error) {
+	var p *data.Plan
+	var err error
 
-	response, err := toolDef.Function(toolData)
+	p, err = a.Client.GetPlan(a.Conv.ID)
 	if err != nil {
-		return "", err
+		if strings.Contains(strings.ToLower(err.Error()), "not found") {
+			p, err = a.Client.CreatePlan(a.Conv.ID)
+			if err != nil {
+				return "", fmt.Errorf("plan_write: failed to create new plan for conversation with ID '%s' for adding steps: %w", a.Conv.ID, err)
+			}
+		} else {
+			return "", fmt.Errorf("plan_write: failed to get plan with conversation ID '%s': %w", a.Conv.ID, err)
+		}
 	}
+
+	if p == nil {
+		return "", fmt.Errorf("plan_write: plan object is nil after GetPlan/CreatePlan")
+	}
+	toolInput.Plan = p
+	toolInput.ConversationID = a.Conv.ID
+
+	response, err := toolDef.Function(toolInput)
+
+	if err = a.Client.SavePlan(p); err != nil {
+		return "", fmt.Errorf("plan_write: failed to save plan '%s' after setting status: %w", a.Conv.ID, err)
+	}
+
+	// Send an update event to the UI
+	go func() {
+		a.ctl.Publish(&ui.State{Plan: p})
+	}()
+
 	// Reflect the plan on the UI
-	if toolDef.Name == tools.ToolNamePlanWrite {
-		a.Plan, _ = a.Client.GetPlan(a.Conv.ID)
-		a.PublishPlan()
-	}
+	// TODO: This is dumb. We can do better
+	// if toolDef.Name == tools.ToolNamePlanWrite {
+	// 	a.Plan, _ = a.Client.GetPlan(a.Conv.ID)
+	// 	// a.PublishPlan()
+	// }
 	return response, nil
 }
 
@@ -291,10 +316,6 @@ func (a *Agent) runSubagent(id, name, toolDescription string, rawInput json.RawM
 	}
 
 	return result, nil
-}
-
-func (a *Agent) PublishPlan() {
-	a.ctl.Publish(&ui.State{Plan: a.Plan})
 }
 
 func (a *Agent) saveConversation() error {

@@ -110,7 +110,7 @@ func createTestAgent() (*Agent, *MockLLMClient) {
 			{
 				Name:        "test_tool",
 				Description: "A test tool",
-				Function: func(td *tools.ToolData) (string, error) {
+				Function: func(input tools.ToolInput) (string, error) {
 					return "test result", nil
 				},
 			},
@@ -323,7 +323,7 @@ func TestAgent_executeLocalTool_ToolError(t *testing.T) {
 	errorTool := &tools.ToolDefinition{
 		Name:        "error_tool",
 		Description: "A tool that errors",
-		Function: func(td *tools.ToolData) (string, error) {
+		Function: func(input tools.ToolInput) (string, error) {
 			return "", errors.New("tool execution failed")
 		},
 	}

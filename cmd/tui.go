@@ -78,23 +78,27 @@ func tui(ctx context.Context, agent *agent.Agent, ctl *ui.Controller) error {
 	})
 
 	renderPlan := func(s *ui.State) {
-		app.QueueUpdateDraw(func() {
-			inputFlex.Clear()
-			plan := s.Plan
-			if plan == nil || len(plan.Steps) == 0 {
-				inputFlex.AddItem(questionInput, 0, 1, true)
-				mainLayout.ResizeItem(inputFlex, 5, 0)
-			} else {
-				planView.SetText(formatPlanSteps(plan))
-				inputFlex.
-					AddItem(questionInput, 0, 2, true).
-					AddItem(planView, 0, 1, false)
+		// app.QueueUpdateDraw(func() {
+		inputFlex.Clear()
+		plan := s.Plan
+		if plan == nil || len(plan.Steps) == 0 {
+			inputFlex.AddItem(questionInput, 0, 1, true)
+			mainLayout.ResizeItem(inputFlex, 5, 0)
+		} else {
+			planView.SetText(formatPlanSteps(plan))
+			inputFlex.
+				AddItem(questionInput, 0, 2, true).
+				AddItem(planView, 0, 1, false)
 
-				newHeight := max(5, len(plan.Steps)+2)
-				mainLayout.ResizeItem(inputFlex, newHeight, 0)
-			}
-		})
+			newHeight := max(5, len(plan.Steps)+2)
+			mainLayout.ResizeItem(inputFlex, newHeight, 0)
+		}
+		// })
 	}
+
+	initialState := &ui.State{}
+
+	renderPlan(initialState)
 
 	go func() {
 		updateCh := ctl.Subscribe()
@@ -103,8 +107,6 @@ func tui(ctx context.Context, agent *agent.Agent, ctl *ui.Controller) error {
 			renderPlan(s)
 		}
 	}()
-
-	go agent.PublishPlan()
 
 	questionInput.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if isFirstInput && event.Key() == tcell.KeyRune {

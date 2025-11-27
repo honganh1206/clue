@@ -21,10 +21,12 @@ func createTestAPIClient(t *testing.T) *api.Client {
 	return client
 }
 
-func createToolData(inputJSON []byte) *ToolData {
-	return &ToolData{
-		Input:          inputJSON,
-		ConversationID: "test-conversation",
+func createToolData(inputJSON []byte) ToolInput {
+	return ToolInput{
+		RawInput: inputJSON,
+		ToolData: &ToolData{
+			ConversationID: "test-conversation",
+		},
 	}
 }
 
@@ -33,7 +35,6 @@ func TestPlanWrite_AddSteps_Success(t *testing.T) {
 	t.Skip("Requires running API server")
 
 	input := PlanWriteInput{
-		PlanName: "test-plan",
 		Action:   ActionAddSteps,
 		StepsToAdd: []PlanStepInput{
 			{
@@ -59,7 +60,6 @@ func TestPlanWrite_AddSteps_MultipleSteps(t *testing.T) {
 	t.Skip("Requires running API server")
 
 	input := PlanWriteInput{
-		PlanName: "multi-step-plan",
 		Action:   ActionAddSteps,
 		StepsToAdd: []PlanStepInput{
 			{
@@ -88,7 +88,6 @@ func TestPlanWrite_AddSteps_MissingStepID(t *testing.T) {
 	t.Skip("Requires running API server")
 
 	input := PlanWriteInput{
-		PlanName: "test-plan",
 		Action:   ActionAddSteps,
 		StepsToAdd: []PlanStepInput{
 			{
@@ -110,7 +109,6 @@ func TestPlanWrite_AddSteps_MissingDescription(t *testing.T) {
 	t.Skip("Requires running API server")
 
 	input := PlanWriteInput{
-		PlanName: "test-plan",
 		Action:   ActionAddSteps,
 		StepsToAdd: []PlanStepInput{
 			{
@@ -133,7 +131,6 @@ func TestPlanWrite_SetStatus_ToDone(t *testing.T) {
 	t.Skip("Requires running API server")
 
 	input := PlanWriteInput{
-		PlanName: "test-plan",
 		Action:   ActionSetStatus,
 		StepID:   "step-1",
 		Status:   "DONE",
@@ -151,7 +148,6 @@ func TestPlanWrite_SetStatus_ToTodo(t *testing.T) {
 	t.Skip("Requires running API server")
 
 	input := PlanWriteInput{
-		PlanName: "test-plan",
 		Action:   ActionSetStatus,
 		StepID:   "step-1",
 		Status:   "TODO",
@@ -168,7 +164,6 @@ func TestPlanWrite_SetStatus_MissingStepID(t *testing.T) {
 	t.Skip("Requires running API server")
 
 	input := PlanWriteInput{
-		PlanName: "test-plan",
 		Action:   ActionSetStatus,
 		StepID:   "",
 		Status:   "DONE",
@@ -186,7 +181,6 @@ func TestPlanWrite_SetStatus_NonexistentPlan(t *testing.T) {
 	t.Skip("Requires running API server")
 
 	input := PlanWriteInput{
-		PlanName: "nonexistent-plan",
 		Action:   ActionSetStatus,
 		StepID:   "step-1",
 		Status:   "DONE",
@@ -202,8 +196,8 @@ func TestPlanWrite_SetStatus_NonexistentPlan(t *testing.T) {
 
 // Tests for error cases
 func TestPlanWrite_EmptyPlanName(t *testing.T) {
+	t.Skip("Requires running API server")
 	input := PlanWriteInput{
-		PlanName: "",
 		Action:   ActionAddSteps,
 	}
 	inputJSON, _ := json.Marshal(input)
@@ -212,13 +206,13 @@ func TestPlanWrite_EmptyPlanName(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Empty(t, result)
-	assert.Contains(t, err.Error(), "missing or invalid plan_name")
+	// Error message depends on implementation
 }
 
 func TestPlanWrite_InvalidJSON(t *testing.T) {
 	invalidJSON := []byte(`{"plan_name": invalid json}`)
 
-	result, err := PlanWrite(&ToolData{Input: invalidJSON})
+	result, err := PlanWrite(ToolInput{RawInput: invalidJSON})
 
 	assert.Error(t, err)
 	assert.Empty(t, result)
@@ -226,7 +220,6 @@ func TestPlanWrite_InvalidJSON(t *testing.T) {
 
 func TestPlanWrite_UnknownAction(t *testing.T) {
 	input := PlanWriteInput{
-		PlanName: "test-plan",
 		Action:   WriteAction("invalid_action"), // Invalid action
 	}
 	inputJSON, _ := json.Marshal(input)
@@ -298,7 +291,6 @@ func TestPlanStepInput_JSONUnmarshaling(t *testing.T) {
 // Tests for PlanWriteInput struct
 func TestPlanWriteInput_JSONMarshaling(t *testing.T) {
 	input := PlanWriteInput{
-		PlanName: "test-plan",
 		Action:   ActionAddSteps,
 		StepsToAdd: []PlanStepInput{
 			{
@@ -312,13 +304,11 @@ func TestPlanWriteInput_JSONMarshaling(t *testing.T) {
 	assert.NoError(t, err)
 
 	jsonStr := string(data)
-	assert.Contains(t, jsonStr, `"plan_name":"test-plan"`)
 	assert.Contains(t, jsonStr, `"write_action":"add_steps"`)
 }
 
 func TestPlanWriteInput_JSONUnmarshaling(t *testing.T) {
 	jsonData := `{
-		"plan_name":"test-plan",
 		"write_action":"add_steps",
 		"steps_to_add":[
 			{"id":"step-1","description":"Test step"}
@@ -329,7 +319,6 @@ func TestPlanWriteInput_JSONUnmarshaling(t *testing.T) {
 	err := json.Unmarshal([]byte(jsonData), &input)
 
 	assert.NoError(t, err)
-	assert.Equal(t, "test-plan", input.PlanName)
 	assert.Equal(t, ActionAddSteps, input.Action)
 	assert.Len(t, input.StepsToAdd, 1)
 	assert.Equal(t, "step-1", input.StepsToAdd[0].ID)
@@ -357,7 +346,6 @@ func TestPlanWrite_VariousInputs(t *testing.T) {
 		{
 			name: "valid add steps",
 			input: PlanWriteInput{
-				PlanName: "test-plan-1",
 				Action:   ActionAddSteps,
 				StepsToAdd: []PlanStepInput{
 					{ID: "step-1", Description: "Test step"},
@@ -368,7 +356,6 @@ func TestPlanWrite_VariousInputs(t *testing.T) {
 		{
 			name: "missing plan name",
 			input: PlanWriteInput{
-				PlanName: "",
 				Action:   ActionAddSteps,
 			},
 			expectError: true,
@@ -377,7 +364,6 @@ func TestPlanWrite_VariousInputs(t *testing.T) {
 		{
 			name: "set status without step id",
 			input: PlanWriteInput{
-				PlanName: "test-plan",
 				Action:   ActionSetStatus,
 				StepID:   "",
 				Status:   "DONE",
@@ -388,7 +374,6 @@ func TestPlanWrite_VariousInputs(t *testing.T) {
 		{
 			name: "add step without id",
 			input: PlanWriteInput{
-				PlanName: "test-plan",
 				Action:   ActionAddSteps,
 				StepsToAdd: []PlanStepInput{
 					{ID: "", Description: "Test"},
@@ -400,7 +385,6 @@ func TestPlanWrite_VariousInputs(t *testing.T) {
 		{
 			name: "add step without description",
 			input: PlanWriteInput{
-				PlanName: "test-plan",
 				Action:   ActionAddSteps,
 				StepsToAdd: []PlanStepInput{
 					{ID: "step-1", Description: ""},
@@ -436,7 +420,6 @@ func BenchmarkPlanWrite_AddSteps(b *testing.B) {
 	b.Skip("Requires running API server")
 
 	input := PlanWriteInput{
-		PlanName: "bench-plan",
 		Action:   ActionAddSteps,
 		StepsToAdd: []PlanStepInput{
 			{ID: "step-1", Description: "Benchmark step"},
@@ -454,7 +437,6 @@ func BenchmarkPlanWrite_SetStatus(b *testing.B) {
 	b.Skip("Requires running API server")
 
 	input := PlanWriteInput{
-		PlanName: "bench-plan",
 		Action:   ActionSetStatus,
 		StepID:   "step-1",
 		Status:   "DONE",

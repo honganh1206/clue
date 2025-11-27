@@ -50,7 +50,7 @@ func TestGrepSearch_Success(t *testing.T) {
 	}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := GrepSearch(&ToolData{Input: inputJSON})
+	result, err := GrepSearch(ToolInput{RawInput: inputJSON})
 
 	assert.NoError(t, err)
 	assert.NotEmpty(t, result)
@@ -71,7 +71,7 @@ func TestGrepSearch_EmptyResult(t *testing.T) {
 	}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := GrepSearch(&ToolData{Input: inputJSON})
+	result, err := GrepSearch(ToolInput{RawInput: inputJSON})
 
 	assert.NoError(t, err)
 	assert.Equal(t, "[]", result)
@@ -87,7 +87,7 @@ func TestGrepSearch_NoDirectory(t *testing.T) {
 	}
 	inputJSON, _ := json.Marshal(input)
 
-	_, err := GrepSearch(&ToolData{Input: inputJSON})
+	_, err := GrepSearch(ToolInput{RawInput: inputJSON})
 
 	// Should not error even if no matches found in current directory
 	assert.NoError(t, err)
@@ -100,7 +100,7 @@ func TestGrepSearch_EmptyPattern(t *testing.T) {
 	}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := GrepSearch(&ToolData{Input: inputJSON})
+	result, err := GrepSearch(ToolInput{RawInput: inputJSON})
 
 	assert.Error(t, err)
 	assert.Empty(t, result)
@@ -110,7 +110,7 @@ func TestGrepSearch_EmptyPattern(t *testing.T) {
 func TestGrepSearch_InvalidJSON(t *testing.T) {
 	invalidJSON := []byte(`{"pattern": invalid json}`)
 
-	result, err := GrepSearch(&ToolData{Input: invalidJSON})
+	result, err := GrepSearch(ToolInput{RawInput: invalidJSON})
 
 	assert.Error(t, err)
 	assert.Empty(t, result)
@@ -127,7 +127,7 @@ func TestGrepSearch_NonexistentDirectory(t *testing.T) {
 	}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := GrepSearch(&ToolData{Input: inputJSON})
+	result, err := GrepSearch(ToolInput{RawInput: inputJSON})
 
 	// Should return error for nonexistent directory
 	assert.Error(t, err)
@@ -147,7 +147,7 @@ func TestGrepSearch_RegexPattern(t *testing.T) {
 	}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := GrepSearch(&ToolData{Input: inputJSON})
+	result, err := GrepSearch(ToolInput{RawInput: inputJSON})
 
 	assert.NoError(t, err)
 	assert.NotEmpty(t, result)
@@ -175,7 +175,8 @@ func TestGrepSearchDefinition_FunctionExecution(t *testing.T) {
 	}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := GrepSearchDefinition.Function(&ToolData{Input: inputJSON})
+	ti := ToolInput{RawInput: inputJSON}
+	result, err := GrepSearchDefinition.Function(ti)
 
 	assert.NoError(t, err)
 	assert.NotEmpty(t, result)
@@ -280,7 +281,7 @@ func TestGrepSearch_VariousPatterns(t *testing.T) {
 			}
 			inputJSON, _ := json.Marshal(input)
 
-			result, err := GrepSearch(&ToolData{Input: inputJSON})
+			result, err := GrepSearch(ToolInput{RawInput: inputJSON})
 
 			assert.NoError(t, err)
 
@@ -335,7 +336,7 @@ func TestGrepSearch_MultipleFiles(t *testing.T) {
 	}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := GrepSearch(&ToolData{Input: inputJSON})
+	result, err := GrepSearch(ToolInput{RawInput: inputJSON})
 
 	assert.NoError(t, err)
 	assert.NotEqual(t, "[]", result)
@@ -358,7 +359,7 @@ func BenchmarkGrepSearch_SimplePattern(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		GrepSearch(&ToolData{Input: inputJSON})
+		GrepSearch(ToolInput{RawInput: inputJSON})
 	}
 }
 
@@ -376,6 +377,6 @@ func BenchmarkGrepSearch_ComplexPattern(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		GrepSearch(&ToolData{Input: inputJSON})
+		GrepSearch(ToolInput{RawInput: inputJSON})
 	}
 }

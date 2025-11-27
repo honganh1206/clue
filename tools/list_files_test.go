@@ -89,7 +89,7 @@ func TestListFiles_Success(t *testing.T) {
 	input := ListFilesInput{Path: testDir}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := ListFiles(&ToolData{Input: inputJSON})
+	result, err := ListFiles(ToolInput{RawInput: inputJSON})
 
 	assert.NoError(t, err)
 	assert.NotEmpty(t, result)
@@ -118,7 +118,7 @@ func TestListFiles_EmptyDirectory(t *testing.T) {
 	input := ListFilesInput{Path: emptyDir}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := ListFiles(&ToolData{Input: inputJSON})
+	result, err := ListFiles(ToolInput{RawInput: inputJSON})
 
 	assert.NoError(t, err)
 	assert.Equal(t, "null", result)
@@ -128,7 +128,7 @@ func TestListFiles_NoPathProvided(t *testing.T) {
 	input := ListFilesInput{}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := ListFiles(&ToolData{Input: inputJSON})
+	result, err := ListFiles(ToolInput{RawInput: inputJSON})
 
 	assert.NoError(t, err)
 	assert.NotEmpty(t, result)
@@ -143,7 +143,7 @@ func TestListFiles_NonexistentDirectory(t *testing.T) {
 	input := ListFilesInput{Path: "/nonexistent/directory"}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := ListFiles(&ToolData{Input: inputJSON})
+	result, err := ListFiles(ToolInput{RawInput: inputJSON})
 
 	assert.Error(t, err)
 	assert.Empty(t, result)
@@ -155,7 +155,7 @@ func TestListFiles_GitDirectorySkipped(t *testing.T) {
 	input := ListFilesInput{Path: testDir}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := ListFiles(&ToolData{Input: inputJSON})
+	result, err := ListFiles(ToolInput{RawInput: inputJSON})
 
 	assert.NoError(t, err)
 
@@ -185,7 +185,7 @@ func TestListFiles_DirectoryIndicator(t *testing.T) {
 	input := ListFilesInput{Path: testDir}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := ListFiles(&ToolData{Input: inputJSON})
+	result, err := ListFiles(ToolInput{RawInput: inputJSON})
 
 	assert.NoError(t, err)
 
@@ -206,7 +206,7 @@ func TestListFiles_DirectoryIndicator(t *testing.T) {
 func TestListFiles_InvalidJSON(t *testing.T) {
 	invalidJSON := []byte(`{"path": invalid json}`)
 
-	result, err := ListFiles(&ToolData{Input: invalidJSON})
+	result, err := ListFiles(ToolInput{RawInput: invalidJSON})
 
 	assert.Error(t, err)
 	assert.Empty(t, result)
@@ -218,7 +218,7 @@ func TestListFiles_RelativePaths(t *testing.T) {
 	input := ListFilesInput{Path: testDir}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := ListFiles(&ToolData{Input: inputJSON})
+	result, err := ListFiles(ToolInput{RawInput: inputJSON})
 
 	assert.NoError(t, err)
 
@@ -247,7 +247,8 @@ func TestListFilesDefinition_FunctionExecution(t *testing.T) {
 	input := ListFilesInput{Path: testDir}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := ListFilesDefinition.Function(&ToolData{Input: inputJSON})
+	ti := ToolInput{RawInput: inputJSON}
+	result, err := ListFilesDefinition.Function(ti)
 
 	assert.NoError(t, err)
 	assert.NotEmpty(t, result)
@@ -348,7 +349,7 @@ func TestListFiles_VariousDirectoryStructures(t *testing.T) {
 			input := ListFilesInput{Path: testDir}
 			inputJSON, _ := json.Marshal(input)
 
-			result, err := ListFiles(&ToolData{Input: inputJSON})
+			result, err := ListFiles(ToolInput{RawInput: inputJSON})
 
 			assert.NoError(t, err)
 
@@ -404,7 +405,7 @@ func TestListFiles_ComplexDirectoryStructure(t *testing.T) {
 	input := ListFilesInput{Path: tmpDir}
 	inputJSON, _ := json.Marshal(input)
 
-	result, err := ListFiles(&ToolData{Input: inputJSON})
+	result, err := ListFiles(ToolInput{RawInput: inputJSON})
 
 	assert.NoError(t, err)
 
@@ -444,7 +445,7 @@ func BenchmarkListFiles_SmallDirectory(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ListFiles(&ToolData{Input: inputJSON})
+		ListFiles(ToolInput{RawInput: inputJSON})
 	}
 }
 
@@ -468,6 +469,6 @@ func BenchmarkListFiles_LargeDirectory(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ListFiles(&ToolData{Input: inputJSON})
+		ListFiles(ToolInput{RawInput: inputJSON})
 	}
 }

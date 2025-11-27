@@ -94,9 +94,9 @@ func (pm *PlanModel) Create(plan *Plan) error {
 
 func (pm *PlanModel) Get(conversationID string) (*Plan, error) {
 	var planID string
+
 	err := pm.DB.QueryRow("SELECT id FROM plans WHERE conversation_id = ?", conversationID).Scan(&planID)
 	if err != nil {
-
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("plan with ID '%s' not found", conversationID)
 		}
@@ -378,7 +378,7 @@ func (pm *PlanModel) Save(plan *Plan) error {
 	defer tx.Rollback()
 
 	if plan.isNew {
-		_, err := tx.Exec("INSERT INTO plans (id, conversation_id) VALUES (?, ?, ?)", plan.ID, plan.ConversationID)
+		_, err := tx.Exec("INSERT INTO plans (id, conversation_id) VALUES (?, ?)", plan.ID, plan.ConversationID)
 		if err != nil {
 			// Check if the error is due to a unique constraint violation (plan already exists)
 			if strings.Contains(err.Error(), "UNIQUE constraint failed") {

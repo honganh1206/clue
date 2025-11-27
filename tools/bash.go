@@ -27,10 +27,10 @@ var BashDefinition = ToolDefinition{
 	Function:    Bash,
 }
 
-func Bash(data *ToolData) (string, error) {
+func Bash(input ToolInput) (string, error) {
 	// Parse the JSON input into a BashInput struct
 	bashInput := BashInput{}
-	err := json.Unmarshal(data.Input, &bashInput)
+	err := json.Unmarshal(input.RawInput, &bashInput)
 	if err != nil {
 		return "", err
 	}
@@ -41,9 +41,8 @@ func Bash(data *ToolData) (string, error) {
 	// Maybe an interactive bash interface?
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Sprintf("Command failed with error: %s\nOutput: %s", err.Error(), string(output)), nil
+		return fmt.Sprintf("Command failed with error: %s\nOutput: %s", err.Error(), string(output)), err
 	}
 
 	return strings.TrimSpace(string(output)), err
 }
-

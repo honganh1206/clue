@@ -3,10 +3,9 @@ package tools
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/honganh1206/clue/schema"
-	"github.com/honganh1206/clue/server/api"
+	"github.com/honganh1206/clue/server/data"
 )
 
 var PlanWriteDefinition = ToolDefinition{
@@ -46,71 +45,61 @@ type PlanWriteInput struct {
 
 var PlanWriteInputSchema = schema.Generate[PlanWriteInput]()
 
-func PlanWrite(data *ToolData) (string, error) {
+func PlanWrite(input ToolInput) (string, error) {
 	planWriteInput := PlanWriteInput{}
 
-	err := json.Unmarshal(data.Input, &planWriteInput)
+	err := json.Unmarshal(input.RawInput, &planWriteInput)
 	if err != nil {
 		return "", err
 	}
 
 	switch planWriteInput.Action {
 	case ActionSetStatus:
-		// TODO: Passing the entire data struct is kind dumb
-		return handleSetStatus(&planWriteInput, data.Client, data.ConversationID)
+		output, err := handleSetStatus(&planWriteInput, input.ToolData.Plan, input.ToolData.ConversationID)
+		if err != nil {
+			return "error when setting status", err
+		}
+		return output, nil
 	case ActionAddSteps:
-		return handleAddSteps(&planWriteInput, data.Client, data.ConversationID)
+		output, err := handleAddSteps(&planWriteInput, input.ToolData.Plan, input.ToolData.ConversationID)
+		if err != nil {
+			return "error when adding steps", err
+		}
+		return output, nil
+
 	default:
 		return "", fmt.Errorf("plan_write: unknown action '%s'", planWriteInput.Action)
 	}
 }
 
-func handleSetStatus(input *PlanWriteInput, client *api.Client, conversationID string) (string, error) {
+func handleSetStatus(input *PlanWriteInput, plan *data.Plan, conversationID string) (string, error) {
 	// TODO: If we tell the agent to mark all steps as done here (meaning not tell it explicitly the names of the steps to mark)
 	// then the agent will generate new step names.
 	// This leads to mismatches between those names and step names from the DB, and eventually an error.
 	// Can the context window of the agent handle that?
-	stepID := input.StepID
-	status := input.Status
-	p, err := client.GetPlan(conversationID)
-	if err != nil {
-		return "", fmt.Errorf("plan_write: failed to get plan '%s' for set_status: %w", conversationID, err)
+	if plan == nil {
+		return "plan is nil", fmt.Errorf("plan is nil in handleSetStatus")
 	}
 
+	stepID := input.StepID
+	status := input.Status
+
+	var err error
 	if status == "DONE" {
-		err = p.MarkStepAsCompleted(stepID)
+		err = plan.MarkStepAsCompleted(stepID)
 	} else {
-		err = p.MarkStepAsIncomplete(stepID)
+		err = plan.MarkStepAsIncomplete(stepID)
 	}
 
 	if err != nil {
 		return "", fmt.Errorf("plan_write: failed to set status for step '%s' in plan '%s': %w", stepID, conversationID, err)
 	}
 
-	// Persist the change to the plan (including the updated step status)
-	if err = client.SavePlan(p); err != nil {
-		return "", fmt.Errorf("plan_write: failed to save plan '%s' after setting status: %w", conversationID, err)
-	}
-
 	return fmt.Sprintf("Step '%s' in plan '%s' set to '%s'.", stepID, conversationID, status), nil
 }
 
-func handleAddSteps(input *PlanWriteInput, client *api.Client, conversationID string) (string, error) {
+func handleAddSteps(input *PlanWriteInput, plan *data.Plan, conversationID string) (string, error) {
 	stepsToAdd := input.StepsToAdd
-
-	p, err := client.GetPlan(conversationID)
-	if err != nil {
-		if strings.Contains(strings.ToLower(err.Error()), "not found") {
-			// TODO: Fetch the current conversation from client object to write a plan to it
-			// should we reuse the same client object?
-			p, err = client.CreatePlan(conversationID)
-			if err != nil {
-				return "", fmt.Errorf("plan_write: failed to create new plan for conversation with ID '%s' for adding steps: %w", conversationID, err)
-			}
-		} else {
-			return "", fmt.Errorf("plan_write: failed to get plan with conversation ID '%s': %w", conversationID, err)
-		}
-	}
 
 	addedCount := 0
 	for i, s := range stepsToAdd {
@@ -129,12 +118,9 @@ func handleAddSteps(input *PlanWriteInput, client *api.Client, conversationID st
 			criteria = append(criteria, criterion)
 		}
 
-		p.AddStep(id, description, criteria)
+		plan.AddStep(id, description, criteria)
 		addedCount++
 	}
 
-	if err := client.SavePlan(p); err != nil {
-		return "", fmt.Errorf("plan_write: failed to save updated plan with conversation ID '%s': %w", conversationID, err)
-	}
 	return fmt.Sprintf("Added %d steps to plan with conversation ID '%s'.", addedCount, conversationID), nil
 }

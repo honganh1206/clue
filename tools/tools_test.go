@@ -26,7 +26,7 @@ func TestToolBox_AddTool(t *testing.T) {
 	testTool := &ToolDefinition{
 		Name:        "test_tool",
 		Description: "A test tool",
-		Function: func(data *ToolData) (string, error) {
+		Function: func(input ToolInput) (string, error) {
 			return "test result", nil
 		},
 	}
@@ -44,12 +44,12 @@ func TestToolBox_MultipleLtools(t *testing.T) {
 			{
 				Name:        "tool1",
 				Description: "First tool",
-				Function:    func(data *ToolData) (string, error) { return "result1", nil },
+				Function:    func(input ToolInput) (string, error) { return "result1", nil },
 			},
 			{
 				Name:        "tool2",
 				Description: "Second tool",
-				Function:    func(data *ToolData) (string, error) { return "result2", nil },
+				Function:    func(input ToolInput) (string, error) { return "result2", nil },
 				IsSubTool:   true,
 			},
 		},
@@ -67,7 +67,7 @@ func TestToolDefinition_Creation(t *testing.T) {
 	tool := &ToolDefinition{
 		Name:        "test_tool",
 		Description: "Test description",
-		Function: func(data *ToolData) (string, error) {
+		Function: func(input ToolInput) (string, error) {
 			return "success", nil
 		},
 	}
@@ -83,7 +83,7 @@ func TestToolDefinition_SubTool(t *testing.T) {
 		Name:        "sub_tool",
 		Description: "Sub tool description",
 		IsSubTool:   true,
-		Function: func(data *ToolData) (string, error) {
+		Function: func(input ToolInput) (string, error) {
 			return "sub result", nil
 		},
 	}
@@ -94,9 +94,9 @@ func TestToolDefinition_SubTool(t *testing.T) {
 func TestToolDefinition_FunctionExecution(t *testing.T) {
 	tool := &ToolDefinition{
 		Name: "echo_tool",
-		Function: func(data *ToolData) (string, error) {
+		Function: func(input ToolInput) (string, error) {
 			var message map[string]string
-			err := json.Unmarshal(data.Input, &message)
+			err := json.Unmarshal(input.RawInput, &message)
 			if err != nil {
 				return "", err
 			}
@@ -105,7 +105,7 @@ func TestToolDefinition_FunctionExecution(t *testing.T) {
 	}
 
 	input, _ := json.Marshal(map[string]string{"message": "hello world"})
-	result, err := tool.Function(&ToolData{Input: input})
+	result, err := tool.Function(ToolInput{RawInput: input})
 
 	assert.NoError(t, err)
 	assert.Equal(t, "hello world", result)
