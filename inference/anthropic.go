@@ -50,6 +50,8 @@ func (c *AnthropicClient) TruncateMessage(msg *message.Message, threshold int) *
 
 func getAnthropicModel(model ModelVersion) anthropic.Model {
 	switch model {
+	case Claude45Opus:
+		return anthropic.ModelClaudeOpus4_5_20251101
 	case Claude41Opus:
 		return anthropic.ModelClaudeOpus4_1_20250805
 	case Claude4Opus:
@@ -58,12 +60,8 @@ func getAnthropicModel(model ModelVersion) anthropic.Model {
 		return anthropic.ModelClaudeSonnet4_5
 	case Claude4Sonnet:
 		return anthropic.ModelClaudeSonnet4_0
-	case Claude37Sonnet:
-		return anthropic.ModelClaude3_7SonnetLatest
 	case Claude45Haiku:
 		return anthropic.ModelClaudeHaiku4_5
-	case Claude35Sonnet:
-		return anthropic.ModelClaude3_5SonnetLatest
 	case Claude35Haiku:
 		return anthropic.ModelClaude3_5HaikuLatest
 	case Claude3Opus:
@@ -86,7 +84,8 @@ func (c *AnthropicClient) RunInference(ctx context.Context, onDelta func(string)
 		Messages:  c.history,
 		Tools:     c.tools,
 		System: []anthropic.TextBlockParam{
-			{Text: c.systemPrompt, CacheControl: c.cache}},
+			{Text: c.systemPrompt, CacheControl: c.cache},
+		},
 	}
 
 	var resp *message.Message
@@ -271,7 +270,8 @@ func toAnthropicBlocks(blocks []message.ContentBlock) []anthropic.ContentBlockPa
 func toGenericMessage(anthropicMsg anthropic.Message) (*message.Message, error) {
 	msg := &message.Message{
 		Role:    message.AssistantRole,
-		Content: make([]message.ContentBlock, 0)}
+		Content: make([]message.ContentBlock, 0),
+	}
 
 	for _, block := range anthropicMsg.Content {
 		switch variant := block.AsAny().(type) {

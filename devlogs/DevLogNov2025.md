@@ -49,3 +49,11 @@ We also need to know how to modify it. There is an in-memory object of the plan,
 Now that the plan state manangement is quite done using the channel approach, the next big challenge is to get rid of the `ToolMetadata` and the `client` object inside the plan tools. Both are just super glue code. Also we need to get rid of the if case for `plan_write` tool in `agent.go`.
 
 The first idea is to reuse the `agent.Client` field inside `agent.go`, meaning we execute CRUD operations on the plan entity inside the `agent.go`, not inside the tool files.
+
+---
+
+We need to display the tool being executed on the TUI.
+
+The idea is that the name of the tool being executed will be displayed on the `conversationView`, together with a spinner at the start. When the tool is done with the execution i.e., there is tool result, the display of tool being executed will be replaced by the tool result as usual.
+
+I think I could centralize all the things happening on the TUI in `state.go`. That is, there should be a display of tools being executed, and when it is done, the text + spinner should disappear, giving space for the tool result.

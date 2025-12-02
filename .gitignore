@@ -31,5 +31,6 @@ clue
 AGENT.md
 
 dist/
-refs/
 bin/
+refs/
+prototypes/

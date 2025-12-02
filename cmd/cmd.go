@@ -101,6 +101,8 @@ func RunServer(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	fmt.Printf("Running background server on %s\n", ln.Addr().String())
+	// TODO: Can this be on a separate goroutine?
+	// so when I execute the command I return to my current shell session?
 	err = server.Serve(ln)
 	if errors.Is(err, http.ErrServerClosed) {
 		return nil

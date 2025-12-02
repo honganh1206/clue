@@ -7,6 +7,40 @@ import (
 	"time"
 )
 
+var (
+	SpinnerBinary = []string{
+		"010010",
+		"001100",
+		"100101",
+		"111010",
+		"111101",
+		"010111",
+		"101011",
+		"111000",
+		"110011",
+		"110101",
+	}
+
+	SpinnerDots = []string{
+		"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏",
+	}
+
+	SpinnerAesthestics = []string{
+		"▰▱▱▱▱▱▱",
+		"▰▰▱▱▱▱▱",
+		"▰▰▰▱▱▱▱",
+		"▰▰▰▰▱▱▱",
+		"▰▰▰▰▰▱▱",
+		"▰▰▰▰▰▰▱",
+		"▰▰▰▰▰▰▰",
+		"▰▱▱▱▱▱▱",
+	}
+
+	SpinnerLines = []string{
+		"|", "/", "-", "\\",
+	}
+)
+
 type Spinner struct {
 	message      atomic.Value
 	messageWidth int
@@ -17,30 +51,12 @@ type Spinner struct {
 	stopped      time.Time
 }
 
-func NewSpinner(message string) *Spinner {
+func NewSpinner(message string, parts []string) *Spinner {
+	if len(parts) == 0 {
+		parts = SpinnerBinary
+	}
 	s := &Spinner{
-		parts: []string{
-			// Noise
-			// "▓", "▒", "░",
-			// Stars
-			// "✶",
-			// "✸",
-			// "✹",
-			// "✺",
-			// "✹",
-			// "✷",
-			// Binary
-			"010010",
-			"001100",
-			"100101",
-			"111010",
-			"111101",
-			"010111",
-			"101011",
-			"111000",
-			"110011",
-			"110101",
-		},
+		parts:   parts,
 		started: time.Now(),
 	}
 	s.SetMessage(message)
