@@ -10,6 +10,7 @@ import (
 	"github.com/honganh1206/tinker/inference"
 	"github.com/honganh1206/tinker/mcp"
 	"github.com/honganh1206/tinker/message"
+	"github.com/honganh1206/tinker/schema"
 	"github.com/honganh1206/tinker/server/api"
 	"github.com/honganh1206/tinker/server/data"
 	"github.com/honganh1206/tinker/tools"
@@ -148,9 +149,45 @@ func (a *Agent) executeTool(id, name string, input json.RawMessage, onDelta func
 	// TODO: Shorten the relative/absolute path and underline it.
 	// For content to edit, remove it from the display?
 	if toolResult, ok := result.(message.ToolResultBlock); ok && toolResult.IsError {
-		onDelta(fmt.Sprintf("[red::]\u2717 %s failed[-]\n\n", name))
+		onDelta(fmt.Sprintf("[red] \u2717[::]%s failed[-]\n\n", name))
 	} else {
-		onDelta(fmt.Sprintf("[green::]\u2713 %s %s[-]\n\n", name, input))
+		switch name {
+		case tools.ToolNameReadFile:
+			i, err := schema.DecodeRaw[tools.ReadFileInput](input)
+			if err != nil {
+			}
+			onDelta(fmt.Sprintf("[green] \u2713[::]%s %s\n\n", name, i.Path))
+		case tools.ToolNameEditFile:
+			i, err := schema.DecodeRaw[tools.EditFileInput](input)
+			if err != nil {
+			}
+			onDelta(fmt.Sprintf("[green] \u2713[::]%s %s\n\n", name, i.Path))
+		case tools.ToolNameListFiles:
+			i, err := schema.DecodeRaw[tools.ListFilesInput](input)
+			if err != nil {
+			}
+			onDelta(fmt.Sprintf("[green] \u2713[::]%s %s\n\n", name, i.Path))
+		case tools.ToolNameBash:
+			i, err := schema.DecodeRaw[tools.BashInput](input)
+			if err != nil {
+			}
+			onDelta(fmt.Sprintf("[green] \u2713[::]%s %s\n\n", name, i.Command))
+		case tools.ToolNameFinder:
+			i, err := schema.DecodeRaw[tools.FinderInput](input)
+			if err != nil {
+			}
+			onDelta(fmt.Sprintf("[green] \u2713[::]%s %s\n\n", name, i.Query))
+		case tools.ToolNamePlanRead:
+			i, err := schema.DecodeRaw[tools.PlanReadInput](input)
+			if err != nil {
+			}
+			onDelta(fmt.Sprintf("[green] \u2713[::]%s %s\n\n", name, i.Action))
+		case tools.ToolNamePlanWrite:
+			i, err := schema.DecodeRaw[tools.PlanWriteInput](input)
+			if err != nil {
+			}
+			onDelta(fmt.Sprintf("[green] \u2713[::]%s %s\n\n", name, i.Action))
+		}
 	}
 
 	return result
@@ -298,9 +335,7 @@ func (a *Agent) runSubagent(id, name, toolDescription string, rawInput json.RawM
 	// The OG input from the user gets processed by the main agent
 	// and the subagent will consume the processed input.
 	// This is for the maybe future of task delegation
-	var input struct {
-		Query string `json:"query"`
-	}
+	var input tools.FinderInput
 
 	err := json.Unmarshal(rawInput, &input)
 	if err != nil {

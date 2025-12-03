@@ -294,7 +294,7 @@ func formatPlanSteps(plan *data.Plan) string {
 // TODO: The number + order of arguments passed in here are atrocious.
 // Are we going to make it C-like? Can we make it better?
 func streamContent(app *tview.Application, ctx context.Context, conversationView *tview.TextView, questionInput *tview.TextArea, spinnerView *tview.TextView, content string, agent *agent.Agent) {
-	spinner := ui.NewSpinner(getRandomSpinnerMessage(), ui.SpinnerAesthestics)
+	spinner := ui.NewSpinner(getRandomSpinnerMessage(), ui.SpinnerStar)
 
 	stop := startSpinner(app, ctx, spinner, spinnerView)
 	go func() {
@@ -305,6 +305,8 @@ func streamContent(app *tview.Application, ctx context.Context, conversationView
 		}()
 
 		onDelta := func(delta string) {
+			// conversationView is append only, meaning we can replace the text that has already printed out
+			// so bye bye printing out tool being executed
 			fmt.Fprintf(conversationView, "[white::]%s", delta)
 		}
 
@@ -322,8 +324,6 @@ func streamContent(app *tview.Application, ctx context.Context, conversationView
 func startSpinner(app *tview.Application, ctx context.Context, spinner *ui.Spinner, spinnerView *tview.TextView) chan bool {
 	stop := make(chan bool)
 	go func() {
-		ticker := time.NewTicker(50 * time.Millisecond)
-		defer ticker.Stop()
 		for {
 			select {
 			case <-ctx.Done():

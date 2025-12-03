@@ -23,16 +23,10 @@ func Generate[T any]() *jsonschema.Schema {
 	return rawSchema
 }
 
-// TODO: Use when migrating from jsonschema to json.RawMessage?
-func ConvertStructToJSONRawMessage[T any]() json.RawMessage {
-	var v T
-	b, err := json.Marshal(v)
-
-	if err != nil {
-		return nil
-	}
-
-	return json.RawMessage(b)
+func DecodeRaw[T any](raw json.RawMessage) (T, error) {
+	var out T
+	err := json.Unmarshal(raw, &out)
+	return out, err
 }
 
 func ConvertToGeminiSchema(inputSchema any) (*genai.Schema, error) {
