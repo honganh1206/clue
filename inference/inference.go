@@ -61,7 +61,6 @@ func ListAvailableModels(provider ProviderName) []ModelVersion {
 		return []ModelVersion{
 			Claude4Opus,
 			Claude4Sonnet,
-			Claude37Sonnet,
 			Claude35Sonnet,
 			Claude35Haiku,
 			Claude3Opus,
@@ -86,7 +85,7 @@ func ListAvailableModels(provider ProviderName) []ModelVersion {
 func GetDefaultModel(provider ProviderName) ModelVersion {
 	switch provider {
 	case AnthropicProvider:
-		return Claude37Sonnet
+		return Claude45Opus
 	case GoogleProvider:
 		return Gemini3Pro
 	default:

@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	_ "embed"
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"os"
@@ -42,7 +43,7 @@ func tui(ctx context.Context, agent *agent.Agent, ctl *ui.Controller) error {
 	relPath := displayRelativePath()
 
 	questionInput := tview.NewTextArea()
-	questionInput.SetTitle("[blue::]Enter to send (ESC to focus conversation)").
+	questionInput.SetTitle("[blue]Enter to send (ESC to focus conversation)").
 		SetTitleAlign(tview.AlignLeft).
 		SetBorder(true).
 		SetDrawFunc(renderRelativePath(relPath))
@@ -77,8 +78,8 @@ func tui(ctx context.Context, agent *agent.Agent, ctl *ui.Controller) error {
 		return event
 	})
 
+	// TODO: This should be in a separate function
 	renderPlan := func(s *ui.State) {
-		// app.QueueUpdateDraw(func() {
 		inputFlex.Clear()
 		plan := s.Plan
 		if plan == nil || len(plan.Steps) == 0 {
@@ -93,7 +94,6 @@ func tui(ctx context.Context, agent *agent.Agent, ctl *ui.Controller) error {
 			newHeight := max(5, len(plan.Steps)+2)
 			mainLayout.ResizeItem(inputFlex, newHeight, 0)
 		}
-		// })
 	}
 
 	initialState := &ui.State{Plan: agent.Plan}
@@ -128,70 +128,10 @@ func tui(ctx context.Context, agent *agent.Agent, ctl *ui.Controller) error {
 			questionInput.SetDisabled(true)
 
 			// User input
-			fmt.Fprintf(conversationView, "[blue::]> %s\n\n", content)
+			fmt.Fprintf(conversationView, "[blue::i]> %s\n\n", content)
 
-			spinner := ui.NewSpinner(getRandomSpinnerMessage())
-			firstDelta := true
-			spinCh := make(chan bool, 1)
-
-			go func() {
-				ticker := time.NewTicker(50 * time.Millisecond)
-				defer ticker.Stop()
-				for {
-					select {
-					case <-ctx.Done():
-						return
-					case stop := <-spinCh:
-						if stop {
-							// Clear the spinner text to hide it from the UI when the agent finishes processing
-							spinnerView.SetText("")
-							app.Draw()
-							return
-						}
-					case <-ticker.C:
-						if spinner != nil {
-							spinnerView.SetText(spinner.String())
-							app.Draw()
-						}
-					}
-				}
-			}()
-
-			go func() {
-				defer func() {
-					if spinner != nil {
-						spinner.Stop()
-					}
-					spinCh <- true
-					questionInput.SetDisabled(false)
-					app.Draw()
-				}()
-
-				onDelta := func(delta string) {
-					// Run spinner on tool result delta
-					isToolResult := strings.Contains(delta, "\u2717") || strings.Contains(delta, "\u2713")
-
-					if firstDelta && !isToolResult && spinner != nil {
-						// Only stop spinner on actual LLM text response, not tool use
-						spinner.Stop()
-						// Signal the spinner goroutine to clear the spinner text (SetText("")) since the LLM has started responding
-						spinCh <- true
-						firstDelta = false
-					}
-
-					// Display LLM response
-					fmt.Fprintf(conversationView, "[white::]%s", delta)
-				}
-
-				err := agent.Run(ctx, content, onDelta)
-				if err != nil {
-					fmt.Fprintf(conversationView, "[red::]Error: %v[-]\n\n", err)
-					return
-				}
-
-				fmt.Fprintf(conversationView, "\n\n")
-				conversationView.ScrollToEnd()
-			}()
+			// Should call this only
+			go streamContent(app, ctx, conversationView, questionInput, spinnerView, content, agent)
 
 			return nil
 		}
@@ -205,7 +145,7 @@ func tui(ctx context.Context, agent *agent.Agent, ctl *ui.Controller) error {
 	return nil
 }
 
-func formatMessage(msg *message.Message) string {
+func formatMessage(msg *message.Message, nextMsg *message.Message) string {
 	var result strings.Builder
 
 	switch msg.Role {
@@ -215,12 +155,23 @@ func formatMessage(msg *message.Message) string {
 		result.WriteString("\n[white::]")
 	}
 
+	toolErrors := make(map[string]bool)
+	if nextMsg != nil && nextMsg.Role == message.UserRole {
+		for _, block := range nextMsg.Content {
+			if tr, ok := block.(message.ToolResultBlock); ok && tr.IsError {
+				toolErrors[tr.ToolUseID] = true
+			}
+		}
+	}
+
 	for _, block := range msg.Content {
 		switch b := block.(type) {
 		case message.TextBlock:
 			result.WriteString(b.Text + "\n")
 		case message.ToolUseBlock:
-			result.WriteString(fmt.Sprintf("[green:]\u2713 %s %s\n", b.Name, b.Input))
+			isError := toolErrors[b.ID]
+			inputBytes, _ := json.Marshal(b.Input)
+			result.WriteString(agent.FormatToolResultMessage(b.Name, inputBytes, isError))
 		}
 	}
 
@@ -253,13 +204,17 @@ func displayConversationHistory(conversationView *tview.TextView, conv *data.Con
 		return
 	}
 
-	for _, msg := range conv.Messages {
-		// This works, but is there a more efficient way?
-		if msg.Role == message.UserRole && msg.Content[0].Type() == message.ToolResultType {
+	for i, msg := range conv.Messages {
+		if msg.Role == message.UserRole && len(msg.Content) > 0 && msg.Content[0].Type() == message.ToolResultType {
 			continue
 		}
 
-		formattedMsg := formatMessage(msg)
+		var nextMsg *message.Message
+		if i+1 < len(conv.Messages) {
+			nextMsg = conv.Messages[i+1]
+		}
+
+		formattedMsg := formatMessage(msg, nextMsg)
 		fmt.Fprintf(conversationView, "%s", formattedMsg)
 	}
 
@@ -351,3 +306,55 @@ func formatPlanSteps(plan *data.Plan) string {
 
 	return result.String()
 }
+
+// TODO: The number + order of arguments passed in here are atrocious.
+// Are we going to make it C-like? Can we make it better?
+func streamContent(app *tview.Application, ctx context.Context, conversationView *tview.TextView, questionInput *tview.TextArea, spinnerView *tview.TextView, content string, agent *agent.Agent) {
+	spinner := ui.NewSpinner(getRandomSpinnerMessage(), ui.SpinnerStar)
+
+	stop := startSpinner(app, ctx, spinner, spinnerView)
+	go func() {
+		defer func() {
+			stop <- true
+			questionInput.SetDisabled(false)
+			app.Draw()
+		}()
+
+		onDelta := func(delta string) {
+			// conversationView is append only, meaning we can replace the text that has already printed out
+			// so bye bye printing out tool being executed
+			fmt.Fprintf(conversationView, "[white]%s", delta)
+		}
+
+		err := agent.Run(ctx, content, onDelta)
+		if err != nil {
+			fmt.Fprintf(conversationView, "[red::]Error: %v[-]\n\n", err)
+			return
+		}
+
+		fmt.Fprintf(conversationView, "\n\n")
+		conversationView.ScrollToEnd()
+	}()
+}
+
+func startSpinner(app *tview.Application, ctx context.Context, spinner *ui.Spinner, spinnerView *tview.TextView) chan bool {
+	stop := make(chan bool)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-stop:
+				spinner.Stop()
+				spinnerView.SetText("")
+				return
+			default:
+				spinnerView.SetText(spinner.String())
+				app.Draw()
+			}
+		}
+	}()
+
+	return stop
+}
+

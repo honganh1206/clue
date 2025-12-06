@@ -10,6 +10,7 @@ import (
 	"github.com/honganh1206/tinker/inference"
 	"github.com/honganh1206/tinker/mcp"
 	"github.com/honganh1206/tinker/message"
+	"github.com/honganh1206/tinker/schema"
 	"github.com/honganh1206/tinker/server/api"
 	"github.com/honganh1206/tinker/server/data"
 	"github.com/honganh1206/tinker/tools"
@@ -145,15 +146,67 @@ func (a *Agent) executeTool(id, name string, input json.RawMessage, onDelta func
 		result = a.executeLocalTool(id, name, input)
 	}
 
-	// TODO: Shorten the relative/absolute path and underline it.
-	// For content to edit, remove it from the display?
+	isError := false
 	if toolResult, ok := result.(message.ToolResultBlock); ok && toolResult.IsError {
-		onDelta(fmt.Sprintf("[red::]\u2717 %s failed[-]\n\n", name))
-	} else {
-		onDelta(fmt.Sprintf("[green::]\u2713 %s %s[-]\n\n", name, input))
+		isError = true
 	}
+	onDelta(FormatToolResultMessage(name, input, isError))
 
 	return result
+}
+
+func FormatToolResultMessage(name string, input json.RawMessage, isError bool) string {
+	var detail string
+
+	switch name {
+	case tools.ToolNameReadFile:
+		i, err := schema.DecodeRaw[tools.ReadFileInput](input)
+		if err == nil {
+			detail = i.Path
+		}
+		return ui.FormatToolResult(ui.ToolResultFormat{Name: "Read", Detail: detail, IsError: isError})
+
+	case tools.ToolNameEditFile:
+		i, err := schema.DecodeRaw[tools.EditFileInput](input)
+		if err == nil {
+			detail = i.Path
+		}
+		return ui.FormatToolResult(ui.ToolResultFormat{Name: "Edit", Detail: detail, IsError: isError})
+
+	case tools.ToolNameListFiles:
+		i, err := schema.DecodeRaw[tools.ListFilesInput](input)
+		if err == nil {
+			detail = i.Path
+		}
+		return ui.FormatListFilesToolResult(ui.ToolResultFormat{Name: "List", Detail: detail, IsError: isError})
+
+	case tools.ToolNameBash:
+		i, err := schema.DecodeRaw[tools.BashInput](input)
+		if err == nil {
+			detail = i.Command
+		}
+		return ui.FormatToolResult(ui.ToolResultFormat{Name: "Bash", Detail: detail, IsError: isError})
+
+	case tools.ToolNameFinder:
+		i, err := schema.DecodeRaw[tools.FinderInput](input)
+		if err == nil {
+			detail = i.Query
+		}
+		return ui.FormatToolResult(ui.ToolResultFormat{Name: "Finder", Detail: detail, IsError: isError})
+
+	case tools.ToolNameGrepSearch:
+		i, err := schema.DecodeRaw[tools.GrepSearchInput](input)
+		if err == nil {
+			detail = i.Pattern
+		}
+		return ui.FormatToolResult(ui.ToolResultFormat{Name: "Grep", Detail: detail, IsError: isError})
+
+	case tools.ToolNamePlanRead, tools.ToolNamePlanWrite:
+		return ui.FormatToolResult(ui.ToolResultFormat{Name: "Plan", IsError: isError})
+
+	default:
+		return ui.FormatToolResult(ui.ToolResultFormat{Name: name, IsError: isError})
+	}
 }
 
 func (a *Agent) executeMCPTool(id, name string, input json.RawMessage, toolDetails mcp.ToolDetails) message.ContentBlock {
@@ -298,9 +351,7 @@ func (a *Agent) runSubagent(id, name, toolDescription string, rawInput json.RawM
 	// The OG input from the user gets processed by the main agent
 	// and the subagent will consume the processed input.
 	// This is for the maybe future of task delegation
-	var input struct {
-		Query string `json:"query"`
-	}
+	var input tools.FinderInput
 
 	err := json.Unmarshal(rawInput, &input)
 	if err != nil {
@@ -349,3 +400,4 @@ func (a *Agent) streamResponse(ctx context.Context, onDelta func(string)) (*mess
 
 	return msg, nil
 }
+
