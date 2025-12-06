@@ -178,7 +178,7 @@ func FormatToolResultMessage(name string, input json.RawMessage, isError bool) s
 		if err == nil {
 			detail = i.Path
 		}
-		return ui.FormatToolResult(ui.ToolResultFormat{Name: "List", Detail: detail, IsError: isError})
+		return ui.FormatListFilesToolResult(ui.ToolResultFormat{Name: "List", Detail: detail, IsError: isError})
 
 	case tools.ToolNameBash:
 		i, err := schema.DecodeRaw[tools.BashInput](input)
@@ -400,3 +400,4 @@ func (a *Agent) streamResponse(ctx context.Context, onDelta func(string)) (*mess
 
 	return msg, nil
 }
+

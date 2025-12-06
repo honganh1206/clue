@@ -7,6 +7,7 @@ import (
 const (
 	SuccessSymbol = "✓"
 	ErrorSymbol   = "✗"
+	FolderSymbol  = "🖿"
 )
 
 type ToolResultFormat struct {
@@ -26,5 +27,18 @@ func FormatToolResult(f ToolResultFormat) string {
 	if f.Detail != "" {
 		return fmt.Sprintf("[green]%s [white::-]%s [blue]%s[white::-]\n\n", SuccessSymbol, f.Name, f.Detail)
 	}
+
 	return fmt.Sprintf("[green]%s [white::-]%s\n\n", SuccessSymbol, f.Name)
 }
+
+func FormatListFilesToolResult(f ToolResultFormat) string {
+	if f.IsError {
+		if f.Detail != "" {
+			return fmt.Sprintf("[red]%s [white::-]%s [blue]%s[white::-]\n\n", ErrorSymbol, FolderSymbol, f.Detail)
+		}
+		return fmt.Sprintf("[red]%s [white::-]%s\n\n", ErrorSymbol, FolderSymbol)
+	}
+
+	return fmt.Sprintf("[green]%s [white::-]%s\n\n", SuccessSymbol, FolderSymbol)
+}
+

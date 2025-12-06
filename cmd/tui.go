@@ -357,3 +357,4 @@ func startSpinner(app *tview.Application, ctx context.Context, spinner *ui.Spinn
 
 	return stop
 }
+
