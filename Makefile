@@ -13,7 +13,7 @@ all: test build
 build: 
 	$(GOBUILD) -o $(BIN_DIR)/$(BINARY_NAME) -v
 test: 
-	$(GOTEST) -v ./...
+	$(GOTEST) ./...
 coverage:
 	$(GOTEST) ./... -coverprofile=coverage.out
 	$(GOTOOL) cover -html=coverage.out

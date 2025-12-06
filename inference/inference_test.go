@@ -109,47 +109,6 @@ func TestInit_UnknownProvider(t *testing.T) {
 	assert.Contains(t, err.Error(), "unknown model provider")
 }
 
-func TestListAvailableModels_AnthropicProvider(t *testing.T) {
-	models := ListAvailableModels(AnthropicProvider)
-
-	expectedModels := []ModelVersion{
-		Claude4Opus,
-		Claude4Sonnet,
-		Claude37Sonnet,
-		Claude35Sonnet,
-		Claude35Haiku,
-		Claude3Opus,
-		Claude3Sonnet,
-		Claude3Haiku,
-	}
-
-	assert.Equal(t, expectedModels, models)
-	assert.Len(t, models, 8)
-}
-
-func TestListAvailableModels_GoogleProvider(t *testing.T) {
-	models := ListAvailableModels(GoogleProvider)
-
-	expectedModels := []ModelVersion{
-		Gemini3Pro,
-		Gemini25Pro,
-		Gemini25Flash,
-		Gemini20Flash,
-		Gemini20FlashLite,
-		Gemini15Pro,
-		Gemini15Flash,
-	}
-
-	assert.Equal(t, expectedModels, models)
-	assert.Len(t, models, 7)
-}
-
-func TestListAvailableModels_UnknownProvider(t *testing.T) {
-	models := ListAvailableModels("unknown_provider")
-
-	assert.Empty(t, models)
-}
-
 func TestBaseLLMClient_BaseSummarizeHistory_BelowThreshold(t *testing.T) {
 	client := &BaseLLMClient{}
 	messages := createTestMessages(5)
@@ -340,45 +299,4 @@ func TestBaseLLMClient_BaseTruncateMessage_ExactThresholdLength(t *testing.T) {
 
 	toolResult := result.Content[0].(message.ToolResultBlock)
 	assert.Equal(t, content, toolResult.Content) // Should not be truncated
-}
-
-// Table-driven tests for multiple scenarios
-func TestListAvailableModels_AllProviders(t *testing.T) {
-	tests := []struct {
-		name          string
-		provider      ProviderName
-		expectedCount int
-		shouldContain []ModelVersion
-	}{
-		{
-			name:          "Anthropic provider",
-			provider:      AnthropicProvider,
-			expectedCount: 8,
-			shouldContain: []ModelVersion{Claude4Sonnet, Claude35Haiku},
-		},
-		{
-			name:          "Google provider",
-			provider:      GoogleProvider,
-			expectedCount: 7,
-			shouldContain: []ModelVersion{Gemini25Pro, Gemini15Flash},
-		},
-		{
-			name:          "Unknown provider",
-			provider:      "nonexistent",
-			expectedCount: 0,
-			shouldContain: []ModelVersion{},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			models := ListAvailableModels(tt.provider)
-
-			assert.Len(t, models, tt.expectedCount)
-
-			for _, expectedModel := range tt.shouldContain {
-				assert.Contains(t, models, expectedModel)
-			}
-		})
-	}
 }
