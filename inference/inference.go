@@ -24,6 +24,7 @@ type LLMClient interface {
 	// ApplySlidingWindow(history []*message.Message, windowSize int) []*message.Message
 	TruncateMessage(msg *message.Message, threshold int) *message.Message
 	ProviderName() string
+	ModelName() string
 	ToNativeHistory(history []*message.Message) error
 	ToNativeMessage(msg *message.Message) error
 	ToNativeTools(tools []*tools.ToolDefinition) error

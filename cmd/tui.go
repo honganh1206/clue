@@ -16,9 +16,11 @@ import (
 	"github.com/honganh1206/tinker/message"
 	"github.com/honganh1206/tinker/server/data"
 	"github.com/honganh1206/tinker/ui"
-	"github.com/honganh1206/tinker/utils"
 	"github.com/rivo/tview"
 )
+
+//go:embed logo.txt
+var logo string
 
 func tui(ctx context.Context, agent *agent.Agent, ctl *ui.Controller) error {
 	ctx, cancel := context.WithCancel(ctx)
@@ -35,15 +37,16 @@ func tui(ctx context.Context, agent *agent.Agent, ctl *ui.Controller) error {
 
 	isFirstInput := len(agent.Conv.Messages) == 0
 	if isFirstInput {
-		conversationView.SetTextAlign(tview.AlignCenter)
-		displayWelcomeMessage(conversationView)
+		conversationView.SetTextAlign(tview.AlignLeft)
+		fmt.Fprintf(conversationView, "%s\n", formatWelcomeMessage())
 	} else {
 		displayConversationHistory(conversationView, agent.Conv)
 	}
 	relPath := displayRelativePath()
 
 	questionInput := tview.NewTextArea()
-	questionInput.SetTitle("[blue]Enter to send (ESC to focus conversation)").
+	model := fmt.Sprintf("[yellow] Model: %s ", agent.LLM.ModelName())
+	questionInput.SetTitle(model).
 		SetTitleAlign(tview.AlignLeft).
 		SetBorder(true).
 		SetDrawFunc(renderRelativePath(relPath))
@@ -179,24 +182,17 @@ func formatMessage(msg *message.Message, nextMsg *message.Message) string {
 }
 
 func formatWelcomeMessage() string {
-	return utils.RenderBox(
-		fmt.Sprintf("Tinker v%s", Version),
-		[]string{
-			"Thank you for using Tinker!",
-			"",
-			"Feel free to make a contribution - this app is open source",
-			"",
-			"Press Ctrl+C to exit",
-		},
-	)
-}
+	var result strings.Builder
 
-func displayWelcomeMessage(conversationView *tview.TextView) {
-	// Add vertical padding to center the info box
-	// This creates empty lines before the content
-	fmt.Fprintf(conversationView, "\n\n\n\n\n\n\n\n")
+	result.WriteString("[green]\n")
+	result.WriteString(logo)
+	result.WriteString("[-]\n")
+	result.WriteString(fmt.Sprintf("\t[white::b]v%s[-]\n\n", Version))
+	result.WriteString("\t[white]Thank you for using Tinker![-]\n")
+	result.WriteString("\t[white::]Feel free to make a contribution - this app is open source[-]\n\n")
+	result.WriteString("\t[dim::]Press Ctrl+C to exit[-]")
 
-	fmt.Fprintf(conversationView, "%s\n", formatWelcomeMessage())
+	return result.String()
 }
 
 func displayConversationHistory(conversationView *tview.TextView, conv *data.Conversation) {
@@ -357,4 +353,3 @@ func startSpinner(app *tview.Application, ctx context.Context, spinner *ui.Spinn
 
 	return stop
 }
-

@@ -23,8 +23,8 @@ clean:
 	$(GOCLEAN)
 	rm -f $(BIN_DIR)/$(BINARY_NAME)
 	rm -f $(BIN_DIR)/$(BINARY_UNIX)
-# run:
-# 	$(GORUN) 
+run:
+	$(GORUN) ./main.go
 
 # Cross compilation
 build-linux:

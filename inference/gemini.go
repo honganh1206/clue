@@ -32,6 +32,7 @@ func NewGeminiClient(client *genai.Client, model ModelVersion, maxTokens int64) 
 	return &GeminiClient{
 		BaseLLMClient: BaseLLMClient{
 			Provider: GoogleModelName,
+			Model:    string(model),
 		},
 		client:       client,
 		model:        model,
@@ -42,6 +43,10 @@ func NewGeminiClient(client *genai.Client, model ModelVersion, maxTokens int64) 
 
 func (c *GeminiClient) ProviderName() string {
 	return c.BaseLLMClient.Provider
+}
+
+func (c *GeminiClient) ModelName() string {
+	return c.BaseLLMClient.Model
 }
 
 func getGeminiModelName(model ModelVersion) string {
@@ -342,4 +347,3 @@ func toGeminiFunctionDeclaration(tool *tools.ToolDefinition) (*genai.FunctionDec
 
 	return functionDecl, nil
 }
-

@@ -27,6 +27,7 @@ func NewAnthropicClient(client *anthropic.Client, model ModelVersion, maxTokens 
 	return &AnthropicClient{
 		BaseLLMClient: BaseLLMClient{
 			Provider: AnthropicModelName,
+			Model:    string(model),
 		},
 		client:       client,
 		model:        model,
@@ -38,6 +39,10 @@ func NewAnthropicClient(client *anthropic.Client, model ModelVersion, maxTokens 
 
 func (c *AnthropicClient) ProviderName() string {
 	return c.BaseLLMClient.Provider
+}
+
+func (c *AnthropicClient) ModelName() string {
+	return c.BaseLLMClient.Model
 }
 
 func (c *AnthropicClient) SummarizeHistory(history []*message.Message, threshold int) []*message.Message {
