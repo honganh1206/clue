@@ -41,7 +41,7 @@ esac
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-VERSION=$(cat "$PROJECT_ROOT/VERSION" 2>/dev/null || echo "0.2.4")
+VERSION=$(cat "$PROJECT_ROOT/VERSION" 2>/dev/null)
 BASE_URL="https://github.com/honganh1206/tinker/releases/download"
 DOWNLOAD_URL="${BASE_URL}/${VERSION}/tinker_${VERSION}_${OS}_${ARCH}"
 
